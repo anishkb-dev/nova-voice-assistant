@@ -79,7 +79,7 @@ try:
     line("ok" if ins else "bad", "input devices", ", ".join(n for _, n in ins) or "none")
     idx = next((i for i, n in ins if "macbook" in n.lower() or "built-in" in n.lower()),
                ins[0][0] if ins else None)
-    _jarvis_up = subprocess.run(["pgrep", "-f", "jarvis_app.py"], capture_output=True).returncode == 0
+    _jarvis_up = subprocess.run(["pgrep", "-f", "nova_app.py"], capture_output=True).returncode == 0
     if _jarvis_up:                                # don't grab the mic out from under a running JARVIS
         line("warn", "capture level", "skipped — JARVIS is holding the mic. Stop it first to level-test.")
     elif idx is not None:
@@ -148,7 +148,7 @@ line("ok" if os.path.exists(os.path.join(AI, "owner_face.npy")) else "warn", "ow
 
 # ---------- running process + recent errors ----------
 head("JARVIS process")
-pids = subprocess.run(["pgrep", "-f", "jarvis_app.py"], capture_output=True, text=True).stdout.split()
+pids = subprocess.run(["pgrep", "-f", "nova_app.py"], capture_output=True, text=True).stdout.split()
 line("ok" if pids else "warn", "process", "running (pid %s)" % pids[0] if pids else "not running")
 log = "/tmp/jarvis.log"
 if os.path.exists(log):
