@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NOVA OS - Command Interface</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Space+Mono:wght@400;700&amp;family=VT323&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+@layer base {
+  html, body { margin: 0; padding: 0; background-color: #080604; }
+  body { min-height: 100vh; }
+}
+::-webkit-scrollbar { display: none; }
+.crt-overlay {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+}
+.grid-hud {
+  background-image: radial-gradient(rgba(255, 154, 66, 0.09) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.glow-amber {
+  text-shadow: 0 0 14px rgba(255, 154, 66, 0.85), 0 0 28px rgba(255, 154, 66, 0.45);
+}
+.box-glow {
+  box-shadow: 0 0 22px rgba(255, 154, 66, 0.12), inset 0 0 18px rgba(255, 154, 66, 0.04);
+}
+.vt323-font {
+  font-family: 'VT323', monospace;
+}
+.corner-bracket {
+  position: relative;
+}
+.corner-bracket::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: -1px; width: 7px; height: 7px;
+  border-top: 2px solid #ff9a42; border-left: 2px solid #ff9a42;
+  pointer-events: none;
+}
+.corner-bracket::after {
+  content: "";
+  position: absolute;
+  bottom: -1px; right: -1px; width: 7px; height: 7px;
+  border-bottom: 2px solid #ff9a42; border-right: 2px solid #ff9a42;
+  pointer-events: none;
+}
+</style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "on-error-container": "#ffdad6",
+        "secondary-container": "#614318",
+        "surface-tint": "#ffb780",
+        "on-background": "#e9e1db",
+        "surface-variant": "#383430",
+        "on-primary-fixed": "#2f1400",
+        "primary-fixed-dim": "#ffb780",
+        "on-secondary-fixed": "#2a1800",
+        "secondary-fixed": "#ffddb5",
+        "on-error": "#690005",
+        "primary-fixed": "#ffdcc4",
+        "surface": "#161310",
+        "on-primary": "#4e2600",
+        "on-tertiary-container": "#743100",
+        "secondary-fixed-dim": "#eabf89",
+        "tertiary-fixed": "#ffdbca",
+        "surface-container-low": "#1e1b17",
+        "on-surface": "#e9e1db",
+        "on-tertiary-fixed": "#331200",
+        "surface-container": "#221f1b",
+        "on-primary-fixed-variant": "#6f3800",
+        "surface-dim": "#161310",
+        "on-primary-container": "#6c3700",
+        "tertiary": "#ffc19f",
+        "on-tertiary": "#532200",
+        "on-surface-variant": "#dbc2b1",
+        "outline": "#a38c7e",
+        "error-container": "#93000a",
+        "surface-container-lowest": "#100e0a",
+        "surface-bright": "#3d3834",
+        "secondary": "#eabf89",
+        "inverse-primary": "#924c00",
+        "outline-variant": "#554337",
+        "inverse-surface": "#e9e1db",
+        "on-secondary-fixed-variant": "#5e4116",
+        "on-tertiary-fixed-variant": "#763300",
+        "primary-container": "#ff9a42",
+        "tertiary-container": "#ff995d",
+        "primary": "#ffc193",
+        "on-secondary": "#452b02",
+        "tertiary-fixed-dim": "#ffb68e",
+        "error": "#ffb4ab",
+        "surface-container-high": "#2d2926",
+        "surface-container-highest": "#383430",
+        "inverse-on-surface": "#34302c",
+        "on-secondary-container": "#dbb17c",
+        "background": "#161310"
+      },
+      fontFamily: {
+        "display-hero": ["Space Mono"],
+        "headline-lg": ["Space Mono"],
+        "body-lg": ["JetBrains Mono"],
+        "label-caps": ["JetBrains Mono"],
+        "body-md": ["JetBrains Mono"],
+        "telemetry-micro": ["JetBrains Mono"],
+        "display-hero-mobile": ["Space Mono"],
+        "body-sm": ["JetBrains Mono"],
+        "headline-md": ["Space Mono"],
+        "headline-lg-mobile": ["Space Mono"]
+      },
+      fontSize: {
+        "display-hero": ["48px", { lineHeight: "56px", letterSpacing: "0.15em", fontWeight: "700" }],
+        "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "0.12em", fontWeight: "700" }],
+        "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "0.04em", fontWeight: "400" }],
+        "label-caps": ["11px", { lineHeight: "14px", letterSpacing: "0.2em", fontWeight: "700" }],
+        "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0.03em", fontWeight: "400" }],
+        "telemetry-micro": ["9px", { lineHeight: "12px", letterSpacing: "0.25em", fontWeight: "500" }],
+        "display-hero-mobile": ["28px", { lineHeight: "36px", letterSpacing: "0.12em", fontWeight: "700" }],
+        "body-sm": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "400" }],
+        "headline-md": ["20px", { lineHeight: "28px", letterSpacing: "0.1em", fontWeight: "700" }],
+        "headline-lg-mobile": ["22px", { lineHeight: "28px", letterSpacing: "0.1em", fontWeight: "700" }]
+      }
+    }
+  }
+};
+</script>
+</head>
+<body class="bg-[#080604] font-body-md text-on-surface relative min-h-screen selection:bg-primary-container selection:text-on-primary antialiased">
+<!-- Atmospheric layers -->
+<div class="fixed inset-0 crt-overlay z-50 pointer-events-none opacity-30"></div>
+<div class="fixed inset-0 grid-hud pointer-events-none z-0 opacity-15"></div>
+<!-- Outer Screen Framing Reticle -->
+<div class="fixed inset-3 pointer-events-none z-40 border border-primary-container/20 box-glow">
+<div class="absolute -top-[1px] -left-[1px] w-5 h-5 border-t-2 border-l-2 border-primary-container"></div>
+<div class="absolute -top-[1px] -right-[1px] w-5 h-5 border-t-2 border-r-2 border-primary-container"></div>
+<div class="absolute -bottom-[1px] -left-[1px] w-5 h-5 border-b-2 border-l-2 border-primary-container"></div>
+<div class="absolute -bottom-[1px] -right-[1px] w-5 h-5 border-b-2 border-r-2 border-primary-container"></div>
+<div class="absolute top-2 left-6 text-primary font-telemetry-micro text-telemetry-micro tracking-widest opacity-60">COORD // 37.7749° N, 122.4194° W</div>
+<div class="absolute top-2 right-6 text-primary font-telemetry-micro text-telemetry-micro tracking-widest opacity-60">ARC-REACTOR // 98.4% STABLE</div>
+</div>
+<!-- ==================== CLEAN HOLOGRAPHIC HEADER ==================== -->
+<header class="relative z-40 w-full pt-5 pb-3 px-6 md:px-10 border-b border-primary-container/30 bg-[#0e0b08]/85 backdrop-blur-md">
+<div class="max-w-[1720px] mx-auto flex items-center justify-between">
+<!-- Left: Brand / System Online -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2.5 px-3.5 py-1.5 bg-surface-container-low/80 border border-primary-container/30 rounded">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-container opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-container"></span>
+</span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">NOVA OS 2.1</span>
+<span class="text-outline font-telemetry-micro text-telemetry-micro">·</span>
+<span class="font-label-caps text-label-caps text-primary-fixed">ONLINE</span>
+</div>
+<div class="hidden lg:flex items-center gap-1 opacity-70">
+<span class="w-1 h-3 bg-primary-container"></span>
+<span class="w-1 h-3 bg-primary-container"></span>
+<span class="w-1 h-3 bg-primary-container"></span>
+<span class="w-1 h-3 bg-primary-container/40"></span>
+<span class="w-1 h-3 bg-primary-container/20"></span>
+</div>
+</div>
+<!-- Center: NOVA Title -->
+<div class="text-center flex flex-col items-center justify-center">
+<div class="vt323-font text-5xl md:text-6xl leading-none text-primary-container tracking-wider glow-amber">NOVA</div>
+<div class="font-label-caps text-[10px] tracking-[0.28em] text-secondary font-bold -mt-0.5 opacity-90">NETWORKED OMNI-ROOM VOICE ASSISTANT</div>
+</div>
+<!-- Right: Clean Time, Date & Profile -->
+<div class="flex items-center gap-4">
+<div class="flex flex-col text-right">
+<span class="font-headline-md text-headline-md leading-none text-primary glow-amber vt323-font tracking-widest text-2xl">04:42:19</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface-variant tracking-widest mt-1">SYS.DATE // 2025.10.24</span>
+</div>
+<div class="w-9 h-9 rounded-full bg-primary-container/20 flex items-center justify-center border border-primary-container/50 shadow-[0_0_10px_rgba(255,154,66,0.3)]">
+<span class="material-symbols-outlined text-primary text-[20px]">person</span>
+</div>
+</div>
+</div>
+</header>
+<!-- ==================== MAIN SPACIOUS COMMAND DECK ==================== -->
+<main class="relative z-10 w-full px-6 md:px-10 py-8">
+<div class="max-w-[1720px] mx-auto">
+<!-- BALANCED 3-COLUMN LAYOUT WITH AMPLE BREATHING ROOM -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
+<!-- ==================== LEFT COLUMN: SYSTEM TELEMETRY & PERFORMANCE (3 COLS) ==================== -->
+<div class="lg:col-span-3 flex flex-col gap-5">
+<!-- SYSTEM DIAGNOSTICS / VITALS -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">DIAGNOSTICS // Vitals</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-primary/70">SYS.ID: NV-990</span>
+</div>
+<div class="flex flex-col items-center py-2">
+<div class="relative w-40 h-40 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90 transform" viewbox="0 0 120 120">
+<circle class="text-primary-container/15" cx="60" cy="60" fill="none" r="50" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary-container/30" cx="60" cy="60" fill="none" r="50" stroke="currentColor" stroke-dasharray="3 7" stroke-width="4"></circle>
+<circle class="drop-shadow-[0_0_10px_rgba(255,154,66,0.9)]" cx="60" cy="60" fill="none" r="50" stroke="#ff9a42" stroke-dasharray="314" stroke-dashoffset="0" stroke-width="5.5"></circle>
+<circle cx="60" cy="60" fill="none" opacity="0.6" r="41" stroke="#ffd29a" stroke-dasharray="1 5" stroke-width="1"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+<span class="vt323-font text-5xl leading-none text-primary-container glow-amber font-bold">100%</span>
+<span class="font-label-caps text-[10px] tracking-widest text-secondary font-bold -mt-1">INTEGRITY</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-2 w-full mt-3 pt-3 border-t border-primary-container/20 text-center">
+<div class="bg-surface-container-low/70 p-1.5 rounded border border-primary-container/20">
+<div class="font-telemetry-micro text-[8px] text-outline tracking-wider">CORE TEMP</div>
+<div class="vt323-font text-xl leading-none text-primary mt-1">42.4°C</div>
+</div>
+<div class="bg-surface-container-low/70 p-1.5 rounded border border-primary-container/20">
+<div class="font-telemetry-micro text-[8px] text-outline tracking-wider">VOLTAGE</div>
+<div class="vt323-font text-xl leading-none text-primary mt-1">12.4 V</div>
+</div>
+<div class="bg-surface-container-low/70 p-1.5 rounded border border-primary-container/20">
+<div class="font-telemetry-micro text-[8px] text-outline tracking-wider">STATUS</div>
+<div class="vt323-font text-xl leading-none text-secondary mt-1">NOMINAL</div>
+</div>
+</div>
+</div>
+</div>
+<!-- CPU MULTI-THREAD -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">CPU // MULTI-THREAD</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-secondary-fixed">OCTA-CORE ARCH</span>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Core 1 -->
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">CORE 01 [PRIMARY]</span>
+<span class="text-primary font-bold">34%</span>
+</div>
+<div class="flex gap-1">
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+</div>
+</div>
+<!-- Core 2 -->
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">CORE 02 [NEURAL FLUX]</span>
+<span class="text-primary font-bold">78%</span>
+</div>
+<div class="flex gap-1">
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+</div>
+</div>
+<!-- Core 3 -->
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">CORE 03 [AUDIO MATRIX]</span>
+<span class="text-primary font-bold">12%</span>
+</div>
+<div class="flex gap-1">
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+</div>
+</div>
+<!-- Core 4 -->
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">CORE 04 [RC TELEM]</span>
+<span class="text-primary font-bold">51%</span>
+</div>
+<div class="flex gap-1">
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+<span class="h-2 flex-1 bg-primary-container/20"></span>
+</div>
+</div>
+</div>
+</div>
+<!-- MEMORY // VOLATILE -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">MEMORY // VOLATILE</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-outline">DDR5 ECC</span>
+</div>
+<div class="space-y-3">
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">RAM ALLOCATED</span>
+<span class="text-primary font-bold">6.4 GB / 16.0 GB (40%)</span>
+</div>
+<div class="w-full bg-surface-container-high h-2.5 rounded-sm overflow-hidden flex p-[1px]">
+<div class="bg-primary-container h-full w-[40%] shadow-[0_0_8px_rgba(255,154,66,0.9)]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">SWAP BUFFER</span>
+<span class="text-primary font-bold">1.2 GB / 8.0 GB (15%)</span>
+</div>
+<div class="w-full bg-surface-container-high h-2.5 rounded-sm overflow-hidden flex p-[1px]">
+<div class="bg-primary-fixed-dim h-full w-[15%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- NETWORK // PACKET STREAM -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-2">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">NETWORK STATUS</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-secondary font-bold">PING: 12ms</span>
+</div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro py-1.5 border-b border-primary-container/10">
+<span class="text-on-surface-variant">▲ UPLINK: <span class="text-primary font-bold">48.2 MB/s</span></span>
+<span class="text-on-surface-variant">▼ DOWNLINK: <span class="text-primary-container font-bold">124.8 MB/s</span></span>
+</div>
+<div class="h-20 w-full mt-2 relative overflow-hidden bg-surface-container-low/50 rounded border border-primary-container/20 flex items-center">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 200 60">
+<defs>
+<lineargradient id="netGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#ff9a42" stop-opacity="0.35"></stop>
+<stop offset="100%" stop-color="#ff9a42" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<line stroke="rgba(255,154,66,0.12)" stroke-dasharray="2 4" x1="0" x2="200" y1="15" y2="15"></line>
+<line stroke="rgba(255,154,66,0.12)" stroke-dasharray="2 4" x1="0" x2="200" y1="30" y2="30"></line>
+<line stroke="rgba(255,154,66,0.12)" stroke-dasharray="2 4" x1="0" x2="200" y1="45" y2="45"></line>
+<polygon fill="url(#netGrad)" points="0,60 0,35 15,30 30,45 45,20 60,38 75,12 90,28 105,35 120,18 135,25 150,8 165,30 180,22 195,15 200,20 200,60"></polygon>
+<polyline class="drop-shadow-[0_0_6px_rgba(255,154,66,0.9)]" fill="none" points="0,35 15,30 30,45 45,20 60,38 75,12 90,28 105,35 120,18 135,25 150,8 165,30 180,22 195,15 200,20" stroke="#ff9a42" stroke-width="2"></polyline>
+</svg>
+</div>
+</div>
+</div>
+<!-- ==================== CENTER COLUMN: HERO ARC REACTOR & VOICE ASSISTANT (6 COLS) ==================== -->
+<div class="lg:col-span-6 flex flex-col gap-5 items-center">
+<!-- PROMINENT ARC REACTOR ENCLOSURE -->
+<div class="relative w-full bg-[#0e0b08]/95 backdrop-blur-md p-6 lg:p-8 border border-primary-container/40 rounded flex flex-col items-center justify-center shadow-[0_0_30px_rgba(255,154,66,0.16)] overflow-hidden">
+<!-- Reticle Corner Accents -->
+<div class="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-primary-container"></div>
+<div class="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-primary-container"></div>
+<div class="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-primary-container"></div>
+<div class="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-primary-container"></div>
+<!-- CENTRAL MULTI-RING ARC REACTOR VISUALIZATION -->
+<div class="relative my-4 w-72 h-72 sm:w-88 sm:h-88 md:w-[410px] md:h-[410px] flex items-center justify-center">
+<div class="absolute w-64 h-64 rounded-full bg-primary-container/15 blur-3xl animate-pulse pointer-events-none"></div>
+<svg class="w-full h-full" viewbox="0 0 400 400">
+<defs>
+<radialgradient cx="50%" cy="50%" id="reactorCoreGlow" r="50%">
+<stop offset="0%" stop-color="#ffffff"></stop>
+<stop offset="30%" stop-color="#ffd29a"></stop>
+<stop offset="65%" stop-color="#ff9a42" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#ff9a42" stop-opacity="0"></stop>
+</radialgradient>
+<filter id="glow">
+<fegaussianblur result="coloredBlur" stddeviation="3.5"></fegaussianblur>
+<femerge>
+<femergenode in="coloredBlur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+</defs>
+<!-- Outermost Static Calibration Ring -->
+<circle cx="200" cy="200" fill="none" opacity="0.3" r="185" stroke="#ff9a42" stroke-width="1"></circle>
+<circle cx="200" cy="200" fill="none" opacity="0.5" r="180" stroke="#ff9a42" stroke-dasharray="2 16.8" stroke-width="3"></circle>
+<!-- Radial Degree Markers -->
+<text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="8" letter-spacing="1" text-anchor="middle" x="200" y="14">000°</text>
+<text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="8" letter-spacing="1" text-anchor="middle" x="388" y="203">090°</text>
+<text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="8" letter-spacing="1" text-anchor="middle" x="200" y="394">180°</text>
+<text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="8" letter-spacing="1" text-anchor="middle" x="14" y="203">270°</text>
+<!-- Outer Spinning Ring -->
+<g class="animate-[spin_40s_linear_infinite] origin-center">
+<circle cx="200" cy="200" fill="none" filter="url(#glow)" opacity="0.75" r="160" stroke="#ff9a42" stroke-dasharray="45 15 15 15" stroke-width="5"></circle>
+<circle cx="200" cy="200" fill="none" opacity="0.5" r="150" stroke="#ffb780" stroke-dasharray="8 6" stroke-width="1.5"></circle>
+</g>
+<!-- Orbiting Nodes Ring -->
+<g class="animate-[spin_25s_linear_infinite_reverse] origin-center">
+<circle cx="200" cy="200" fill="none" opacity="0.65" r="132" stroke="#ffd29a" stroke-dasharray="60 30 10 30" stroke-width="2.5"></circle>
+<circle cx="200" cy="68" fill="#ffffff" filter="url(#glow)" r="4"></circle>
+<circle cx="200" cy="332" fill="#ffffff" filter="url(#glow)" r="4"></circle>
+<circle cx="68" cy="200" fill="#ff9a42" filter="url(#glow)" r="3.5"></circle>
+<circle cx="332" cy="200" fill="#ff9a42" filter="url(#glow)" r="3.5"></circle>
+</g>
+<!-- Mid Concentric Ring -->
+<g class="animate-[spin_12s_linear_infinite] origin-center">
+<circle cx="200" cy="200" fill="none" filter="url(#glow)" r="105" stroke="#ff9a42" stroke-dasharray="25 8 5 8" stroke-width="4"></circle>
+<circle cx="200" cy="200" fill="none" opacity="0.7" r="95" stroke="#ffdcc4" stroke-dasharray="3 3" stroke-width="1"></circle>
+</g>
+<!-- Inner Reticle & Pointer Glyphs -->
+<g class="animate-[spin_18s_linear_infinite_reverse] origin-center" opacity="0.85">
+<path d="M 200,120 L 208,135 L 192,135 Z" fill="#ff9a42"></path>
+<path d="M 130,240 L 145,248 L 138,232 Z" fill="#ff9a42"></path>
+<path d="M 270,240 L 262,232 L 255,248 Z" fill="#ff9a42"></path>
+<circle cx="200" cy="200" fill="none" filter="url(#glow)" r="78" stroke="#ff9a42" stroke-dasharray="70 20" stroke-width="3"></circle>
+</g>
+<circle class="animate-pulse" cx="200" cy="200" fill="none" r="56" stroke="#ffd29a" stroke-dasharray="12 4" stroke-width="2"></circle>
+<circle class="animate-ping opacity-75 origin-center" cx="200" cy="200" fill="url(#reactorCoreGlow)" r="42" style="animation-duration: 3s;"></circle>
+<circle cx="200" cy="200" fill="url(#reactorCoreGlow)" r="36"></circle>
+<circle cx="200" cy="200" fill="#ffffff" filter="url(#glow)" r="18"></circle>
+<line stroke="#080604" stroke-width="1.5" x1="165" x2="235" y1="200" y2="200"></line>
+<line stroke="#080604" stroke-width="1.5" x1="200" x2="200" y1="165" y2="235"></line>
+</svg>
+<!-- Centered Floating Stability Tag -->
+<div class="absolute bottom-1 font-telemetry-micro text-[11px] tracking-widest text-primary glow-amber bg-surface-container-lowest/90 px-3 py-1 rounded border border-primary-container/40">
+              STABLE // 98.4%
+            </div>
+</div>
+<!-- REACTOR STATUS BAR: 24 SEGMENTED LED STRIPS -->
+<div class="w-full flex flex-col items-center gap-2 pt-4 border-t border-primary-container/25">
+<div class="flex items-center justify-between w-full font-label-caps text-label-caps text-primary tracking-widest">
+<span class="flex items-center gap-2">
+<span class="w-2 h-2 bg-primary-container inline-block shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+                ALL SYSTEMS OPERATIONAL
+              </span>
+<span class="font-telemetry-micro text-telemetry-micro text-secondary">24/24 NODES FIRING</span>
+</div>
+<div class="grid grid-cols-12 sm:grid-cols-24 gap-1 w-full py-1">
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.9)]"></span>
+<span class="h-3 bg-secondary-fixed shadow-[0_0_8px_rgba(255,221,181,0.9)]"></span>
+<span class="h-3 bg-secondary-fixed shadow-[0_0_8px_rgba(255,221,181,0.9)]"></span>
+</div>
+</div>
+</div>
+<!-- VOICE SYNTHESIS & AURAL SENSORS -->
+<div class="w-full bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container text-base animate-pulse">graphic_eq</span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">VOICE SYNTHESIS // AURAL SENSORS</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="inline-block w-2 h-2 rounded-full bg-primary-container animate-ping"></span>
+<span class="font-telemetry-micro text-telemetry-micro text-primary-fixed">LISTENING...</span>
+</div>
+</div>
+<!-- Dynamic Frequency Spectrum Bars -->
+<div class="flex items-end justify-between gap-1.5 h-16 px-4 py-2 bg-surface-container-low/40 rounded border border-primary-container/20">
+<span class="w-1.5 bg-primary-container h-[40%] animate-pulse"></span>
+<span class="w-1.5 bg-primary-container h-[70%] animate-pulse" style="animation-delay: 0.1s;"></span>
+<span class="w-1.5 bg-primary-container h-[95%] animate-pulse" style="animation-delay: 0.2s;"></span>
+<span class="w-1.5 bg-primary-container h-[60%] animate-pulse" style="animation-delay: 0.15s;"></span>
+<span class="w-1.5 bg-primary-container h-[30%] animate-pulse" style="animation-delay: 0.3s;"></span>
+<span class="w-1.5 bg-primary-container h-[85%] animate-pulse" style="animation-delay: 0.05s;"></span>
+<span class="w-1.5 bg-primary-container h-[100%] animate-pulse" style="animation-delay: 0.25s;"></span>
+<span class="w-1.5 bg-primary-container h-[75%] animate-pulse" style="animation-delay: 0.4s;"></span>
+<span class="w-1.5 bg-primary-container h-[45%] animate-pulse" style="animation-delay: 0.1s;"></span>
+<span class="w-1.5 bg-primary-container h-[90%] animate-pulse" style="animation-delay: 0.35s;"></span>
+<span class="w-1.5 bg-primary-container h-[65%] animate-pulse" style="animation-delay: 0.2s;"></span>
+<span class="w-1.5 bg-primary-container h-[35%] animate-pulse" style="animation-delay: 0.5s;"></span>
+<span class="w-1.5 bg-primary-container h-[80%] animate-pulse" style="animation-delay: 0.15s;"></span>
+<span class="w-1.5 bg-primary-container h-[92%] animate-pulse" style="animation-delay: 0.3s;"></span>
+<span class="w-1.5 bg-primary-container h-[55%] animate-pulse" style="animation-delay: 0.05s;"></span>
+<span class="w-1.5 bg-primary-container h-[25%] animate-pulse" style="animation-delay: 0.45s;"></span>
+<span class="w-1.5 bg-primary-container h-[70%] animate-pulse" style="animation-delay: 0.1s;"></span>
+<span class="w-1.5 bg-primary-container h-[85%] animate-pulse" style="animation-delay: 0.25s;"></span>
+<span class="w-1.5 bg-primary-container h-[40%] animate-pulse" style="animation-delay: 0.35s;"></span>
+<span class="w-1.5 bg-primary-container h-[60%] animate-pulse" style="animation-delay: 0.2s;"></span>
+</div>
+<!-- Terminal Prompt Transcript Simulation -->
+<div class="mt-3 flex items-center justify-between bg-surface-container-high/60 px-4 py-2 rounded border border-primary-container/20">
+<div class="flex items-center gap-2 font-body-sm text-body-sm text-primary">
+<span class="text-primary-container font-bold">//_</span>
+<span>"NOVA, execute perimeter reconnaissance with Crawler MK-IV"</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-outline tracking-wider">[PROCESSED 99.4%]</span>
+</div>
+</div>
+</div>
+<!-- ==================== RIGHT COLUMN: ROBOTICS, IOT & HABITAT (3 COLS) ==================== -->
+<div class="lg:col-span-3 flex flex-col gap-5">
+<!-- RC ROCK-CRAWLER MK-IV TELEMETRY PANEL -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-2">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">RC CRAWLER // MK-IV</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-primary bg-primary-container/20 px-2 py-0.5 rounded border border-primary-container/30 font-bold">LINKED</span>
+</div>
+<!-- 3D-Isometric RC Rock-Crawler Schematic SVG -->
+<div class="relative w-full h-36 bg-surface-container-low/40 rounded border border-primary-container/20 my-2 flex items-center justify-center overflow-hidden">
+<svg class="w-full h-full p-2 holo-crawler-rotate" viewbox="0 0 280 180">
+<ellipse cx="140" cy="140" fill="none" opacity="0.4" rx="100" ry="25" stroke="#ff9a42" stroke-dasharray="4 4" stroke-width="1.5"></ellipse>
+<ellipse cx="140" cy="140" fill="none" opacity="0.6" rx="70" ry="17" stroke="#ffb780" stroke-dasharray="2 6" stroke-width="1"></ellipse>
+<line stroke="rgba(255,154,66,0.2)" stroke-dasharray="1 3" x1="40" x2="240" y1="140" y2="140"></line>
+<line stroke="rgba(255,154,66,0.2)" stroke-dasharray="1 3" x1="140" x2="140" y1="115" y2="165"></line>
+<!-- Front-Left Wheel -->
+<g>
+<rect fill="#161310" height="42" rx="6" stroke="#ff9a42" stroke-width="2" width="26" x="55" y="115"></rect>
+<path d="M 57,122 L 68,127 L 79,122" fill="none" stroke="#ff9a42" stroke-width="1"></path>
+<path d="M 57,132 L 68,137 L 79,132" fill="none" stroke="#ff9a42" stroke-width="1"></path>
+<path d="M 57,142 L 68,147 L 79,142" fill="none" stroke="#ff9a42" stroke-width="1"></path>
+<circle cx="68" cy="136" fill="#ff9a42" r="4"></circle>
+</g>
+<!-- Rear-Left Wheel -->
+<g>
+<rect fill="#161310" height="42" rx="6" stroke="#ff9a42" stroke-width="2" width="26" x="195" y="115"></rect>
+<path d="M 197,122 L 208,127 L 219,122" fill="none" stroke="#ff9a42" stroke-width="1"></path>
+<path d="M 197,132 L 208,137 L 219,132" fill="none" stroke="#ff9a42" stroke-width="1"></path>
+<path d="M 197,142 L 208,147 L 219,142" fill="none" stroke="#ff9a42" stroke-width="1"></path>
+<circle cx="208" cy="136" fill="#ff9a42" r="4"></circle>
+</g>
+<!-- Offset Wheels -->
+<rect fill="#161310" height="34" opacity="0.6" rx="4" stroke="#ff9a42" stroke-width="1" width="20" x="75" y="85"></rect>
+<rect fill="#161310" height="34" opacity="0.6" rx="4" stroke="#ff9a42" stroke-width="1" width="20" x="180" y="85"></rect>
+<!-- Axles -->
+<line stroke="#ffd29a" stroke-width="2" x1="68" x2="110" y1="136" y2="105"></line>
+<line stroke="#ffd29a" stroke-width="2" x1="208" x2="165" y1="136" y2="105"></line>
+<!-- Shocks -->
+<path d="M 78,130 L 82,126 L 86,130 L 90,126 L 94,130 L 100,118" fill="none" stroke="#ff9a42" stroke-width="1.5"></path>
+<path d="M 198,130 L 194,126 L 190,130 L 186,126 L 182,130 L 176,118" fill="none" stroke="#ff9a42" stroke-width="1.5"></path>
+<!-- Skid Plate -->
+<polygon fill="#2d2926" points="105,108 175,108 165,124 115,124" stroke="#ff9a42" stroke-width="1.5"></polygon>
+<!-- Exo Roll Cage -->
+<polygon fill="rgba(255,154,66,0.12)" points="95,95 185,95 165,58 115,58" stroke="#ff9a42" stroke-width="2"></polygon>
+<line stroke="#ff9a42" stroke-width="1.5" x1="115" x2="105" y1="58" y2="108"></line>
+<line stroke="#ff9a42" stroke-width="1.5" x1="165" x2="175" y1="58" y2="108"></line>
+<line stroke="#ff9a42" stroke-dasharray="2 2" stroke-width="1" x1="140" x2="140" y1="58" y2="108"></line>
+<!-- Roof Lights -->
+<rect fill="#100e0a" height="6" rx="1" stroke="#ffd29a" stroke-width="1" width="44" x="118" y="52"></rect>
+<circle cx="124" cy="55" fill="#ffffff" r="1.5"></circle>
+<circle cx="132" cy="55" fill="#ffffff" r="1.5"></circle>
+<circle cx="148" cy="55" fill="#ffffff" r="1.5"></circle>
+<circle cx="156" cy="55" fill="#ffffff" r="1.5"></circle>
+<!-- Antenna -->
+<line stroke="#ff9a42" stroke-width="1.5" x1="172" x2="190" y1="58" y2="25"></line>
+<circle cx="190" cy="25" fill="#ffd29a" r="2"></circle>
+<path d="M 194,22 A 6 6 0 0 1 198,28" fill="none" opacity="0.8" stroke="#ffd29a" stroke-width="1"></path>
+<!-- ESP32 Module -->
+<rect fill="none" height="15" stroke="#ffffff" stroke-dasharray="1 2" stroke-width="0.8" width="20" x="130" y="85"></rect>
+<text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="6" text-anchor="middle" x="140" y="95">ESP32</text>
+</svg>
+</div>
+<!-- Subsystem Telemetry List -->
+<div class="space-y-1.5 font-telemetry-micro text-telemetry-micro border-t border-primary-container/20 pt-2.5">
+<div class="flex justify-between">
+<span class="text-on-surface-variant">MOTORS ×4 (540 BRUSHED)</span>
+<span class="text-primary font-bold">1,240 RPM [NOMINAL]</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant">STEERING SERVO</span>
+<span class="text-primary font-bold">0.0° TRIM [ACTIVE]</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant">WIRELESS TELEM LINK</span>
+<span class="text-secondary font-bold">-48 dBm RSSI [100%]</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant">L298N DUAL H-BRIDGE</span>
+<span class="text-primary font-bold">38°C [THERMAL PASS]</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant">LIPO MAIN PACK</span>
+<span class="text-primary-container font-bold">85% · 11.8V (3S)</span>
+</div>
+</div>
+<!-- Drive Control Sliders & Modes -->
+<div class="mt-3 pt-2.5 border-t border-primary-container/20">
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-primary tracking-wider">THROTTLE BIAS</span>
+<span class="text-primary font-bold">65% FORWARD</span>
+</div>
+<div class="w-full bg-surface-container-high h-2.5 rounded-sm overflow-hidden flex">
+<div class="bg-primary-container h-full w-[65%] shadow-[0_0_6px_rgba(255,154,66,0.8)]"></div>
+</div>
+<div class="flex items-center justify-between mt-2.5 gap-1.5">
+<button class="flex-1 py-1.5 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.5)] text-center transition-all">
+                CRAWL / LOW
+              </button>
+<button class="flex-1 py-1.5 bg-surface-container-high text-on-surface-variant hover:text-on-surface font-label-caps text-[9px] rounded text-center border border-primary-container/20 transition-all">
+                SPORT / HIGH
+              </button>
+<button class="flex-1 py-1.5 bg-surface-container-high text-on-surface-variant hover:text-on-surface font-label-caps text-[9px] rounded text-center border border-primary-container/20 transition-all">
+                AUTO WAYPOINT
+              </button>
+</div>
+</div>
+</div>
+<!-- HABITAT // IOT APPLIANCES SWITCHBOARD -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">HABITAT // IOT APPLIANCES</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-outline">Z-WAVE / BLE</span>
+</div>
+<div class="space-y-2">
+<!-- Living Main Light -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container text-base">lightbulb</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface tracking-wider">LIVING MAIN LIGHT</span>
+</div>
+<button class="px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer">
+                ON [100%]
+              </button>
+</div>
+<!-- Ceiling Fan -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base">mode_fan</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface tracking-wider">CEILING FAN</span>
+</div>
+<button class="px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer">
+                ON [SPD 3]
+              </button>
+</div>
+<!-- Lab Power Bus -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base">power</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface tracking-wider">LAB POWER BUS</span>
+</div>
+<button class="px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer">
+                ON [ARMED]
+              </button>
+</div>
+<!-- Dual HVAC / AC -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-base">ac_unit</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface-variant tracking-wider">DUAL HVAC / AC</span>
+</div>
+<button class="px-2.5 py-1 bg-surface-container-high text-outline font-label-caps text-[9px] rounded font-bold cursor-pointer border border-primary-container/20">
+                OFF [STBY]
+              </button>
+</div>
+</div>
+</div>
+<!-- AMBIENT ENVIRONMENT SENSORS (Only Temp & Humidity) -->
+<div class="bg-[#0e0b08]/90 backdrop-blur-md p-5 border border-primary-container/30 rounded corner-bracket shadow-[0_0_18px_rgba(255,154,66,0.08)]">
+<div class="flex items-center justify-between border-b border-primary-container/20 pb-2 mb-3">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-3.5 bg-primary-container"></span>
+<span class="font-label-caps text-label-caps text-primary tracking-widest">ENVIRONMENT // HABITAT</span>
+</div>
+<span class="font-telemetry-micro text-telemetry-micro text-primary">SECTOR 01</span>
+</div>
+<div class="space-y-3">
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">TEMP</span>
+<span class="text-primary font-bold">30°C</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary-container h-full w-[60%] shadow-[0_0_6px_rgba(255,154,66,0.8)]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">HUMIDITY</span>
+<span class="text-primary font-bold">57%</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[57%]"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+/* ===== Nova bridge: wires the Stitch design to Python (no markup edits) ===== */
+(function(){"use strict";
+function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+function api(m,a){try{var A=window.pywebview&&window.pywebview.api;if(A&&A[m])return a!==undefined?A[m](a):A[m]();}catch(e){}return Promise.reject();}
+function byText(sel,txt){var e=document.querySelectorAll(sel);for(var i=0;i<e.length;i++)if(e[i].textContent.trim()===txt)return e[i];return null;}
+function panelOf(t){var s=byText("span",t);return s?s.closest(".rounded"):null;}
+var busy=false;
+
+/* ---- ROOM CONTROLS (real hardware via api.chat) ---- */
+var roomBtn={};
+[["LIVING MAIN LIGHT","light"],["CEILING FAN","fan"],["LAB POWER BUS","plug"],["DUAL HVAC / AC","ac"]].forEach(function(p){
+  var lbl=byText("span",p[0]);if(!lbl)return;var row=lbl.closest("div").parentElement;var btn=row&&row.querySelector("button");if(!btn)return;
+  var dev=p[1],on=/\bON\b/i.test(btn.textContent);
+  function paint(v){on=v;btn.textContent=on?"ON":"OFF";
+    btn.className=on?"px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer"
+                    :"px-2.5 py-1 bg-surface-container-high text-outline font-label-caps text-[9px] rounded font-bold cursor-pointer border border-primary-container/20";}
+  roomBtn[dev]={set:paint};
+  btn.addEventListener("click",function(){paint(!on);api("chat",dev+" "+(on?"on":"off"));});
+});
+
+/* ---- panels to bind ---- */
+var envP=panelOf("ENVIRONMENT // HABITAT"),cpuP=panelOf("CPU // MULTI-THREAD"),memP=panelOf("MEMORY // VOLATILE");
+var tV,tB,hV,hB;
+if(envP){var er=envP.querySelectorAll(".space-y-3 > div");if(er[0]){tV=er[0].querySelector(".font-bold");tB=er[0].querySelector(".h-full");}if(er[1]){hV=er[1].querySelector(".font-bold");hB=er[1].querySelector(".h-full");}}
+var coreV=cpuP?[].slice.call(cpuP.querySelectorAll(".text-primary.font-bold")):[];
+var coreB=cpuP?[].slice.call(cpuP.querySelectorAll(".flex.gap-1")):[];
+var ramV,ramB,swV,swB;
+if(memP){var mr=memP.querySelectorAll(".space-y-3 > div");if(mr[0]){ramV=mr[0].querySelector(".font-bold");ramB=mr[0].querySelector(".h-full");}if(mr[1]){swV=mr[1].querySelector(".font-bold");swB=mr[1].querySelector(".h-full");}}
+function fillSeg(bar,pct){var n=bar.children.length,f=Math.round(pct/100*n);for(var i=0;i<n;i++)bar.children[i].className="h-2 flex-1 "+(i<f?"bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]":"bg-primary-container/20");}
+
+/* ---- voice status + command bar (injected) ---- */
+var voice=byText("span","LISTENING...");
+function setState(s){var m={standby:"LISTENING…",thinking:"PROCESSING…",speaking:"RESPONDING",listening:"LISTENING…"}[s]||"ONLINE";if(voice)voice.textContent=m;var st=document.getElementById("nv-stop");if(st)st.style.display=(s==="speaking"||s==="thinking")?"inline-block":"none";}
+function stopSpeak(){api("stop_speaking");busy=false;setState("standby");}
+var log=document.createElement("div");
+log.style.cssText="position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:60;width:min(760px,92vw);max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-family:'VT323',monospace;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,transparent,#000 25%)";
+document.body.appendChild(log);
+function addMsg(cls,html){var m=document.createElement("div");
+  m.style.cssText="font-size:16px;line-height:1.35;padding:5px 12px;max-width:82%;"+(cls==="me"?"align-self:flex-end;border:1px solid rgba(255,154,66,.3);color:#ffdcbb;background:rgba(255,154,66,.06)":"align-self:flex-start;border-left:2px solid #ff9a42;color:#c9a98f;background:rgba(255,154,66,.04)");
+  m.innerHTML=html;log.appendChild(m);while(log.children.length>6)log.removeChild(log.firstChild);log.scrollTop=1e9;}
+var bar=document.createElement("div");
+bar.style.cssText="position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:61;display:flex;align-items:center;gap:12px;width:min(760px,92vw);background:rgba(14,11,8,.94);border:1px solid rgba(255,154,66,.35);border-radius:8px;padding:8px 14px;box-shadow:0 0 22px rgba(255,154,66,.12);font-family:'VT323',monospace";
+bar.innerHTML='<span style="color:#ffd29a;font-size:15px;letter-spacing:.12em">◉ NOVA</span><input id="nv-cmd" autocomplete="off" placeholder=\'ENTER COMMAND OR SAY &quot;NOVA&quot;…\' style="flex:1;background:transparent;border:0;outline:0;color:#ffdcbb;font-family:VT323,monospace;font-size:20px;text-transform:uppercase;letter-spacing:.5px"><span id="nv-vol" style="color:#c07a38;font-size:15px;letter-spacing:.06em;min-width:56px;text-align:right">VOL 0</span><button id="nv-stop" title="Stop Nova (Esc)" style="display:none;font-family:VT323,monospace;font-size:16px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;border:1px solid #ff6b5a;background:rgba(255,107,90,.12);color:#ff6b5a;padding:6px 14px">■ Stop</button><button id="nv-send" style="font-family:VT323,monospace;font-size:16px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;border:1px solid #ff9a42;background:rgba(255,154,66,.12);color:#ff9a42;padding:6px 18px">Execute ▷</button>';
+document.body.appendChild(bar);
+function submit(){var inp=document.getElementById("nv-cmd"),t=inp.value.trim();if(!t||busy)return;inp.value="";addMsg("me",esc(t));busy=true;setState("thinking");
+  api("chat",t).then(function(r){addMsg("nova",'<b style="color:#ff9a42">NOVA</b> '+esc(r&&r.reply||"…"));setState("speaking");setTimeout(function(){if(!busy)setState("standby");},2600);busy=false;
+  }).catch(function(){addMsg("nova",'<b style="color:#ff9a42">NOVA</b> A fault occurred, sir.');setState("standby");busy=false;});}
+document.getElementById("nv-send").addEventListener("click",submit);
+document.getElementById("nv-cmd").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submit();}});
+/* stop-talking: Stop button, click the reactor, or Esc */
+var _st=document.getElementById("nv-stop");if(_st)_st.addEventListener("click",stopSpeak);
+var _rg=document.getElementById("reactorCoreGlow"),_reactor=_rg?_rg.closest("svg"):null;
+if(_reactor){var _rc=_reactor.parentElement||_reactor;_rc.style.cursor="pointer";_rc.title="Click to stop Nova speaking";_rc.addEventListener("click",stopSpeak);}
+document.addEventListener("keydown",function(e){if(e.key==="Escape")stopSpeak();});
+
+/* ---- Python -> JS bridge ---- */
+window.setCoreState=function(s){setState(s);};
+window.jarvisSay=function(t){addMsg("nova",'<b style="color:#ff9a42">NOVA</b> '+esc(t));setState("speaking");setTimeout(function(){if(!busy)setState("standby");},3200);};
+window.jarvisVolume=function(v,muted){var e=document.getElementById("nv-vol");if(e)e.textContent=muted?"MUTE":"VOL "+Math.round(v);};
+window.jarvisMicReset=function(){if(voice)voice.textContent="MIC OFFLINE";};
+
+/* ---- live stats poll ---- */
+function poll(){api("stats").then(function(s){if(!s)return;
+  (s.cores||[]).forEach(function(c,i){if(coreV[i])coreV[i].textContent=c+"%";if(coreB[i])fillSeg(coreB[i],c);});
+  if(ramV)ramV.textContent=(s.mem_gb!=null?s.mem_gb+" GB / "+s.mem_tot+".0 GB ("+s.mem+"%)":s.mem+"%");if(ramB)ramB.style.width=(s.mem||0)+"%";
+  if(swV)swV.textContent=s.swap+"%";if(swB)swB.style.width=(s.swap||0)+"%";
+  var io=s.iot||{};
+  if(io.fresh&&io.temp!=null){if(tV)tV.textContent=(+io.temp).toFixed(1)+"°C";if(tB)tB.style.width=Math.min(100,io.temp/40*100)+"%";
+    if(hV)hV.textContent=(io.humidity!=null?io.humidity:"--")+"%";if(hB)hB.style.width=(io.humidity||0)+"%";}
+  ["light","fan","plug"].forEach(function(d){if(io[d]!=null&&roomBtn[d])roomBtn[d].set(io[d]==="on"||io[d]===true||io[d]===1);});
+}).catch(function(){});}
+function start(){setState("standby");poll();setInterval(poll,1600);}
+if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);
+setTimeout(function(){if(!(window.pywebview&&window.pywebview.api))setState("standby");},2000);
+})();
+/* ===== rotating 3D wireframe rock-crawler (replaces the flat SVG) ===== */
+(function(){var svg=document.querySelector(".holo-crawler-rotate");if(!svg)return;
+  var cv=document.createElement("canvas");cv.width=300;cv.height=200;cv.style.cssText="width:100%;height:100%;display:block";
+  svg.parentNode.replaceChild(cv,svg);
+  var x=cv.getContext("2d"),CX=150,CY=112,SC=1.12,tilt=0.36,t=0;
+  function tf(p,ay){var X=p[0],Y=p[1],Z=p[2],cy=Math.cos(ay),sy=Math.sin(ay),x1=X*cy+Z*sy,z1=-X*sy+Z*cy,cx=Math.cos(tilt),sx=Math.sin(tilt),y1=Y*cx-z1*sx,z2=Y*sx+z1*cx;return [CX+x1*SC,CY-y1*SC,z2];}
+  function edge(a,b,ay,base){var p=tf(a,ay),q=tf(b,ay),zc=(p[2]+q[2])/2,al=(base||.7)*(0.4+0.6*(zc+95)/190);al=Math.max(.1,Math.min(1,al));x.strokeStyle="rgba(255,162,80,"+al+")";x.beginPath();x.moveTo(p[0],p[1]);x.lineTo(q[0],q[1]);x.stroke();}
+  function box(x0,x1,y0,y1,z0,z1,ay,b){var v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){edge(v[e[0]],v[e[1]],ay,b);});}
+  function wheel(wx,wy,wz,R,ay){var N=16,w=7,i,a,prev;for(var s=0;s<2;s++){var zf=wz+(s?w:-w);prev=null;for(i=0;i<=N;i++){a=i/N*2*Math.PI;var pt=[wx+Math.cos(a)*R,wy+Math.sin(a)*R,zf];if(prev)edge(prev,pt,ay,.85);prev=pt;}}for(i=0;i<N;i+=2){a=i/N*2*Math.PI;edge([wx+Math.cos(a)*R,wy+Math.sin(a)*R,wz-w],[wx+Math.cos(a)*R,wy+Math.sin(a)*R,wz+w],ay,.5);}prev=null;for(i=0;i<=N;i++){a=i/N*2*Math.PI;var q=[wx+Math.cos(a)*R*.42,wy+Math.sin(a)*R*.42,wz+w];if(prev)edge(prev,q,ay,.7);prev=q;}}
+  function base(ay){for(var s=0;s<2;s++){var R=s?60:74,prev=null;for(var i=0;i<=48;i++){var a=i/48*2*Math.PI,pt=[Math.cos(a)*R,-30,Math.sin(a)*R];if(prev)edge(prev,pt,ay,.26);prev=pt;}}for(var j=0;j<24;j++){var aa=j/24*2*Math.PI;edge([Math.cos(aa)*62,-30,Math.sin(aa)*62],[Math.cos(aa)*74,-30,Math.sin(aa)*74],ay,.28);}}
+  (function d(){t+=.006;var ay=t;x.clearRect(0,0,300,200);x.save();x.lineWidth=1.15;x.shadowColor="rgba(255,150,70,.55)";x.shadowBlur=5;
+    base(ay*.5);box(-46,46,-8,8,-22,22,ay,.85);box(-40,40,-15,-9,-16,16,ay,.5);box(-20,26,8,30,-16,16,ay,.78);
+    edge([-20,30,-16],[26,30,16],ay,.4);edge([26,30,-16],[-20,30,16],ay,.4);edge([26,30,0],[26,55,0],ay,.85);
+    var ap=tf([26,55,0],ay);x.fillStyle="#ffd7a0";x.beginPath();x.arc(ap[0],ap[1],2.4,0,7);x.fill();
+    wheel(-30,-14,-24,17,ay);wheel(30,-14,-24,17,ay);wheel(-30,-14,24,17,ay);wheel(30,-14,24,17,ay);x.restore();requestAnimationFrame(d);})();
+})();
+/* ===== fit everything to one screen (no scrolling) ===== */
+(function(){var header=document.querySelector("header"),main=document.querySelector("main");if(!header||!main)return;
+  var sc=document.createElement("div");sc.id="nv-scaler";sc.style.cssText="transform-origin:top center;width:100%";
+  document.body.insertBefore(sc,header);sc.appendChild(header);sc.appendChild(main);
+  function fit(){sc.style.transform="none";var h=sc.scrollHeight,w=sc.scrollWidth,vh=window.innerHeight,vw=window.innerWidth;
+    var s=Math.min(1,(vh-4)/h,vw/w);sc.style.transform="scale("+s+")";
+    var d=document.documentElement,b=document.body;d.style.height=b.style.height="100vh";d.style.overflow=b.style.overflow="hidden";b.style.minHeight="0";}
+  fit();window.addEventListener("resize",fit);[150,500,1200,2500].forEach(function(t){setTimeout(fit,t);});})();
+</script>
+</body></html>

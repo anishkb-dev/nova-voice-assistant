@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """NOVA desktop app — native window (pywebview) over the local `jarvis` model.
-Reuses the tools from ~/anish-ai/jarvis.py. Run:  python3 ~/anish-ai/app/jarvis_app.py"""
+Reuses the tools from ~/anish-ai/nova.py. Run:  python3 ~/anish-ai/app/jarvis_app.py"""
 import os, sys, json, re, time, threading, asyncio, subprocess, webview, psutil
 try:
     import edge_tts  # in-process neural TTS (no CLI spawn = ~1.3s less lag)
@@ -68,10 +68,10 @@ PERSONA = (
 )
 
 sys.path.insert(0, os.path.expanduser("~/anish-ai"))
-import jarvis  # reuse MODEL, TOOLS, FUNCS (get_datetime, open_app, search_web, play_music, stop_music)
+import nova  # reuse MODEL, TOOLS, FUNCS (get_datetime, open_app, search_web, play_music, stop_music)
 import ollama
 
-HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nova_stitch.html")  # Stitch HUD, wired (index.html / index_reactor.html kept as backups)
 
 
 class Api:
@@ -105,11 +105,11 @@ class Api:
         self.vprofile = self._load_vprofile()   # learns your voice timing + vocabulary over time
         self._last_cmd_at = 0
         try:
-            print(jarvis.gesture_control("start"), flush=True)  # always-on: raise open palm to control volume
+            print(nova.gesture_control("start"), flush=True)  # always-on: raise open palm to control volume
         except Exception as e:
             print("[gesture] autostart failed:", e, flush=True)
         import atexit
-        atexit.register(lambda: jarvis.gesture_control("stop"))  # release camera when Jarvis exits
+        atexit.register(lambda: nova.gesture_control("stop"))  # release camera when Jarvis exits
 
     # ---------- cross-session memory ----------
     MEM_PATH = os.path.expanduser("~/anish-ai/memory.json")
@@ -624,7 +624,7 @@ class Api:
         who = None
         gesture_was_on = False
         try:
-            gesture_was_on = jarvis.gesture_control("stop").startswith("Gesture control off")  # free the Lapcare
+            gesture_was_on = nova.gesture_control("stop").startswith("Gesture control off")  # free the Lapcare
             time.sleep(1.2)                              # let the camera actually release
         except Exception:
             pass
@@ -635,7 +635,7 @@ class Api:
             print("[face] error: %s" % str(e)[:70], flush=True)
         if gesture_was_on:
             try:
-                jarvis.gesture_control("start")          # hand the camera back to gesture control
+                nova.gesture_control("start")          # hand the camera back to gesture control
             except Exception:
                 pass
         if who is False:                                  # positively NOT you -> stay quiet
@@ -811,7 +811,7 @@ class Api:
         wants_stop = re.search(r"\b(stop|pause|halt|silence|quiet|shut up|enough|turn it off)\b", low)
         mpv_on = subprocess.run(["pgrep", "-x", "mpv"], capture_output=True).returncode == 0
         if wants_stop and (mpv_on or "music" in low or "song" in low or "playing" in low):
-            jarvis.FUNCS["stop_music"]()
+            nova.FUNCS["stop_music"]()
             reply = "Music stopped, sir."
             self.messages += [{"role": "user", "content": user},
                               {"role": "assistant", "content": reply}]
@@ -825,7 +825,7 @@ class Api:
             return {"reply": reply, "activity": [act]}
         words = low.strip(" .?!").split()
         if re.search(r"\bwhat('?s| is)?\s+(the\s+)?time\b|\btime is it\b", low):
-            return _instant(jarvis.FUNCS["get_datetime"](), "get_datetime()")
+            return _instant(nova.FUNCS["get_datetime"](), "get_datetime()")
         # AC: fire the IR deterministically (it's a stateless one-way remote) so the model can't
         # decide it's "already on" and skip the tool. AC mention OR a room-temperature set -> act now.
         _temp_set = (re.search(r"\b(temp(erature)?|degrees?)\b", low) and re.search(r"\b(1[6-9]|2\d|30)\b", low)
@@ -846,9 +846,9 @@ class Api:
             elif re.search(r"\b(on|start)\b|switch\s+on|turn\s+on|\bcool\b|\bheat\b", low):
                 acmd = "on" if not mode else None
                 if acmd is None and mode:
-                    jarvis.FUNCS["ac"]("mode " + mode.group(1)); acmd = "on"
+                    nova.FUNCS["ac"]("mode " + mode.group(1)); acmd = "on"
             if acmd:
-                return _instant(jarvis.FUNCS["ac"](acmd), "ac(%s)" % acmd)
+                return _instant(nova.FUNCS["ac"](acmd), "ac(%s)" % acmd)
         # light / fan / plug: fire the relay deterministically so the model can't skip the tool (and
         # handle natural phrasing — "light up the room", "kill the lights", "it's too dark").
         _dev = ("light" if re.search(r"\blights?\b|\blamp\b|\bbulb\b", low)
@@ -858,37 +858,37 @@ class Api:
             _act = ("off" if re.search(r"\b(off|kill)\b|switch\s+off|turn\s+off|too\s+bright", low)
                     else "on" if re.search(r"\b(on|dark|bright(en)?)\b|switch\s+on|turn\s+on|light\s+up", low) else None)
             if _act:
-                return _instant(jarvis.FUNCS["iot_control"](_dev, _act), "iot_control(%s,%s)" % (_dev, _act))
+                return _instant(nova.FUNCS["iot_control"](_dev, _act), "iot_control(%s,%s)" % (_dev, _act))
         m = re.match(r"^(?:hey\s+)?(?:jarvis[ ,]+)?(?:please\s+)?(?:open|launch|start up|start)\s+(?:the\s+|my\s+)?(.+)$", low)
         if m and len(words) <= 5 and not re.search(r"\b(and|then|door|file|up the|tell|what|why|how)\b", m.group(1)):
             app = m.group(1).strip(" .?!")
-            return _instant(jarvis.FUNCS["open_app"](app), "open_app(%s)" % app)
+            return _instant(nova.FUNCS["open_app"](app), "open_app(%s)" % app)
 
         # CODE: delegate coding tasks to the Claude Code agent (voice -> `claude -p`). Ack, then run.
         if (re.search(r"\b(write|build|make|create|code|fix|refactor|debug|generate)\b", low)
                 and re.search(r"\b(script|program|code|function|app|website|web ?site|bug|scraper|"
                               r"cli|api|python|javascript|java|c\+\+|html|css|snippet|automation)\b", low)):
             self.speak("On it, sir — coding that now. One moment.")
-            return _instant(jarvis.FUNCS["code"](user), "code(...)")
+            return _instant(nova.FUNCS["code"](user), "code(...)")
 
         # DESIGN: generate a self-contained HTML design and open it (poster/page/flyer/card).
         if re.search(r"\b(design|poster|flyer|banner|brochure|infographic|mock ?up|landing page|"
                      r"web ?page|invitation|menu card)\b", low):
             self.speak("Designing that now, sir — one moment.")
-            return _instant(jarvis.FUNCS["design"](user), "design(...)")
+            return _instant(nova.FUNCS["design"](user), "design(...)")
 
         # DEEP REASON: hard questions go to the strongest reasoning brain, not the fast chat model.
         if re.search(r"\b(think (hard|deeply|carefully|it through)|reason (through|about|it out)|"
                      r"explain in depth|deep[- ]?dive|work (it|this) out|analys?e this|figure out)\b", low):
             self.speak("Let me think that through, sir.")
-            return _instant(jarvis.FUNCS["think"](user), "think(...)")
+            return _instant(nova.FUNCS["think"](user), "think(...)")
 
         # SCREEN VISION: look at the SCREEN (never the webcam) and answer. Respects the no-camera rule.
         if re.search(r"\b(on (my|the) screen|read (this|the screen)|look at (my|the) screen|"
                      r"describe (this|the screen)|what('?s| is) (this|on (my|the) screen)|"
                      r"what does (this|the) (error|chart|graph|code|message|screen))\b", low):
             self.speak("Looking at your screen, sir.")
-            return _instant(jarvis.FUNCS["look"](user), "look(...)")
+            return _instant(nova.FUNCS["look"](user), "look(...)")
 
         self.messages.append({"role": "user", "content": user})
         self.messages = self.messages[-20:]              # cap history
@@ -962,7 +962,7 @@ class Api:
         msgs = [{"role": "system", "content": self._persona()}] + self._hist()
         activity = []
         for _ in range(6):
-            m = ollama.chat(model="jarvis", messages=msgs, tools=jarvis.TOOLS)["message"]
+            m = ollama.chat(model="jarvis", messages=msgs, tools=nova.TOOLS)["message"]
             calls = m.get("tool_calls") or []
             if not calls:
                 return m.get("content", "") or "", activity
@@ -992,7 +992,7 @@ class Api:
             for attempt in range(retries):
                 try:
                     return client.chat.completions.create(model=model, messages=msgs,
-                                                          tools=jarvis.TOOLS, temperature=0.6,
+                                                          tools=nova.TOOLS, temperature=0.6,
                                                           extra_body=extra)
                 except Exception as e:
                     code = getattr(e, "status_code", None)
@@ -1028,7 +1028,7 @@ class Api:
         client = anthropic.Anthropic(api_key=api_key, timeout=30)
         tools = [{"name": t["function"]["name"], "description": t["function"]["description"],
                   "input_schema": t["function"].get("parameters", {"type": "object", "properties": {}})}
-                 for t in jarvis.TOOLS]
+                 for t in nova.TOOLS]
         msgs = self._hist(6)               # only recent turns -> fewer input tokens
         while msgs and msgs[0]["role"] != "user":
             msgs.pop(0)
@@ -1092,7 +1092,7 @@ class Api:
         if fn == "run_command":
             cmd = args.get("command", "")
             if self.DANGER_RE.search(cmd):        # only confirm destructive/sensitive commands
-                prompt = "J.A.R.V.I.S. wants to run a potentially dangerous command:\n\n" + cmd + "\n\nAllow?"
+                prompt = "Nova wants to run a potentially dangerous command:\n\n" + cmd + "\n\nAllow?"
                 try:
                     ok = webview.windows[0].evaluate_js("window.confirm(" + json.dumps(prompt) + ")")
                 except Exception:
@@ -1105,7 +1105,7 @@ class Api:
             return self.remember(args.get("fact", ""))
         if fn in ("send_imessage", "send_whatsapp"):   # outbound message to a person -> always confirm
             how = "an iMessage" if fn == "send_imessage" else "a WhatsApp message"
-            prompt = ("J.A.R.V.I.S. wants to send %s to %s:\n\n%s\n\nSend it?"
+            prompt = ("Nova wants to send %s to %s:\n\n%s\n\nSend it?"
                       % (how, args.get("to", "?"), args.get("message", "")))
             try:
                 ok = webview.windows[0].evaluate_js("window.confirm(" + json.dumps(prompt) + ")")
@@ -1113,7 +1113,7 @@ class Api:
                 ok = False
             if not ok:
                 return "The user cancelled sending the message."
-        f = jarvis.FUNCS.get(fn)
+        f = nova.FUNCS.get(fn)
         return f(**args) if f else f"Unknown tool: {fn}"
 
     def _persona(self):
@@ -1285,14 +1285,14 @@ def main():
     # single-instance lock via a local file lock (no network port -> nothing listening to attack)
     import fcntl
     global _LOCK_FH
-    _LOCK_FH = open(os.path.expanduser("~/anish-ai/.jarvis.lock"), "w")
+    _LOCK_FH = open(os.path.expanduser("~/anish-ai/.nova.lock"), "w")
     try:
         fcntl.flock(_LOCK_FH, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         print("[jarvis] another instance is already running — exiting", flush=True)
         return
     api = Api()
-    webview.create_window("J.A.R.V.I.S.", url=HTML, js_api=api,
+    webview.create_window("Nova", url=HTML, js_api=api,
                           width=1120, height=740, min_size=(900, 600),
                           background_color="#020608")
 

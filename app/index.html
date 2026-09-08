@@ -10,7 +10,7 @@
   /* motion tokens (see design.md) */
   :root{--ease-out:cubic-bezier(.22,1,.36,1);--ease-io:cubic-bezier(.65,0,.35,1);
     --t-fast:180ms;--t:260ms}
-  body{background:#02060b;color:#00e5ff;overflow:hidden;margin:0;height:100vh;width:100vw;position:relative;
+  body{background:#0b0503;color:#ff8c3c;overflow:hidden;margin:0;height:100vh;width:100vw;position:relative;
     font-family:"JetBrains Mono",monospace}
 
   /* choreographed entrance — enters fast→slow, staggered in reading order */
@@ -30,18 +30,18 @@
     *{animation-duration:.001s!important;transition-duration:.001s!important}
   }
   #bg{position:fixed;inset:0;z-index:0}
-  .scanlines{position:fixed;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,229,255,.03) 50%,rgba(0,229,255,.03));
+  .scanlines{position:fixed;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(255,140,60,.03) 50%,rgba(255,140,60,.03));
     background-size:100% 4px;z-index:50;pointer-events:none;opacity:.7}
-  .tactical-panel{background:rgba(12,14,18,.72);border:1px solid rgba(0,229,255,.4);position:relative;
+  .tactical-panel{background:rgba(12,14,18,.72);border:1px solid rgba(255,140,60,.4);position:relative;
     clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px);backdrop-filter:blur(3px)}
-  .tb{position:absolute;width:22px;height:22px;border-color:#00e5ff;z-index:10}
+  .tb{position:absolute;width:22px;height:22px;border-color:#ff8c3c;z-index:10}
   .tl{top:0;left:0;border-top:2px solid;border-left:2px solid}.tr{top:0;right:0;border-top:2px solid;border-right:2px solid}
   .bl{bottom:0;left:0;border-bottom:2px solid;border-left:2px solid}.br{bottom:0;right:0;border-bottom:2px solid;border-right:2px solid}
   .shard{clip-path:polygon(0 0,calc(100% - 6px) 0,100% 100%,0 100%)}
-  .crosshair::before{content:'';position:absolute;top:50%;left:0;width:100%;height:1px;background:rgba(0,229,255,.25)}
-  .crosshair::after{content:'';position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(0,229,255,.25)}
+  .crosshair::before{content:'';position:absolute;top:50%;left:0;width:100%;height:1px;background:rgba(255,140,60,.25)}
+  .crosshair::after{content:'';position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(255,140,60,.25)}
   .pulse{animation:pl 1.5s infinite steps(2,end)}@keyframes pl{0%,100%{opacity:1}50%{opacity:.3}}
-  #mic-eq .eqbar{width:3px;height:100%;background:#38ffa8;transform-origin:bottom;transform:scaleY(.1);opacity:.5;border-radius:1px;transition:transform .06s linear,opacity .18s,background .2s}
+  #mic-eq .eqbar{width:3px;height:100%;background:#ffb454;transform-origin:bottom;transform:scaleY(.1);opacity:.5;border-radius:1px;transition:transform .06s linear,opacity .18s,background .2s}
   #mic-eq.on .eqbar{opacity:1}                 /* your voice detected */
   #mic-eq.busy .eqbar{background:#ffb020}       /* Jarvis thinking/speaking */
   .lbl{font-family:"JetBrains Mono";font-size:11px;letter-spacing:.2em;font-weight:700}
@@ -52,22 +52,22 @@
   ::-webkit-scrollbar{width:0}
   .msg{max-width:80%;font-size:13px;line-height:1.5;padding:8px 13px;white-space:pre-wrap;
     animation:enter var(--t) var(--ease-out)}
-  .me{align-self:flex-end;background:rgba(0,229,255,.13);border:1px solid rgba(0,229,255,.4);color:#c3f5ff}
-  .jv{align-self:flex-start;background:rgba(0,229,255,.05);border-left:2px solid #00e5ff;color:#bfeaff}
-  .jv b{font-size:8px;letter-spacing:.3em;color:#00e5ff;display:block;margin-bottom:3px}
-  #boot{position:fixed;inset:0;z-index:80;background:#02060b;display:flex;align-items:center;justify-content:center;
+  .me{align-self:flex-end;background:rgba(255,140,60,.13);border:1px solid rgba(255,140,60,.4);color:#ffdccb}
+  .jv{align-self:flex-start;background:rgba(255,140,60,.05);border-left:2px solid #ff8c3c;color:#ffd8c6}
+  .jv b{font-size:8px;letter-spacing:.3em;color:#ff8c3c;display:block;margin-bottom:3px}
+  #boot{position:fixed;inset:0;z-index:80;background:#0b0503;display:flex;align-items:center;justify-content:center;
     flex-direction:column;transition:opacity .7s}
   #boot.gone{opacity:0;pointer-events:none}
-  #boot .bt{font-family:"Space Grotesk";font-size:28px;letter-spacing:.6em;color:var(--ice,#bff6ff);
-    text-shadow:0 0 24px #26e6ff;margin-bottom:6px;opacity:0;animation:fadein .5s var(--ease-out) forwards}
-  #boot .bt2{font-size:9px;letter-spacing:.4em;color:#4f7d8c;margin-bottom:26px;opacity:0;
+  #boot .bt{font-family:"Space Grotesk";font-size:28px;letter-spacing:.6em;color:var(--ice,#ffe2d3);
+    text-shadow:0 0 24px #ffa64f;margin-bottom:6px;opacity:0;animation:fadein .5s var(--ease-out) forwards}
+  #boot .bt2{font-size:9px;letter-spacing:.4em;color:#8c6250;margin-bottom:26px;opacity:0;
     animation:fadein .5s .2s var(--ease-out) forwards}
   #boot-log{width:min(420px,80vw);display:flex;flex-direction:column;gap:9px;font-size:11px;letter-spacing:.12em}
-  .bline{display:flex;justify-content:space-between;color:#4f7d8c;opacity:0;animation:enter .3s var(--ease-out) forwards}
-  .bline b{color:#38ffa8;text-shadow:0 0 8px rgba(56,255,168,.6)}
+  .bline{display:flex;justify-content:space-between;color:#8c6250;opacity:0;animation:enter .3s var(--ease-out) forwards}
+  .bline b{color:#ffb454;text-shadow:0 0 8px rgba(255,180,84,.6)}
   .bline.warn b{color:#ffb020;text-shadow:0 0 8px rgba(255,176,32,.6)}
-  #boot-ready{margin-top:24px;font-family:"Space Grotesk";font-size:15px;letter-spacing:.5em;color:#26e6ff;
-    text-shadow:0 0 18px #26e6ff;opacity:0}
+  #boot-ready{margin-top:24px;font-family:"Space Grotesk";font-size:15px;letter-spacing:.5em;color:#ffa64f;
+    text-shadow:0 0 18px #ffa64f;opacity:0}
   #boot-ready.show{animation:enter .5s var(--ease-out) forwards}
 </style>
 </head>
@@ -79,22 +79,22 @@
 <div id="stage" class="flex flex-col justify-between" style="width:1440px;height:900px;padding:30px;transform-origin:top left;position:relative">
 <header class="w-full flex justify-between items-start z-10 anim d1">
   <div>
-    <h1 class="disp text-[#00e5ff] font-bold" style="font-size:28px;letter-spacing:.14em">NOVA // CMD</h1>
+    <h1 class="disp text-[#ff8c3c] font-bold" style="font-size:28px;letter-spacing:.14em">NOVA // CMD</h1>
     <div class="flex gap-2 mt-1">
-      <span class="lbl text-[9px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-0.5 border border-[#00e5ff]/40">SYS.VER 2.0.4</span>
-      <span class="lbl text-[9px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-0.5 border border-[#00e5ff]/40">AUTH: OMEGA</span>
+      <span class="lbl text-[9px] text-[#ff8c3c] bg-[#ff8c3c]/10 px-2 py-0.5 border border-[#ff8c3c]/40">SYS.VER 2.0.4</span>
+      <span class="lbl text-[9px] text-[#ff8c3c] bg-[#ff8c3c]/10 px-2 py-0.5 border border-[#ff8c3c]/40">AUTH: OMEGA</span>
     </div>
   </div>
   <div class="flex flex-col items-center mt-1">
-    <div class="lbl text-[#00e5ff] flex items-center gap-6 border-b border-[#00e5ff]/40 pb-2 px-8" style="font-size:11px">
-      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#00e5ff] pulse"></span><span>CORE ONLINE</span></div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#00e5ff] pulse" style="animation-delay:.5s"></span><span>MODEL GROQ-120B</span></div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#00e5ff] pulse" style="animation-delay:.2s"></span><span>LINK SECURE</span></div>
+    <div class="lbl text-[#ff8c3c] flex items-center gap-6 border-b border-[#ff8c3c]/40 pb-2 px-8" style="font-size:11px">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#ff8c3c] pulse"></span><span>CORE ONLINE</span></div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#ff8c3c] pulse" style="animation-delay:.5s"></span><span>MODEL GROQ-120B</span></div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#ff8c3c] pulse" style="animation-delay:.2s"></span><span>LINK SECURE</span></div>
     </div>
     <div class="mt-2 flex gap-3 text-[10px] text-[#849396]/80"><span>SVPREME SYSTEMS</span><span>//</span><span>NODE ALPHA-7</span></div>
   </div>
   <div class="text-right">
-    <div class="num text-[#00e5ff] font-bold" id="clock" style="font-size:22px;letter-spacing:.1em">--:--:--</div>
+    <div class="num text-[#ff8c3c] font-bold" id="clock" style="font-size:22px;letter-spacing:.1em">--:--:--</div>
     <div class="lbl text-[9px] text-[#849396] mt-1">LOCAL TIME</div>
   </div>
 </header>
@@ -104,65 +104,65 @@
   <!-- Left: CPU -->
   <aside class="tactical-panel tilt-l anim-l d2 p-3 flex flex-col gap-2" style="height:82%;width:300px;overflow:hidden">
     <span class="tb tl"></span><span class="tb tr"></span><span class="tb bl"></span><span class="tb br"></span>
-    <div class="flex items-center justify-between border-b border-[#00e5ff]/40 pb-2">
-      <span class="lbl text-[#00e5ff]">TELEMETRY // CPU</span>
-      <span class="material-symbols-outlined text-[#00e5ff]" style="font-variation-settings:'FILL' 1">memory</span>
+    <div class="flex items-center justify-between border-b border-[#ff8c3c]/40 pb-2">
+      <span class="lbl text-[#ff8c3c]">TELEMETRY // CPU</span>
+      <span class="material-symbols-outlined text-[#ff8c3c]" style="font-variation-settings:'FILL' 1">memory</span>
     </div>
-    <div class="relative w-full flex items-center justify-center border border-[#00e5ff]/20 bg-[#00e5ff]/5" style="height:104px">
+    <div class="relative w-full flex items-center justify-center border border-[#ff8c3c]/20 bg-[#ff8c3c]/5" style="height:104px">
       <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style="animation:sp 12s linear infinite reverse">
-        <polygon fill="none" points="50,12 88,50 50,88 12,50" stroke="rgba(0,229,255,.35)" stroke-dasharray="2 4" stroke-width="1"/></svg>
+        <polygon fill="none" points="50,12 88,50 50,88 12,50" stroke="rgba(255,140,60,.35)" stroke-dasharray="2 4" stroke-width="1"/></svg>
       <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style="animation:sp 16s linear infinite">
-        <circle cx="50" cy="50" r="36" fill="none" stroke="rgba(0,229,255,.7)" stroke-dasharray="10 5" stroke-width="1.5"/></svg>
-      <div class="text-center bg-[#02060b]/80 px-4 py-2 border border-[#00e5ff]/40 z-10">
-        <div class="disp text-[#00e5ff] font-bold" style="font-size:24px" id="cpu-val">--<span style="font-size:13px">%</span></div>
+        <circle cx="50" cy="50" r="36" fill="none" stroke="rgba(255,140,60,.7)" stroke-dasharray="10 5" stroke-width="1.5"/></svg>
+      <div class="text-center bg-[#0b0503]/80 px-4 py-2 border border-[#ff8c3c]/40 z-10">
+        <div class="disp text-[#ff8c3c] font-bold" style="font-size:24px" id="cpu-val">--<span style="font-size:13px">%</span></div>
         <div class="lbl text-[10px] text-[#849396]">SYS LOAD</div></div>
     </div>
     <div class="flex flex-col gap-2 mt-1">
-      <div class="flex justify-between lbl text-[#00e5ff]"><span>CORE ARRAY</span><span class="text-[#849396]">NOMINAL</span></div>
+      <div class="flex justify-between lbl text-[#ff8c3c]"><span>CORE ARRAY</span><span class="text-[#849396]">NOMINAL</span></div>
       <div id="cores" class="flex flex-col gap-1.5"></div>
     </div>
     <!-- Network Link -->
-    <div class="border-t border-[#00e5ff]/20 pt-2 mt-1">
+    <div class="border-t border-[#ff8c3c]/20 pt-2 mt-1">
       <div class="flex items-center justify-between mb-2">
         <span class="lbl text-[10px] text-[#849396]">NETWORK LINK</span>
-        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="wifi-ico">wifi</span></div>
+        <span class="material-symbols-outlined text-[#ff8c3c]" style="font-size:16px" id="wifi-ico">wifi</span></div>
       <div class="flex items-end gap-1 h-6" id="wifi-bars"></div>
-      <div class="flex justify-between mt-1.5 num text-[10px]"><span id="wifi-ssid" class="text-[#00e5ff]">—</span><span id="wifi-sig" class="text-[#849396]">--%</span></div>
+      <div class="flex justify-between mt-1.5 num text-[10px]"><span id="wifi-ssid" class="text-[#ff8c3c]">—</span><span id="wifi-sig" class="text-[#849396]">--%</span></div>
     </div>
     <!-- Power Cell -->
-    <div class="border-t border-[#00e5ff]/20 pt-2">
+    <div class="border-t border-[#ff8c3c]/20 pt-2">
       <div class="flex items-center justify-between mb-1">
         <span class="lbl text-[10px] text-[#849396]">POWER CELL</span>
-        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="bat-ico">battery_full</span></div>
+        <span class="material-symbols-outlined text-[#ff8c3c]" style="font-size:16px" id="bat-ico">battery_full</span></div>
       <div class="flex items-center gap-2">
-        <div class="disp text-[#00e5ff] font-bold" style="font-size:17px" id="bat-val">--<span style="font-size:12px">%</span></div>
-        <div class="flex-1"><div class="h-2 bg-[#282a2e]"><div id="bat-bar" class="h-full bg-[#00e5ff]" style="width:0%"></div></div>
+        <div class="disp text-[#ff8c3c] font-bold" style="font-size:17px" id="bat-val">--<span style="font-size:12px">%</span></div>
+        <div class="flex-1"><div class="h-2 bg-[#282a2e]"><div id="bat-bar" class="h-full bg-[#ff8c3c]" style="width:0%"></div></div>
         <div class="lbl text-[9px] text-[#849396] mt-1" id="bat-state">—</div></div>
       </div>
     </div>
     <!-- Room Climate (live from the ESP32 sensor) -->
-    <div class="border-t border-[#00e5ff]/20 pt-2">
+    <div class="border-t border-[#ff8c3c]/20 pt-2">
       <div class="flex items-center justify-between mb-1">
         <span class="lbl text-[10px] text-[#849396]">ROOM CLIMATE</span>
-        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="iot-ico">thermostat</span></div>
+        <span class="material-symbols-outlined text-[#ff8c3c]" style="font-size:16px" id="iot-ico">thermostat</span></div>
       <div class="flex items-end gap-6">
-        <div><div class="disp text-[#00e5ff] font-bold" style="font-size:19px" id="iot-temp">--<span style="font-size:12px">°C</span></div>
+        <div><div class="disp text-[#ff8c3c] font-bold" style="font-size:19px" id="iot-temp">--<span style="font-size:12px">°C</span></div>
           <div class="lbl text-[9px] text-[#849396]">TEMP</div></div>
-        <div><div class="disp text-[#00e5ff] font-bold" style="font-size:19px" id="iot-hum">--<span style="font-size:12px">%</span></div>
+        <div><div class="disp text-[#ff8c3c] font-bold" style="font-size:19px" id="iot-hum">--<span style="font-size:12px">%</span></div>
           <div class="lbl text-[9px] text-[#849396]">HUMIDITY</div></div>
       </div>
       <div class="lbl text-[9px] mt-1.5" id="iot-state" style="color:#849396">● SENSOR OFFLINE</div>
     </div>
     <!-- Volume (live; moves with gesture control) -->
-    <div class="border-t border-[#00e5ff]/20 pt-2">
+    <div class="border-t border-[#ff8c3c]/20 pt-2">
       <div class="flex items-center justify-between mb-1">
         <span class="lbl text-[10px] text-[#849396]">VOLUME</span>
-        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="vol-ico">volume_up</span></div>
+        <span class="material-symbols-outlined text-[#ff8c3c]" style="font-size:16px" id="vol-ico">volume_up</span></div>
       <div class="flex items-center gap-2">
-        <div class="flex-grow rounded-full overflow-hidden" style="height:8px;background:#0a1620">
-          <div id="vol-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#00e5ff,#38ffa8);transition:width .12s linear"></div>
+        <div class="flex-grow rounded-full overflow-hidden" style="height:8px;background:#1a0d06">
+          <div id="vol-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#ff8c3c,#ffb454);transition:width .12s linear"></div>
         </div>
-        <span class="disp text-[#00e5ff] font-bold" style="font-size:16px;min-width:38px;text-align:right" id="vol-pct">0</span>
+        <span class="disp text-[#ff8c3c] font-bold" style="font-size:16px;min-width:38px;text-align:right" id="vol-pct">0</span>
       </div>
     </div>
   </aside>
@@ -171,15 +171,15 @@
   <div class="flex-grow h-full flex flex-col items-center justify-center relative anim d3">
     <div class="relative flex items-center justify-center" style="width:440px;height:440px">
       <div class="crosshair absolute inset-0"></div>
-      <div class="absolute inset-0 border border-[#00e5ff]/15 rounded-full border-dashed"></div>
+      <div class="absolute inset-0 border border-[#ff8c3c]/15 rounded-full border-dashed"></div>
       <canvas id="core" width="440" height="440" class="relative z-10" style="width:100%;height:100%"></canvas>
-      <div class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#00e5ff]/50"></div>
-      <div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-[#00e5ff]/50"></div>
-      <div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#00e5ff]/50"></div>
-      <div class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#00e5ff]/50"></div>
+      <div class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#ff8c3c]/50"></div>
+      <div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-[#ff8c3c]/50"></div>
+      <div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#ff8c3c]/50"></div>
+      <div class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#ff8c3c]/50"></div>
     </div>
-    <div class="mt-6 text-center bg-[#02060b]/80 px-6 py-2 border border-[#00e5ff]/40">
-      <div class="lbl text-[#00e5ff] pulse" id="st-lbl">STANDBY // SAY "NOVA"</div>
+    <div class="mt-6 text-center bg-[#0b0503]/80 px-6 py-2 border border-[#ff8c3c]/40">
+      <div class="lbl text-[#ff8c3c] pulse" id="st-lbl">STANDBY // SAY "NOVA"</div>
       <div id="mic-eq" class="flex items-end justify-center gap-[3px] mt-2" style="height:16px"></div>
     </div>
   </div>
@@ -187,36 +187,36 @@
   <!-- Right: Memory -->
   <aside class="tactical-panel tilt-r anim-r d2 p-4 flex flex-col gap-3" style="height:82%;width:300px">
     <span class="tb tl"></span><span class="tb tr"></span><span class="tb bl"></span><span class="tb br"></span>
-    <div class="flex items-center justify-between border-b border-[#00e5ff]/40 pb-2">
-      <span class="lbl text-[#00e5ff]">DIAGNOSTICS // MEM</span>
-      <span class="material-symbols-outlined text-[#00e5ff]" style="font-variation-settings:'FILL' 1">sensors</span>
+    <div class="flex items-center justify-between border-b border-[#ff8c3c]/40 pb-2">
+      <span class="lbl text-[#ff8c3c]">DIAGNOSTICS // MEM</span>
+      <span class="material-symbols-outlined text-[#ff8c3c]" style="font-variation-settings:'FILL' 1">sensors</span>
     </div>
     <div>
-      <div class="flex justify-between text-[10px] mb-1"><span class="text-[#849396]">ALLOCATED</span><span class="text-[#00e5ff]" id="ram-val">--</span></div>
-      <div class="h-3 w-full bg-[#282a2e] relative border border-[#00e5ff]/40"><div id="ram-bar" class="absolute top-0 left-0 h-full bg-[#00e5ff] shard" style="width:0%"></div></div>
+      <div class="flex justify-between text-[10px] mb-1"><span class="text-[#849396]">ALLOCATED</span><span class="text-[#ff8c3c]" id="ram-val">--</span></div>
+      <div class="h-3 w-full bg-[#282a2e] relative border border-[#ff8c3c]/40"><div id="ram-bar" class="absolute top-0 left-0 h-full bg-[#ff8c3c] shard" style="width:0%"></div></div>
     </div>
     <div class="flex flex-col" style="height:120px">
-      <div class="flex justify-between lbl text-[#00e5ff] mb-2"><span>UPLINK TTM</span><span class="text-[#849396] text-[9px]">ENCRYPTED</span></div>
-      <div id="uplink" class="flex-grow relative border border-[#00e5ff]/40 bg-[#00e5ff]/5 flex items-end p-1 gap-1"></div>
-      <div class="flex justify-between mt-2 num text-[10px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-1 border border-[#00e5ff]/20">
+      <div class="flex justify-between lbl text-[#ff8c3c] mb-2"><span>UPLINK TTM</span><span class="text-[#849396] text-[9px]">ENCRYPTED</span></div>
+      <div id="uplink" class="flex-grow relative border border-[#ff8c3c]/40 bg-[#ff8c3c]/5 flex items-end p-1 gap-1"></div>
+      <div class="flex justify-between mt-2 num text-[10px] text-[#ff8c3c] bg-[#ff8c3c]/10 px-2 py-1 border border-[#ff8c3c]/20">
         <span id="net-down">TX: 0</span><span id="net-up">RX: 0 KB/s</span></div>
     </div>
     <!-- Storage -->
-    <div class="border-t border-[#00e5ff]/20 pt-2">
+    <div class="border-t border-[#ff8c3c]/20 pt-2">
       <div class="flex items-center justify-between mb-2">
         <span class="lbl text-[10px] text-[#849396]">STORAGE</span>
-        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px">database</span></div>
+        <span class="material-symbols-outlined text-[#ff8c3c]" style="font-size:16px">database</span></div>
       <div class="flex items-baseline justify-between mb-2">
-        <span class="disp text-[#00e5ff] font-bold" style="font-size:22px" id="disk-c-val">-- GB</span>
+        <span class="disp text-[#ff8c3c] font-bold" style="font-size:22px" id="disk-c-val">-- GB</span>
         <span class="lbl text-[9px] text-[#849396]" id="disk-c-sub">free</span></div>
-      <div class="h-2.5 bg-[#282a2e] w-full"><div id="disk-c-bar" class="h-full bg-[#00e5ff]" style="width:0%;box-shadow:0 0 8px #00e5ff"></div></div>
+      <div class="h-2.5 bg-[#282a2e] w-full"><div id="disk-c-bar" class="h-full bg-[#ff8c3c]" style="width:0%;box-shadow:0 0 8px #ff8c3c"></div></div>
     </div>
     <!-- Vitals -->
-    <div class="border-t border-[#00e5ff]/20 pt-2 grid grid-cols-2 gap-y-2 gap-x-3">
-      <div><div class="lbl text-[9px] text-[#849396]">UPTIME</div><div class="num text-[#00e5ff] text-[12px]" id="c-uptime">--</div></div>
-      <div><div class="lbl text-[9px] text-[#849396]">LOAD</div><div class="num text-[#00e5ff] text-[12px]" id="c-load">--</div></div>
-      <div><div class="lbl text-[9px] text-[#849396]">PROCESSES</div><div class="num text-[#00e5ff] text-[12px]" id="c-procs">--</div></div>
-      <div><div class="lbl text-[9px] text-[#849396]">SWAP</div><div class="num text-[#00e5ff] text-[12px]" id="c-swap">--</div></div>
+    <div class="border-t border-[#ff8c3c]/20 pt-2 grid grid-cols-2 gap-y-2 gap-x-3">
+      <div><div class="lbl text-[9px] text-[#849396]">UPTIME</div><div class="num text-[#ff8c3c] text-[12px]" id="c-uptime">--</div></div>
+      <div><div class="lbl text-[9px] text-[#849396]">LOAD</div><div class="num text-[#ff8c3c] text-[12px]" id="c-load">--</div></div>
+      <div><div class="lbl text-[9px] text-[#849396]">PROCESSES</div><div class="num text-[#ff8c3c] text-[12px]" id="c-procs">--</div></div>
+      <div><div class="lbl text-[9px] text-[#849396]">SWAP</div><div class="num text-[#ff8c3c] text-[12px]" id="c-swap">--</div></div>
     </div>
   </aside>
 </main>
@@ -228,17 +228,17 @@
 <footer class="w-full flex justify-center z-10 pb-1 anim d5">
   <div class="tactical-panel w-full max-w-3xl p-2 flex items-center gap-4">
     <span class="tb tl"></span><span class="tb tr"></span><span class="tb bl"></span><span class="tb br"></span>
-    <div class="flex items-center gap-2 px-3 border-r border-[#00e5ff]/40">
-      <span class="material-symbols-outlined text-[#00e5ff] pulse" style="font-variation-settings:'FILL' 1">mic</span>
-      <span class="lbl text-[10px] text-[#00e5ff]">ACTIVE</span></div>
-    <button id="attach" title="Attach a file" class="text-[#00e5ff]/70 hover:text-[#00e5ff] transition-colors px-1">
+    <div class="flex items-center gap-2 px-3 border-r border-[#ff8c3c]/40">
+      <span class="material-symbols-outlined text-[#ff8c3c] pulse" style="font-variation-settings:'FILL' 1">mic</span>
+      <span class="lbl text-[10px] text-[#ff8c3c]">ACTIVE</span></div>
+    <button id="attach" title="Attach a file" class="text-[#ff8c3c]/70 hover:text-[#ff8c3c] transition-colors px-1">
       <span class="material-symbols-outlined" style="font-size:20px">attach_file</span></button>
-    <input id="box" class="flex-grow bg-transparent border-none focus:ring-0 text-[#00e5ff] placeholder:text-[#00e5ff]/40 outline-none uppercase"
+    <input id="box" class="flex-grow bg-transparent border-none focus:ring-0 text-[#ff8c3c] placeholder:text-[#ff8c3c]/40 outline-none uppercase"
       placeholder='ENTER COMMAND OR SAY "NOVA"...' autocomplete="off" type="text"/>
     <button id="stop" title="Stop Nova speaking (Esc, or click the orb)" style="display:none"
       class="bg-[#ff5470]/10 hover:bg-[#ff5470]/30 border border-[#ff5470] text-[#ff5470] lbl px-5 py-2 transition-colors items-center gap-2">
       <span class="material-symbols-outlined text-sm">stop_circle</span>STOP</button>
-    <button id="send" class="bg-[#00e5ff]/10 hover:bg-[#00e5ff]/30 border border-[#00e5ff] text-[#00e5ff] lbl px-8 py-2 transition-colors flex items-center gap-2">
+    <button id="send" class="bg-[#ff8c3c]/10 hover:bg-[#ff8c3c]/30 border border-[#ff8c3c] text-[#ff8c3c] lbl px-8 py-2 transition-colors flex items-center gap-2">
       EXECUTE<span class="material-symbols-outlined text-sm">send</span></button>
   </div>
 </footer>
@@ -262,16 +262,16 @@
   function rsz(){W=bg.width=innerWidth;H=bg.height=innerHeight;}
   rsz();addEventListener("resize",rsz);
   for(var i=0;i<60;i++){var p={s:i};p.x=((i*97)%100)/100;p.y=((i*53)%100)/100;p.vx=((i%7)-3)/9000;p.vy=((i%5)-2)/9000;p.r=.5+(i%3)*.6;parts.push(p);}
-  function bgDraw(t){bx.clearRect(0,0,W,H);var g=40,off=(t*0.005)%g;bx.strokeStyle="rgba(0,229,255,.045)";bx.lineWidth=1;
+  function bgDraw(t){bx.clearRect(0,0,W,H);var g=40,off=(t*0.005)%g;bx.strokeStyle="rgba(255,140,60,.045)";bx.lineWidth=1;
     for(var y=-g+off;y<H+g;y+=g){bx.beginPath();bx.moveTo(0,y);bx.lineTo(W,y);bx.stroke();}
     for(var x=-g+off;x<W+g;x+=g){bx.beginPath();bx.moveTo(x,0);bx.lineTo(x,H);bx.stroke();}
     parts.forEach(function(p){p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
-      bx.beginPath();bx.arc(p.x*W,p.y*H,p.r,0,7);bx.fillStyle="rgba(0,229,255,.32)";bx.fill();});}
+      bx.beginPath();bx.arc(p.x*W,p.y*H,p.r,0,7);bx.fillStyle="rgba(255,140,60,.32)";bx.fill();});}
 
   /* reactor core */
   var cc=$("core"),cx=cc.getContext("2d"),CS=440,C=CS/2,state="standby",pulse=0,orb=[];
   for(var k=0;k<48;k++)orb.push({a:(k/48)*Math.PI*2,r:120+(k%3)*26,sp:.002+(k%5)*.0006,sz:1+(k%3)});
-  var sc={standby:"0,229,255",listening:"56,255,168",thinking:"255,176,32",speaking:"0,229,255"};
+  var sc={standby:"255,140,60",listening:"255,180,84",thinking:"255,176,32",speaking:"255,140,60"};
   function ring(rad,seg,rot,w,al,col){cx.strokeStyle="rgba("+col+","+al+")";cx.lineWidth=w;
     for(var s=0;s<seg;s++){var a0=rot+(s/seg)*Math.PI*2,a1=a0+(Math.PI*2/seg)*0.62;cx.beginPath();cx.arc(C,C,rad,a0,a1);cx.stroke();}}
   function coreDraw(t){cx.clearRect(0,0,CS,CS);var col=sc[state]||sc.standby,busy=(state==="thinking"),active=(state==="speaking"||state==="listening");
@@ -285,7 +285,7 @@
     var cg=cx.createRadialGradient(C,C,4,C,C,60);cg.addColorStop(0,"rgba(255,255,255,"+(0.85*glow)+")");cg.addColorStop(.4,"rgba("+col+","+(0.7*glow)+")");cg.addColorStop(1,"rgba("+col+",0)");
     cx.fillStyle=cg;cx.beginPath();cx.arc(C,C,60,0,7);cx.fill();cx.beginPath();cx.arc(C,C,7+2*glow,0,7);cx.fillStyle="rgba(255,255,255,.95)";cx.fill();}
   window.setCoreState=function(s){state=s;
-    var map={standby:['STANDBY // LISTENING',"#38ffa8"],listening:["LISTENING // SPEAK NOW","#38ffa8"],thinking:["PROCESSING // STAND BY","#ffb020"],speaking:["RESPONDING","#ffb020"]};
+    var map={standby:['STANDBY // LISTENING',"#ffb454"],listening:["LISTENING // SPEAK NOW","#ffb454"],thinking:["PROCESSING // STAND BY","#ffb020"],speaking:["RESPONDING","#ffb020"]};
     var m=map[s]||map.standby;$("st-lbl").textContent=m[0];$("st-lbl").style.color=m[1];
     var eq=$("mic-eq");if(eq)eq.classList.toggle("busy", s==="thinking"||s==="speaking");  // amber when busy; height is voice-driven
     var sb=$("stop");if(sb)sb.style.display=(s==="speaking")?"inline-flex":"none";};        // show STOP only while talking
@@ -300,7 +300,7 @@
   var addMe=function(t){return el("msg me",esc(t));},addJv=function(t){return el("msg jv","<b>NOVA</b>"+esc(t));},addAct=function(t){return el("text-[10px] text-[#849396] italic self-start","› "+esc(t));};
   var busy=false;
   function submit(){var t=box.value.trim();if(!t||busy)return;box.value="";addMe(t);busy=true;window.setCoreState("thinking");
-    var think=el("text-[#00e5ff] text-[12px] tracking-widest self-start","PROCESSING...");
+    var think=el("text-[#ff8c3c] text-[12px] tracking-widest self-start","PROCESSING...");
     window.pywebview.api.chat(t).then(function(r){think.remove();(r.activity||[]).forEach(addAct);addJv(r.reply||"…");window.setCoreState("speaking");
       setTimeout(function(){if(!busy)window.setCoreState("standby");},2800);busy=false;box.focus();
     }).catch(function(e){think.remove();addJv("A fault occurred, sir: "+e);window.setCoreState("standby");busy=false;});}
@@ -325,9 +325,20 @@
         requestAnimationFrame(frame);
       })();
     }
-    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-      navigator.mediaDevices.getUserMedia({audio:true}).then(meter).catch(function(err){eq.dataset.nomic=1;console.log("mic meter blocked:",err&&err.name);});
-    } else { eq.dataset.nomic=1; }
+    // Mic meter no longer requests the webview mic: Nova captures audio via Python (PyAudio),
+    // so the page never needs getUserMedia — this kills the macOS "allow microphone" prompt on
+    // every launch. Bars idle-pulse, and react livelier while Nova is listening/speaking (Python
+    // toggles the .on / .busy class on #mic-eq).
+    eq.dataset.nomic=1;
+    (function idle(){
+      var on=eq.classList.contains("on")||eq.classList.contains("busy");
+      for(var b=0;b<bars.length;b++){
+        var h= on ? 0.28+0.42*Math.abs(Math.sin(Date.now()/210+b*0.7))
+                  : 0.12+0.05*Math.abs(Math.sin(Date.now()/620+b));
+        bars[b].style.transform="scaleY("+h.toFixed(2)+")";
+      }
+      requestAnimationFrame(idle);
+    })();
     window.setCoreState(state);
   })();
   window.jarvisMicReset=function(){var e=$("mic-eq");if(e)e.classList.remove("on","busy");$("st-lbl").textContent="MIC OFFLINE";$("st-lbl").style.color="#849396";};
@@ -364,21 +375,21 @@
       var NC=Math.min(2,s.ncore);
       if(coresEl.children.length!==NC){coresEl.innerHTML="";for(var i=0;i<NC;i++){var d=document.createElement("div");d.className="flex items-center gap-3";
         var lab=NC===1?"CPU":"C"+(i+1);
-        d.innerHTML='<span class="lbl text-[10px] w-9 text-[#00e5ff]/60 border border-[#00e5ff]/20 text-center bg-[#00e5ff]/5">'+lab+'</span><div class="flex-grow h-2 bg-[#282a2e] relative"><div class="h-full bg-[#00e5ff] shard" style="width:0%"></div></div><span class="num text-[10px] w-8 text-right text-[#00e5ff]">0%</span>';
+        d.innerHTML='<span class="lbl text-[10px] w-9 text-[#ff8c3c]/60 border border-[#ff8c3c]/20 text-center bg-[#ff8c3c]/5">'+lab+'</span><div class="flex-grow h-2 bg-[#282a2e] relative"><div class="h-full bg-[#ff8c3c] shard" style="width:0%"></div></div><span class="num text-[10px] w-8 text-right text-[#ff8c3c]">0%</span>';
         coresEl.appendChild(d);}}
       for(var j=0;j<NC;j++){var row=coresEl.children[j];if(row){row.querySelector(".h-full").style.width=Math.max(4,s.cores[j])+"%";row.querySelector(".num").textContent=s.cores[j]+"%";}}
       $("net-down").textContent="TX: "+s.down;$("net-up").textContent="RX: "+s.up+" KB/s";
       // center: WiFi signal bars (5)
       var wb=$("wifi-bars");if(wb.children.length!==5){wb.innerHTML="";for(var wi=0;wi<5;wi++){var wbar=document.createElement("div");wbar.style.flex="1";wbar.style.height=(30+wi*16)+"%";wb.appendChild(wbar);}}
       var wf=s.wifi||{signal:0,ssid:"—",up:false},litw=Math.round(wf.signal/100*5);
-      for(var wj=0;wj<5;wj++)wb.children[wj].style.background=wj<litw?"#00e5ff":"#1d2023";
+      for(var wj=0;wj<5;wj++)wb.children[wj].style.background=wj<litw?"#ff8c3c":"#1d2023";
       $("wifi-ssid").textContent=wf.up?(wf.ssid==="<redacted>"?"CONNECTED":wf.ssid):"OFFLINE";
       $("wifi-sig").textContent=wf.up?wf.signal+"%":"--";
       $("wifi-ico").textContent=!wf.up?"wifi_off":(wf.signal>66?"wifi":wf.signal>33?"network_wifi_3_bar":"network_wifi_1_bar");
       // center: battery
       var bt=s.bat||{};if(bt.pct!=null){countTo($("bat-val"),bt.pct,'<span style="font-size:15px">%</span>');$("bat-bar").style.width=bt.pct+"%";
         $("bat-state").textContent=bt.plug?"CHARGING":"ON BATTERY";$("bat-ico").textContent=bt.plug?"battery_charging_full":(bt.pct>66?"battery_full":bt.pct>33?"battery_5_bar":"battery_2_bar");
-        $("bat-bar").style.background=bt.pct<=20&&!bt.plug?"#ffb4ab":"#00e5ff";}else{$("bat-val").innerHTML="AC";$("bat-state").textContent="WIRED";}
+        $("bat-bar").style.background=bt.pct<=20&&!bt.plug?"#ffb4ab":"#ff8c3c";}else{$("bat-val").innerHTML="AC";$("bat-state").textContent="WIRED";}
       // center: disk
       $("disk-c-val").textContent=s.disk_free+" GB free";$("disk-c-bar").style.width=s.disk+"%";$("disk-c-sub").textContent=s.disk+"% used · "+s.disk_tot+" GB";
       // center: vitals
@@ -388,12 +399,12 @@
       var io=s.iot||{};
       if(io.fresh&&io.temp!=null){$("iot-temp").innerHTML=(+io.temp).toFixed(1)+'<span style="font-size:12px">°C</span>';
         $("iot-hum").innerHTML=(io.humidity!=null?io.humidity:'--')+'<span style="font-size:12px">%</span>';
-        $("iot-state").textContent="● LIVE"+(io.motion?" · MOTION":"");$("iot-state").style.color="#00e5ff";$("iot-ico").style.color="#00e5ff";}
+        $("iot-state").textContent="● LIVE"+(io.motion?" · MOTION":"");$("iot-state").style.color="#ff8c3c";$("iot-ico").style.color="#ff8c3c";}
       else{$("iot-state").textContent="● SENSOR OFFLINE";$("iot-state").style.color="#849396";$("iot-ico").style.color="#849396";}
       if(s.top&&s.top.name!=="—")$("top-proc")&&($("top-proc").textContent="");
       // uplink bars
       hist.push(s.down);if(hist.length>22)hist.shift();
-      if(upEl.children.length!==22){upEl.innerHTML="";for(var b=0;b<22;b++){var bar=document.createElement("div");bar.className="flex-grow bg-[#00e5ff]/80 z-10";bar.style.clipPath="polygon(0 2px,100% 0,100% 100%,0 100%)";upEl.appendChild(bar);}}
+      if(upEl.children.length!==22){upEl.innerHTML="";for(var b=0;b<22;b++){var bar=document.createElement("div");bar.className="flex-grow bg-[#ff8c3c]/80 z-10";bar.style.clipPath="polygon(0 2px,100% 0,100% 100%,0 100%)";upEl.appendChild(bar);}}
       var mx=Math.max(50,Math.max.apply(null,hist));
       for(var q=0;q<22;q++){var v=hist[q]||0;upEl.children[q].style.height=Math.max(4,v/mx*100)+"%";}
     }).catch(function(){});}

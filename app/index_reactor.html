@@ -1,0 +1,283 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nova</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<style>
+:root{
+  --bg:#080604; --panel:rgba(28,17,8,.55); --line:rgba(255,150,70,.30); --line2:rgba(255,150,70,.14);
+  --a:#ff9a42; --abr:#ffd29a; --adim:#c07a38; --alo:#7a4d1e; --glow:rgba(255,150,70,.55);
+  --ink:#ffdcbb; --ok:#8ad46a; --bad:#ff6b5a; --f:"VT323","Courier New",monospace;
+}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:radial-gradient(1400px 800px at 50% 42%,#160c05,#080604 70%),#000;color:var(--ink);
+  font-family:var(--f);overflow:hidden;height:100vh;letter-spacing:.5px;-webkit-font-smoothing:antialiased}
+#g{position:fixed;inset:0;z-index:0;opacity:.35;
+  background-image:linear-gradient(rgba(255,150,70,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,150,70,.06) 1px,transparent 1px);
+  background-size:40px 40px;-webkit-mask:radial-gradient(1200px 760px at 50% 45%,#000 35%,transparent 80%)}
+.scan{position:fixed;inset:0;z-index:40;pointer-events:none;opacity:.4;
+  background:repeating-linear-gradient(180deg,transparent 0 2px,rgba(0,0,0,.35) 2px 3px)}
+.wrap{position:relative;z-index:2;height:100vh;display:flex;flex-direction:column;padding:8px 14px 6px;gap:7px}
+.top{display:flex;align-items:center;font-size:17px;color:var(--adim);text-transform:uppercase}
+.top .r{margin-left:auto;display:flex;gap:22px}.top b{color:var(--abr)}
+.title{position:absolute;left:0;right:0;top:2px;text-align:center;pointer-events:none}
+.title h1{margin:0;font-size:42px;color:var(--a);letter-spacing:.32em;text-shadow:0 0 26px var(--glow);line-height:1}
+.title p{margin:0;font-size:15px;color:var(--adim);letter-spacing:.34em}
+main{flex:1;display:grid;grid-template-columns:236px 1fr 256px;gap:11px;min-height:0}
+.col{display:flex;flex-direction:column;gap:9px;min-height:0}
+.p{border:1px solid var(--line);background:var(--panel);padding:7px 11px 10px;position:relative;
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.p>h4{margin:0 0 6px;font-size:15px;color:var(--adim);text-transform:uppercase;letter-spacing:.13em;font-weight:400;display:flex;align-items:center;gap:8px}
+.p>h4::after{content:"";flex:1;height:1px;background:var(--line2)}
+.big{font-size:36px;color:var(--ink);line-height:.9;text-shadow:0 0 16px var(--glow)}.big small{font-size:15px;color:var(--adim)}
+.rl{display:flex;align-items:center;gap:8px;font-size:16px;margin:2px 0}
+.rl .k{color:var(--adim);width:60px;text-transform:uppercase;font-size:14px}
+.bar{flex:1;height:8px;background:rgba(255,150,70,.12);overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--alo),var(--abr));box-shadow:0 0 10px var(--glow);transition:width .4s}
+.rl .v{color:var(--ink);min-width:40px;text-align:right}
+.spark{width:100%;height:40px;display:block}.hint{font-size:13px;color:var(--alo);letter-spacing:.1em}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:0}
+.rw{flex:1;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:0}
+.side{display:flex;flex-direction:column;gap:8px;width:112px}.side.r{align-items:flex-end;text-align:right}
+.pw{font-size:32px;color:var(--ink);line-height:.85;text-shadow:0 0 16px var(--glow)}.pw small{font-size:13px;color:var(--adim);display:block;letter-spacing:.1em}
+#reactor{display:block}
+#log{width:100%;max-width:560px;max-height:118px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 22%);margin:2px 0}
+#log::-webkit-scrollbar{width:0}
+.msg{font-size:16px;line-height:1.35;padding:5px 11px;max-width:88%}
+.msg.me{align-self:flex-end;border:1px solid var(--line);color:var(--ink);background:rgba(255,150,70,.05)}
+.msg.nova{align-self:flex-start;border-left:2px solid var(--a);color:var(--adim);background:rgba(255,150,70,.03)}
+.msg.nova b{color:var(--a);margin-right:6px}
+.msg.act{align-self:flex-start;color:var(--alo);font-size:14px}
+.statusbar{width:100%;border:1px solid var(--line);background:var(--panel);padding:5px 16px;text-align:center;
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.statusbar .st{font-size:24px;color:var(--abr);letter-spacing:.26em;text-shadow:0 0 14px var(--glow)}
+.pbar{display:flex;gap:3px;justify-content:center;margin-top:4px}.pbar i{width:11px;height:10px;background:var(--a);box-shadow:0 0 6px var(--glow)}.pbar i.off{background:rgba(255,150,70,.14);box-shadow:none}
+.ctlrow{display:flex;align-items:center;gap:9px;font-size:17px;padding:4px 0;cursor:pointer;text-transform:uppercase;user-select:none}
+.ctlrow .ico{font-size:15px;filter:grayscale(1) brightness(.7)}.ctlrow .nm{color:var(--adim);flex:1;letter-spacing:.08em}
+.ctlrow .tag{font-size:14px;border:1px solid var(--line);padding:0 8px;color:var(--adim)}
+.ctlrow.on .ico{filter:none}.ctlrow.on .nm{color:var(--ink)}.ctlrow.on .tag{color:var(--bg);background:var(--a);border-color:var(--a)}
+.ctlrow:hover .tag{border-color:var(--abr)}
+.vlist{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;font-size:15px}
+.vlist div{display:flex;gap:6px}.vlist .k{color:var(--adim);flex:1;text-transform:uppercase;font-size:13px}.vlist .v{color:var(--abr)}
+.vfoot{font-size:14px;color:var(--alo);text-align:center;margin-top:5px;letter-spacing:.12em}
+.cmd{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--panel);padding:6px 14px;
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.cmd .mic{display:flex;align-items:center;gap:7px;color:var(--abr);font-size:15px;text-transform:uppercase}
+.cmd .md{width:9px;height:9px;border-radius:50%;background:var(--abr);box-shadow:0 0 10px var(--glow);animation:pl 1.5s infinite}
+@keyframes pl{50%{opacity:.35}}
+.cmd input{flex:1;background:transparent;border:0;outline:0;color:var(--ink);font-family:var(--f);font-size:19px;text-transform:uppercase;letter-spacing:.5px}
+.cmd input::placeholder{color:var(--alo)}
+.cmd .vol{display:flex;align-items:center;gap:6px;font-size:15px;color:var(--adim)}
+.cmd .vbar{width:60px;height:7px;background:rgba(255,150,70,.14);overflow:hidden}.cmd .vbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--alo),var(--abr))}
+.cmd button{font-family:var(--f);font-size:16px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--a);background:rgba(255,150,70,.1);color:var(--a);padding:6px 18px}
+.cmd button:hover{background:rgba(255,150,70,.25)}
+.cmd button.stop{border-color:var(--bad);color:var(--bad);background:rgba(255,107,90,.1);display:none}
+#boot{position:fixed;inset:0;z-index:80;background:#080604;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .6s}
+#boot.gone{opacity:0;pointer-events:none}
+#boot .bt{font-size:64px;color:var(--a);letter-spacing:.4em;text-shadow:0 0 30px var(--glow)}
+#boot .bl{font-size:17px;color:var(--adim)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style></head><body>
+<div id="g"></div><div class="scan"></div>
+<div class="wrap">
+  <div class="top">
+    <div>NOVA OS Ver 2.1 &nbsp;·&nbsp; STATUS: <b id="sys-status">BOOTING</b></div>
+    <div class="r"><span>NODE ALPHA-7</span><span>DATE <b id="date">--</b></span><span>TIME <b id="clk">--:--:--</b></span></div>
+  </div>
+  <div class="title"><h1>NOVA</h1><p>NETWORKED OMNI-ROOM VOICE ASSISTANT</p></div>
+  <main>
+    <div class="col">
+      <div class="p"><h4>System Diagnostics</h4>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div><div class="big"><span id="cpu">--</span><small>% CPU</small></div><div class="hint" id="topproc">—</div></div>
+          <canvas id="gauge" width="66" height="66" style="margin-left:auto"></canvas></div></div>
+      <div class="p"><h4>CPU Cores</h4><div id="cores"></div></div>
+      <div class="p"><h4>Memory</h4>
+        <div class="rl"><span class="k">RAM</span><span class="bar"><i id="ram-b" style="width:0%"></i></span><span class="v" id="ram-v">--</span></div>
+        <div class="rl"><span class="k">Swap</span><span class="bar"><i id="swap-b" style="width:0%"></i></span><span class="v" id="swap-v">--</span></div>
+        <div class="rl"><span class="k">Disk</span><span class="bar"><i id="disk-b" style="width:0%"></i></span><span class="v" id="disk-v">--</span></div></div>
+      <div class="p" style="flex:1"><h4>Network</h4>
+        <div class="rl"><span class="k">Down</span><span class="v" id="net-d" style="margin-left:auto">--</span></div>
+        <div class="rl"><span class="k">Up</span><span class="v" id="net-u" style="margin-left:auto">--</span></div>
+        <canvas id="net" class="spark" width="210" height="40"></canvas>
+        <div class="hint" id="wifi">—</div></div>
+      <div class="p"><h4>Environment · <span id="env-state" style="color:var(--adim)">…</span></h4>
+        <div class="rl"><span class="k">Temp</span><span class="bar"><i id="env-tb" style="width:0%"></i></span><span class="v" id="env-t">--°</span></div>
+        <div class="rl"><span class="k">Humid</span><span class="bar"><i id="env-hb" style="width:0%"></i></span><span class="v" id="env-h">--%</span></div>
+        <div class="rl"><span class="k">Motion</span><span class="v" id="env-m" style="margin-left:auto">—</span></div></div>
+    </div>
+
+    <div class="col center">
+      <div class="rw">
+        <div class="side"><div class="pw">100<small>% CORE POWER</small></div><div class="pw"><span id="skills">6</span><small>ACTIVE SKILLS</small></div></div>
+        <canvas id="reactor" width="360" height="360"></canvas>
+        <div class="side r"><div class="pw" style="font-size:26px"><span id="uptime">--</span><small>UPTIME</small></div><div class="pw" style="font-size:26px"><span id="bat">--</span><small>BATTERY</small></div></div>
+      </div>
+      <div id="log"></div>
+      <div class="statusbar"><div style="font-size:13px;color:var(--adim);letter-spacing:.2em">SYSTEM STATUS</div>
+        <div class="st" id="st-lbl">INITIALIZING</div><div class="pbar" id="pbar"></div></div>
+    </div>
+
+    <div class="col">
+      <div class="p"><h4>Room Control</h4>
+        <div class="ctlrow" data-dev="light"><span class="ico">💡</span><span class="nm">Light</span><span class="tag">OFF</span></div>
+        <div class="ctlrow" data-dev="fan"><span class="ico">🌀</span><span class="nm">Fan</span><span class="tag">OFF</span></div>
+        <div class="ctlrow" data-dev="plug"><span class="ico">🔌</span><span class="nm">Plug</span><span class="tag">OFF</span></div>
+        <div class="ctlrow" data-dev="ac"><span class="ico">❄️</span><span class="nm">AC</span><span class="tag">OFF</span></div></div>
+      <div class="p" style="flex:1.6;display:flex;flex-direction:column"><h4>Vehicle Diagnostics</h4>
+        <div class="hint" style="margin:-1px 0 2px">NOVA-CAR // 4WD ROCK CRAWLER · PHASE 1</div>
+        <div style="position:relative;flex:1;min-height:150px"><canvas id="car" width="300" height="230" style="width:100%;height:100%;display:block"></canvas></div>
+        <div class="vlist">
+          <div><span class="k">Drive×4</span><span class="v">READY</span></div><div><span class="k">Steer</span><span class="v">READY</span></div>
+          <div><span class="k">ESP32</span><span class="v">PAIRED</span></div><div><span class="k">L298N</span><span class="v">OK</span></div>
+          <div><span class="k">Power</span><span class="v">85%</span></div><div><span class="k">Signal</span><span class="v">−52dB</span></div></div>
+        <div class="vfoot">◂ ▴ ▾ ▸ &nbsp; DRIVE-BY-VOICE ARMED</div></div>
+      <div class="p"><h4>Drive Control</h4>
+        <div class="rl"><span class="k">Throttle</span><span class="bar"><i style="width:0%"></i></span><span class="v">STOP</span></div>
+        <div class="rl"><span class="k">Steer</span><span class="v" style="margin-left:auto">CENTER</span></div>
+        <div class="rl"><span class="k">Link</span><span class="v" style="margin-left:auto;color:var(--ok)">SECURE</span></div></div>
+    </div>
+  </main>
+
+  <div class="cmd">
+    <span class="mic"><span class="md"></span>Active</span>
+    <input id="box" autocomplete="off" placeholder='ENTER COMMAND OR SAY "NOVA"…'>
+    <span class="vol">VOL<span class="vbar"><i id="vol-fill"></i></span><span id="vol-pct">0</span></span>
+    <button class="stop" id="stop">■ STOP</button>
+    <button id="send">Execute ▷</button>
+  </div>
+</div>
+
+<div id="boot"><div class="bt">NOVA</div><div class="bl" id="boot-l">SVPREME SYSTEMS // BOOT SEQUENCE</div></div>
+
+<script>
+"use strict";
+var $=function(id){return document.getElementById(id);};
+var esc=function(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});};
+var busy=false, coreBusy=false;
+
+/* clock/date */
+function tick(){var d=new Date();$("clk").textContent=d.toTimeString().slice(0,8);
+  $("date").textContent=("0"+(d.getMonth()+1)).slice(-2)+"/"+("0"+d.getDate()).slice(-2)+"/"+d.getFullYear();}
+tick();setInterval(tick,1000);
+/* progress cells */
+(function(){var p=$("pbar");for(var i=0;i<26;i++){var b=document.createElement("i");p.appendChild(b);}})();
+/* cpu core rows */
+(function(){var c=$("cores");for(var i=0;i<4;i++){c.insertAdjacentHTML("beforeend",
+  '<div class="rl"><span class="k">Core '+(i+1)+'</span><span class="bar"><i id="core'+i+'" style="width:0%"></i></span><span class="v" id="corev'+i+'">--</span></div>');}})();
+
+/* ---- Python -> JS bridge ---- */
+window.setCoreState=function(s){coreBusy=(s==="thinking"||s==="speaking");
+  var m={standby:['STANDBY // SAY "NOVA"','#ffd29a'],thinking:['PROCESSING…','#ff9a42'],
+    speaking:['RESPONDING','#8ad46a'],listening:['LISTENING','#ffd29a']}[s]||['ALL SYSTEMS OPERATIONAL','#ffd29a'];
+  var e=$("st-lbl");if(e){e.textContent=m[0];e.style.color=m[1];}
+  $("stop").style.display=(s==="speaking")?"inline-block":"none";};
+window.jarvisSay=function(t){addMsg("nova","<b>NOVA</b>"+esc(t));window.setCoreState("speaking");
+  setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
+window.jarvisVolume=function(v,muted){var f=$("vol-fill"),p=$("vol-pct");if(f)f.style.width=(muted?0:v)+"%";if(p)p.textContent=muted?"MUTE":Math.round(v);};
+window.jarvisMicReset=function(){var e=$("st-lbl");if(e){e.textContent="MIC OFFLINE";e.style.color="#c07a38";}};
+
+function addMsg(cls,html){var m=document.createElement("div");m.className="msg "+cls;m.innerHTML=html;
+  var l=$("log");l.appendChild(m);while(l.children.length>8)l.removeChild(l.firstChild);l.scrollTop=1e9;}
+
+/* command submit */
+function submit(){var t=$("box").value.trim();if(!t||busy)return;$("box").value="";addMsg("me",esc(t));
+  busy=true;window.setCoreState("thinking");
+  api("chat",t).then(function(r){(r&&r.activity||[]).forEach(function(a){addMsg("act","› "+esc(a));});
+    addMsg("nova","<b>NOVA</b>"+esc(r&&r.reply||"…"));window.setCoreState("speaking");
+    setTimeout(function(){if(!busy)window.setCoreState("standby");},2600);busy=false;
+  }).catch(function(e){addMsg("nova","<b>NOVA</b>A fault occurred, sir.");window.setCoreState("standby");busy=false;});}
+$("send").addEventListener("click",submit);
+$("box").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submit();}});
+$("stop").addEventListener("click",function(){api("stop_speaking");window.setCoreState("standby");});
+
+/* room controls -> drive real hardware via the same command path */
+[].forEach.call(document.querySelectorAll(".ctlrow[data-dev]"),function(r){r.addEventListener("click",function(){
+  var on=!r.classList.contains("on");r.classList.toggle("on",on);r.querySelector(".tag").textContent=on?"ON":"OFF";
+  var dev=r.dataset.dev;api("chat",dev+" "+(on?"on":"off"));});});
+
+/* api helper (guards missing bridge) */
+function api(method,arg){try{if(window.pywebview&&window.pywebview.api&&window.pywebview.api[method])
+  return arg!==undefined?window.pywebview.api[method](arg):window.pywebview.api[method]();}catch(e){}
+  return Promise.reject();}
+
+/* ---- live stats poll ---- */
+function fmtUp(s){s=s|0;var h=(s/3600)|0,m=((s%3600)/60)|0;return h>=24?((h/24)|0)+"d "+(h%24)+"h":h+"h "+m+"m";}
+function bindRoom(io){["light","fan","plug"].forEach(function(d){if(io[d]==null)return;var el=document.querySelector('.ctlrow[data-dev="'+d+'"]');
+  if(!el)return;var on=(io[d]==="on"||io[d]===true||io[d]===1);el.classList.toggle("on",on);el.querySelector(".tag").textContent=on?"ON":"OFF";});}
+var netHist=[];
+function poll(){api("stats").then(function(s){if(!s)return;
+  $("cpu").textContent=s.cpu;$("gauge").dataset.v=s.cpu;
+  if(s.top)$("topproc").textContent=(s.top.name||"—")+" "+(s.top.cpu||0)+"%";
+  (s.cores||[]).slice(0,4).forEach(function(c,i){var b=$("core"+i),v=$("corev"+i);if(b)b.style.width=c+"%";if(v)v.textContent=c+"%";});
+  setBar("ram-b","ram-v",s.mem,(s.mem_gb!=null?s.mem_gb+"/"+s.mem_tot+"G":s.mem+"%"));
+  setBar("swap-b","swap-v",s.swap,s.swap+"%");
+  setBar("disk-b","disk-v",s.disk,(s.disk_free!=null?s.disk_free+"G":s.disk+"%"));
+  $("net-d").textContent=(s.down||0)+" KB/s";$("net-u").textContent=(s.up||0)+" KB/s";
+  netHist.push(s.down||0);if(netHist.length>54)netHist.shift();
+  $("uptime").textContent=fmtUp(s.uptime);$("bat").textContent=(s.bat&&s.bat.pct!=null?s.bat.pct:"—");
+  if(s.wifi)$("wifi").textContent=(s.wifi.ssid||"—")+" · "+(s.wifi.signal||0)+"%";
+  var io=s.iot||{};
+  if(io.fresh&&io.temp!=null){$("env-t").textContent=(+io.temp).toFixed(1)+"°";$("env-h").textContent=(io.humidity!=null?io.humidity:"--")+"%";
+    $("env-tb").style.width=Math.min(100,(io.temp/40*100))+"%";$("env-hb").style.width=(io.humidity||0)+"%";
+    $("env-state").textContent="LIVE";$("env-state").style.color="#8ad46a";$("env-m").textContent=io.motion?"DETECTED":"CLEAR";
+    if($("sys-status").textContent!=="ONLINE")$("sys-status").textContent="ONLINE";}
+  else{$("env-state").textContent="OFFLINE";$("env-state").style.color="#c07a38";$("env-m").textContent="—";}
+  bindRoom(io);
+}).catch(function(){});}
+function setBar(bid,vid,pct,txt){var b=$(bid),v=$(vid);if(b)b.style.width=(pct||0)+"%";if(v)v.textContent=txt;}
+
+/* ---- boot + start ---- */
+function start(){$("sys-status").textContent="ONLINE";window.setCoreState("standby");
+  poll();setInterval(poll,1600);
+  setTimeout(function(){$("boot").classList.add("gone");},900);}
+if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);
+setTimeout(function(){if(!$("boot").classList.contains("gone")){$("boot").classList.add("gone");window.setCoreState("standby");}},3500);
+
+/* ================= visuals ================= */
+/* diagnostic gauge (reacts to cpu) */
+(function(){var c=$("gauge"),x=c.getContext("2d"),t=0;(function d(){t+=.02;x.clearRect(0,0,66,66);
+  for(var r=0;r<3;r++){x.beginPath();x.strokeStyle="rgba(255,150,70,"+(0.7-r*0.2)+")";x.lineWidth=2;
+    x.arc(33,33,25-r*7,t*(r%2?1:-1),t*(r%2?1:-1)+Math.PI*1.4);x.stroke();}
+  x.beginPath();x.arc(33,33,3,0,7);x.fillStyle="#ffd29a";x.fill();requestAnimationFrame(d);})();})();
+/* network sparkline (from netHist) */
+(function(){var c=$("net"),x=c.getContext("2d"),W=210,H=40;(function d(){x.clearRect(0,0,W,H);
+  var a=netHist.length?netHist:[0],mx=Math.max.apply(null,a.concat([10]));
+  x.beginPath();x.moveTo(0,H);for(var i=0;i<a.length;i++){x.lineTo(i/(Math.max(1,a.length-1))*W,H-(a[i]/mx)*(H-5)-2);}x.lineTo(W,H);
+  var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,"rgba(255,150,70,.4)");g.addColorStop(1,"rgba(255,150,70,0)");x.fillStyle=g;x.fill();
+  x.beginPath();for(var j=0;j<a.length;j++){var px=j/(Math.max(1,a.length-1))*W,py=H-(a[j]/mx)*(H-5)-2;j?x.lineTo(px,py):x.moveTo(px,py);}
+  x.strokeStyle="#ffb87a";x.lineWidth=1.2;x.stroke();setTimeout(d,400);})();})();
+/* arc reactor */
+(function(){var c=$("reactor"),x=c.getContext("2d"),C=180,t=0;
+  function ring(r,seg,rot,w,al,dash){x.save();x.translate(C,C);x.rotate(rot);x.beginPath();x.setLineDash(dash||[]);
+    x.arc(0,0,r,0,Math.PI*2);x.strokeStyle="rgba(255,150,70,"+al+")";x.lineWidth=w;x.stroke();
+    if(seg){for(var i=0;i<seg;i++){var a=i/seg*Math.PI*2;x.beginPath();x.moveTo(Math.cos(a)*(r-6),Math.sin(a)*(r-6));x.lineTo(Math.cos(a)*(r+6),Math.sin(a)*(r+6));x.stroke();}}x.setLineDash([]);x.restore();}
+  (function d(){t+=.015;var sp=coreBusy?2.2:1;x.clearRect(0,0,360,360);var pulse=.5+.5*Math.sin(t*1.7*sp);
+    for(var i=0;i<72;i++){var a=i/72*Math.PI*2,r1=150,r2=i%6===0?162:155;x.beginPath();x.strokeStyle="rgba(255,150,70,"+(i%6===0?.4:.2)+")";x.lineWidth=1;x.moveTo(C+Math.cos(a)*r1,C+Math.sin(a)*r1);x.lineTo(C+Math.cos(a)*r2,C+Math.sin(a)*r2);x.stroke();}
+    ring(168,0,0,1,.12);ring(142,0,t*.15,1,.22,[2,10]);ring(133,72,t*.12,1,.28);ring(125,48,-t*.3*sp,1,.42);
+    ring(106,0,t*.5*sp,2,.55,[26,14]);ring(88,24,-t*.7*sp,1.5,.5);ring(142+4*pulse,0,t*.1,1,.3,[1,30]);
+    for(var n=0;n<3;n++){var an=t*.4*sp+n/3*Math.PI*2,px=C+Math.cos(an)*125,py=C+Math.sin(an)*125;
+      x.beginPath();x.arc(px,py,6,0,7);x.strokeStyle="rgba(255,150,70,.5)";x.lineWidth=1;x.stroke();
+      x.beginPath();x.arc(px,py,3,0,7);x.fillStyle="rgba(255,215,160,.95)";x.fill();}
+    x.save();x.translate(C,C);x.rotate(-t*.5);x.beginPath();for(var h=0;h<=6;h++){var ah=h/6*Math.PI*2,rr=50;h?x.lineTo(Math.cos(ah)*rr,Math.sin(ah)*rr):x.moveTo(Math.cos(ah)*rr,Math.sin(ah)*rr);}x.strokeStyle="rgba(255,190,130,.5)";x.lineWidth=1;x.stroke();x.restore();
+    for(var s2=0;s2<20;s2++){var a2=s2/20*Math.PI*2+t*.9*sp;x.beginPath();x.strokeStyle="rgba(255,190,130,.75)";x.lineWidth=3;x.arc(C,C,68,a2,a2+.16);x.stroke();}
+    var grd=x.createRadialGradient(C,C,2,C,C,80);grd.addColorStop(0,"rgba(255,244,220,.98)");grd.addColorStop(.35,"rgba(255,175,95,.78)");grd.addColorStop(1,"rgba(255,150,70,0)");
+    x.fillStyle=grd;x.beginPath();x.arc(C,C,80,0,7);x.fill();x.beginPath();x.arc(C,C,8+3*pulse,0,7);x.fillStyle="#fff6ea";x.fill();requestAnimationFrame(d);})();})();
+/* 3D wireframe rock-crawler */
+(function(){var c=$("car");if(!c)return;var x=c.getContext("2d"),CX=150,CY=128,SC=1.24,tilt=0.36,t=0;
+  function tf(p,ay){var X=p[0],Y=p[1],Z=p[2],cy=Math.cos(ay),sy=Math.sin(ay),x1=X*cy+Z*sy,z1=-X*sy+Z*cy,cx=Math.cos(tilt),sx=Math.sin(tilt),y1=Y*cx-z1*sx,z2=Y*sx+z1*cx;return [CX+x1*SC,CY-y1*SC,z2];}
+  function edge(a,b,ay,base){var p=tf(a,ay),q=tf(b,ay),zc=(p[2]+q[2])/2,al=(base||.7)*(0.4+0.6*(zc+95)/190);al=Math.max(.1,Math.min(1,al));x.strokeStyle="rgba(255,162,80,"+al+")";x.beginPath();x.moveTo(p[0],p[1]);x.lineTo(q[0],q[1]);x.stroke();}
+  function box(x0,x1,y0,y1,z0,z1,ay,b){var v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){edge(v[e[0]],v[e[1]],ay,b);});}
+  function wheel(wx,wy,wz,R,ay){var N=16,w=7,i,a,prev;for(var s=0;s<2;s++){var zf=wz+(s?w:-w);prev=null;for(i=0;i<=N;i++){a=i/N*2*Math.PI;var pt=[wx+Math.cos(a)*R,wy+Math.sin(a)*R,zf];if(prev)edge(prev,pt,ay,.85);prev=pt;}}
+    for(i=0;i<N;i+=2){a=i/N*2*Math.PI;edge([wx+Math.cos(a)*R,wy+Math.sin(a)*R,wz-w],[wx+Math.cos(a)*R,wy+Math.sin(a)*R,wz+w],ay,.5);}
+    prev=null;for(i=0;i<=N;i++){a=i/N*2*Math.PI;var q=[wx+Math.cos(a)*R*.42,wy+Math.sin(a)*R*.42,wz+w];if(prev)edge(prev,q,ay,.7);prev=q;}}
+  function base(ay){for(var s=0;s<2;s++){var R=s?66:80,prev=null;for(var i=0;i<=48;i++){var a=i/48*2*Math.PI,pt=[Math.cos(a)*R,-30,Math.sin(a)*R];if(prev)edge(prev,pt,ay,.26);prev=pt;}}
+    for(var j=0;j<24;j++){var aa=j/24*2*Math.PI;edge([Math.cos(aa)*68,-30,Math.sin(aa)*68],[Math.cos(aa)*80,-30,Math.sin(aa)*80],ay,.28);}}
+  (function d(){t+=.006;var ay=t;x.clearRect(0,0,300,230);x.save();x.lineWidth=1.15;x.shadowColor="rgba(255,150,70,.55)";x.shadowBlur=5;
+    base(ay*.5);box(-46,46,-8,8,-22,22,ay,.85);box(-40,40,-15,-9,-16,16,ay,.5);box(-20,26,8,30,-16,16,ay,.78);
+    edge([-20,30,-16],[26,30,16],ay,.4);edge([26,30,-16],[-20,30,16],ay,.4);edge([26,30,0],[26,55,0],ay,.85);
+    var ap=tf([26,55,0],ay);x.fillStyle="#ffd7a0";x.beginPath();x.arc(ap[0],ap[1],2.6,0,7);x.fill();
+    wheel(-30,-14,-24,17,ay);wheel(30,-14,-24,17,ay);wheel(-30,-14,24,17,ay);wheel(30,-14,24,17,ay);x.restore();requestAnimationFrame(d);})();})();
+</script></body></html>

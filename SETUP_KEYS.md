@@ -34,7 +34,7 @@ model list and update the matching entry in the `M = {...}` dict:
 - Cerebras / Mistral / OpenRouter: their model pages (OpenRouter free models end in `:free`).
 
 ## Wire the router into Nova
-In `jarvis.py` / `app/jarvis_app.py`, replace direct Groq calls with:
+In `nova.py` / `app/nova_app.py`, replace direct Groq calls with:
 ```python
 from router import chat
 reply = chat("fast",   messages)["content"]   # voice chat / intent routing

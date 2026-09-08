@@ -68,7 +68,7 @@ pip install -r requirements.txt
 # provide your own keys (see the .example files):
 #   .groq_key  ·  ~/tinytuya.json  ·  iot/esp32_room/secrets.h
 python3 doctor.py        # health check: deps, keys, mic, brain, MQTT, AC
-python3 app/jarvis_app.py
+python3 app/nova_app.py
 ```
 
 Flash `iot/esp32_room/esp32_room.ino` to the ESP32 (Arduino IDE) after copying `secrets.h.example` → `secrets.h` and filling in your Wi-Fi + broker IP.
