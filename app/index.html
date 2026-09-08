@@ -2,7 +2,7 @@
 <html class="dark" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>J.A.R.V.I.S.</title>
+<title>Nova</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
@@ -79,7 +79,7 @@
 <div id="stage" class="flex flex-col justify-between" style="width:1440px;height:900px;padding:30px;transform-origin:top left;position:relative">
 <header class="w-full flex justify-between items-start z-10 anim d1">
   <div>
-    <h1 class="disp text-[#00e5ff] font-bold" style="font-size:28px;letter-spacing:.14em">J.A.R.V.I.S. // CMD</h1>
+    <h1 class="disp text-[#00e5ff] font-bold" style="font-size:28px;letter-spacing:.14em">NOVA // CMD</h1>
     <div class="flex gap-2 mt-1">
       <span class="lbl text-[9px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-0.5 border border-[#00e5ff]/40">SYS.VER 2.0.4</span>
       <span class="lbl text-[9px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-0.5 border border-[#00e5ff]/40">AUTH: OMEGA</span>
@@ -179,7 +179,7 @@
       <div class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#00e5ff]/50"></div>
     </div>
     <div class="mt-6 text-center bg-[#02060b]/80 px-6 py-2 border border-[#00e5ff]/40">
-      <div class="lbl text-[#00e5ff] pulse" id="st-lbl">STANDBY // SAY "JARVIS"</div>
+      <div class="lbl text-[#00e5ff] pulse" id="st-lbl">STANDBY // SAY "NOVA"</div>
       <div id="mic-eq" class="flex items-end justify-center gap-[3px] mt-2" style="height:16px"></div>
     </div>
   </div>
@@ -234,8 +234,8 @@
     <button id="attach" title="Attach a file" class="text-[#00e5ff]/70 hover:text-[#00e5ff] transition-colors px-1">
       <span class="material-symbols-outlined" style="font-size:20px">attach_file</span></button>
     <input id="box" class="flex-grow bg-transparent border-none focus:ring-0 text-[#00e5ff] placeholder:text-[#00e5ff]/40 outline-none uppercase"
-      placeholder='ENTER COMMAND OR SAY "JARVIS"...' autocomplete="off" type="text"/>
-    <button id="stop" title="Stop Jarvis speaking (Esc, or click the orb)" style="display:none"
+      placeholder='ENTER COMMAND OR SAY "NOVA"...' autocomplete="off" type="text"/>
+    <button id="stop" title="Stop Nova speaking (Esc, or click the orb)" style="display:none"
       class="bg-[#ff5470]/10 hover:bg-[#ff5470]/30 border border-[#ff5470] text-[#ff5470] lbl px-5 py-2 transition-colors items-center gap-2">
       <span class="material-symbols-outlined text-sm">stop_circle</span>STOP</button>
     <button id="send" class="bg-[#00e5ff]/10 hover:bg-[#00e5ff]/30 border border-[#00e5ff] text-[#00e5ff] lbl px-8 py-2 transition-colors flex items-center gap-2">
@@ -245,7 +245,7 @@
 </div><!-- #stage -->
 
 <div id="boot">
-  <div class="bt">J.A.R.V.I.S.</div>
+  <div class="bt">NOVA</div>
   <div class="bt2">SVPREME SYSTEMS // BOOT SEQUENCE</div>
   <div id="boot-log"></div>
   <div id="boot-ready">SYSTEMS ONLINE</div>
@@ -297,7 +297,7 @@
   var log=$("log"),box=$("box"),send=$("send");
   function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
   function el(cls,html){var d=document.createElement("div");d.className=cls;d.innerHTML=html;log.appendChild(d);while(log.children.length>10)log.removeChild(log.firstChild);log.scrollTop=log.scrollHeight;return d;}
-  var addMe=function(t){return el("msg me",esc(t));},addJv=function(t){return el("msg jv","<b>J.A.R.V.I.S.</b>"+esc(t));},addAct=function(t){return el("text-[10px] text-[#849396] italic self-start","› "+esc(t));};
+  var addMe=function(t){return el("msg me",esc(t));},addJv=function(t){return el("msg jv","<b>NOVA</b>"+esc(t));},addAct=function(t){return el("text-[10px] text-[#849396] italic self-start","› "+esc(t));};
   var busy=false;
   function submit(){var t=box.value.trim();if(!t||busy)return;box.value="";addMe(t);busy=true;window.setCoreState("thinking");
     var think=el("text-[#00e5ff] text-[12px] tracking-widest self-start","PROCESSING...");
@@ -340,7 +340,7 @@
   function stopSpeak(){try{window.pywebview.api.stop_speaking();}catch(e){}window.setCoreState("standby");}
   $("stop").addEventListener("click",stopSpeak);
   document.addEventListener("keydown",function(e){if(e.key==="Escape")stopSpeak();});
-  (function(){var o=$("core");if(o){o.style.cursor="pointer";o.title="Click to stop Jarvis speaking";o.addEventListener("click",stopSpeak);}})();
+  (function(){var o=$("core");if(o){o.style.cursor="pointer";o.title="Click to stop Nova speaking";o.addEventListener("click",stopSpeak);}})();
   /* attach file */
   $("attach").addEventListener("click",function(){
     if(!(window.pywebview&&window.pywebview.api))return;

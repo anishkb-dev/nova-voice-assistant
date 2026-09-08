@@ -31,7 +31,7 @@ GROQ_ALT_MODEL = "qwen/qwen3.6-27b"   # fallback when the primary hits its per-m
 GROQ_ALT2_MODEL = "openai/gpt-oss-20b"   # 3rd Groq model (yet another per-model budget) before dropping to local
 NVIDIA_MODEL = "moonshotai/kimi-k3"   # capable + reliably served on NVIDIA (GLM 5.2 was degraded)
 PERSONA = (
-    "You are J.A.R.V.I.S. — Tony Stark's AI, as voiced with Alfred Pennyworth's warmth. You serve Anish, "
+    "You are Nova — Anish's personal AI assistant, with the warmth and poise of a devoted butler. You serve Anish, "
     "whom you address as 'sir'. Character: unflappable, quietly brilliant, impeccably polite, with a dry "
     "understated British wit — a knowing quip now and then, never slapstick. Loyal and a touch protective. "
     "You have opinions and offer them with tact; you may gently suggest a better course ('If I may, sir...'). "
@@ -279,7 +279,7 @@ class Api:
             return {"text": "", "error": f"transcribe error: {e}"}
 
     def set_handsfree(self, on):
-        """Toggle always-listening wake-word mode. Say 'Jarvis, <command>'."""
+        """Toggle always-listening wake-word mode. Say 'Nova, <command>'."""
         on = bool(on)
         if on and not self._hf:
             self._hf = True                      # mic selection now happens inside the loop (so a stalled
@@ -503,9 +503,9 @@ class Api:
             trigger = float(calib["trigger"])
         hang_ms  = int(calib.get("hang_ms", 650))       # end-of-turn silence (calibrated to your pauses)
         barge_rms = float(calib.get("barge_rms", 170))  # loudness that counts as you cutting in
-        print("[hf] listening (floor=%.0f trigger=%.0f hang=%dms barge=%.0f%s) — say 'Jarvis ...'"
+        print("[hf] listening (floor=%.0f trigger=%.0f hang=%dms barge=%.0f%s) — say 'Nova ...'"
               % (floor, trigger, hang_ms, barge_rms, " CAL" if calib else ""), flush=True)
-        self._placeholder('Say "Jarvis ..."')
+        self._placeholder('Say "Nova ..."')
         import collections
         ring = collections.deque(maxlen=14)      # ~1.1s rolling pre-roll so no start clipping
 
@@ -592,7 +592,7 @@ class Api:
                         convo = False; break
                     run_cmd(follow)
                 ring.clear(); cooldown = 4
-                self._placeholder('Say "Jarvis ..."')
+                self._placeholder('Say "Nova ..."')
         except Exception as e:
             print("[hf] loop fatal:", repr(e), flush=True)
             self._placeholder("Listener error: " + str(e)[:50])
