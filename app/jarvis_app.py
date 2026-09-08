@@ -877,6 +877,19 @@ class Api:
             self.speak("Designing that now, sir — one moment.")
             return _instant(jarvis.FUNCS["design"](user), "design(...)")
 
+        # DEEP REASON: hard questions go to the strongest reasoning brain, not the fast chat model.
+        if re.search(r"\b(think (hard|deeply|carefully|it through)|reason (through|about|it out)|"
+                     r"explain in depth|deep[- ]?dive|work (it|this) out|analys?e this|figure out)\b", low):
+            self.speak("Let me think that through, sir.")
+            return _instant(jarvis.FUNCS["think"](user), "think(...)")
+
+        # SCREEN VISION: look at the SCREEN (never the webcam) and answer. Respects the no-camera rule.
+        if re.search(r"\b(on (my|the) screen|read (this|the screen)|look at (my|the) screen|"
+                     r"describe (this|the screen)|what('?s| is) (this|on (my|the) screen)|"
+                     r"what does (this|the) (error|chart|graph|code|message|screen))\b", low):
+            self.speak("Looking at your screen, sir.")
+            return _instant(jarvis.FUNCS["look"](user), "look(...)")
+
         self.messages.append({"role": "user", "content": user})
         self.messages = self.messages[-20:]              # cap history
         for name, fn in self._brains():
