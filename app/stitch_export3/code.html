@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>J.A.R.V.I.S. HUD</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-dim": "#111417",
+                        "tertiary-fixed": "#ffdad2",
+                        "tertiary-fixed-dim": "#ffb4a2",
+                        "error": "#ffb4ab",
+                        "on-surface": "#e1e2e7",
+                        "inverse-surface": "#e1e2e7",
+                        "error-container": "#93000a",
+                        "secondary-container": "#034f56",
+                        "inverse-primary": "#006875",
+                        "on-secondary-fixed-variant": "#034f56",
+                        "on-primary-fixed-variant": "#004f58",
+                        "tertiary-container": "#ffc2b3",
+                        "primary-container": "#00e5ff",
+                        "surface-bright": "#37393d",
+                        "on-error": "#690005",
+                        "on-secondary-fixed": "#001f23",
+                        "on-background": "#e1e2e7",
+                        "secondary-fixed-dim": "#95d0d8",
+                        "background": "#111417",
+                        "on-primary-container": "#00626e",
+                        "secondary": "#95d0d8",
+                        "on-secondary-container": "#83bfc7",
+                        "surface-container-high": "#282a2e",
+                        "surface-variant": "#323539",
+                        "primary-fixed-dim": "#00daf3",
+                        "on-surface-variant": "#bac9cc",
+                        "outline": "#849396",
+                        "on-secondary": "#00363c",
+                        "on-primary-fixed": "#001f24",
+                        "on-tertiary-fixed-variant": "#8a1d00",
+                        "primary": "#c3f5ff",
+                        "surface-container-lowest": "#0c0e12",
+                        "on-tertiary-container": "#aa2600",
+                        "on-primary": "#00363d",
+                        "on-tertiary-fixed": "#3c0700",
+                        "inverse-on-surface": "#2e3134",
+                        "on-error-container": "#ffdad6",
+                        "secondary-fixed": "#b0edf5",
+                        "on-tertiary": "#621100",
+                        "surface-container-highest": "#323539",
+                        "tertiary": "#ffe7e2",
+                        "surface": "#111417",
+                        "surface-container-low": "#191c1f",
+                        "surface-tint": "#00daf3",
+                        "outline-variant": "#3b494c",
+                        "surface-container": "#1d2023",
+                        "primary-fixed": "#9cf0ff"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "container-padding": "12px",
+                        "margin-edge": "32px",
+                        "unit": "4px",
+                        "widget-gap": "24px",
+                        "gutter": "16px"
+                    },
+                    fontFamily: {
+                        "display-lg": ["Space Grotesk"],
+                        "label-caps": ["JetBrains Mono"],
+                        "headline-lg-mobile": ["Space Grotesk"],
+                        "body-md": ["JetBrains Mono"],
+                        "data-numeric": ["JetBrains Mono"],
+                        "headline-lg": ["Space Grotesk"],
+                        "headline-sm": ["Space Grotesk"]
+                    },
+                    fontSize: {
+                        "display-lg": ["48px", { lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "700" }],
+                        "label-caps": ["11px", { lineHeight: "16px", letterSpacing: "0.2em", fontWeight: "700" }],
+                        "headline-lg-mobile": ["24px", { lineHeight: "32px", fontWeight: "600" }],
+                        "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }],
+                        "data-numeric": ["16px", { lineHeight: "24px", letterSpacing: "-0.02em", fontWeight: "500" }],
+                        "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "headline-sm": ["20px", { lineHeight: "28px", letterSpacing: "0.1em", fontWeight: "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #02060b;
+            color: #c3f5ff; /* primary */
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        .hud-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: 20px 20px;
+            background-image: 
+                linear-gradient(to right, rgba(149, 208, 216, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(149, 208, 216, 0.1) 1px, transparent 1px);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0),
+                rgba(255, 255, 255, 0) 50%,
+                rgba(0, 218, 243, 0.05) 50%,
+                rgba(0, 218, 243, 0.05)
+            );
+            background-size: 100% 4px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .flicker {
+            animation: flickerAnim 4s infinite alternate;
+        }
+
+        @keyframes flickerAnim {
+            0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% { opacity: 1; }
+            20%, 21.999%, 63%, 63.999%, 65%, 69.999% { opacity: 0.8; }
+        }
+
+        .hud-bracket {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: #00daf3; /* primary-fixed-dim */
+        }
+        .bracket-tl { top: -2px; left: -2px; border-top: 2px solid; border-left: 2px solid; }
+        .bracket-tr { top: -2px; right: -2px; border-top: 2px solid; border-right: 2px solid; }
+        .bracket-bl { bottom: -2px; left: -2px; border-bottom: 2px solid; border-left: 2px solid; }
+        .bracket-br { bottom: -2px; right: -2px; border-bottom: 2px solid; border-right: 2px solid; }
+
+        .glass-panel {
+            background: rgba(12, 14, 18, 0.6); /* surface-container-lowest */
+            backdrop-filter: blur(8px);
+            border: 0.5px solid rgba(149, 208, 216, 0.3); /* secondary */
+            position: relative;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(0, 218, 243, 0.6);
+        }
+
+        .glow-border {
+            box-shadow: 0 0 15px rgba(0, 218, 243, 0.3);
+        }
+
+        .perspective-left {
+            transform: perspective(1000px) rotateY(15deg);
+        }
+        .perspective-right {
+            transform: perspective(1000px) rotateY(-15deg);
+        }
+        
+        .pulse {
+            animation: pulseAnim 2s infinite;
+        }
+        @keyframes pulseAnim {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; text-shadow: 0 0 20px rgba(0, 218, 243, 0.9); }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        .ring-spin {
+            animation: spin 10s linear infinite;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md flicker flex flex-col justify-between p-margin-edge">
+<div class="hud-grid"></div>
+<div class="scanlines"></div>
+<!-- Top Bar -->
+<header class="w-full flex justify-between items-start z-10">
+<div class="flex items-center gap-4">
+<h1 class="font-headline-lg text-headline-lg text-primary-fixed-dim glow-text tracking-widest">J.A.R.V.I.S.</h1>
+<span class="font-label-caps text-label-caps text-on-surface-variant bg-surface-container/50 px-2 py-1 rounded border border-outline/30 mt-2">v2.0.4</span>
+</div>
+<div class="flex flex-col items-center mt-2">
+<div class="font-label-caps text-label-caps text-primary/80 flex items-center gap-4 border-b border-primary/20 pb-2">
+<span>CORE ONLINE</span>
+<span class="w-1 h-1 rounded-full bg-primary-fixed-dim pulse"></span>
+<span>MODEL GROQ-120B</span>
+<span class="w-1 h-1 rounded-full bg-primary-fixed-dim pulse"></span>
+<span class="text-secondary-fixed">LINK SECURE</span>
+</div>
+<div class="mt-2 font-label-caps text-label-caps text-outline/60">STARK INDUSTRIES</div>
+</div>
+<div class="font-data-numeric text-headline-sm text-primary-fixed-dim glow-text mt-2" id="clock">
+            14:02:45
+        </div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-grow flex justify-between items-center z-10 relative mt-widget-gap">
+<!-- Left Panel: CPU & Cores -->
+<aside class="glass-panel w-80 h-3/4 p-gutter perspective-left flex flex-col gap-widget-gap glow-border">
+<div class="hud-bracket bracket-tl"></div><div class="hud-bracket bracket-tr"></div>
+<div class="hud-bracket bracket-bl"></div><div class="hud-bracket bracket-br"></div>
+<div class="flex items-center justify-between border-b border-primary/20 pb-2">
+<span class="font-label-caps text-label-caps text-secondary">TELEMETRY // CPU</span>
+<span class="material-symbols-outlined text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">memory</span>
+</div>
+<!-- CPU Ring -->
+<div class="relative w-40 h-40 mx-auto flex items-center justify-center mt-4">
+<svg class="absolute inset-0 w-full h-full ring-spin" style="animation-direction: reverse;" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="none" r="45" stroke="rgba(0,218,243,0.2)" stroke-dasharray="4 4" stroke-width="2"></circle>
+</svg>
+<svg class="absolute inset-0 w-full h-full ring-spin" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="none" r="38" stroke="rgba(0,218,243,0.8)" stroke-dasharray="60 40" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="text-center">
+<div class="font-display-lg text-display-lg text-primary-fixed-dim glow-text">84<span class="text-headline-sm">%</span></div>
+<div class="font-label-caps text-label-caps text-outline">LOAD</div>
+</div>
+</div>
+<!-- Core Bars -->
+<div class="flex-grow flex flex-col justify-end gap-2 mt-4">
+<div class="font-label-caps text-label-caps text-secondary mb-2">CORE ARRAY STATUS</div>
+<!-- Generate 8 core bars -->
+<script>
+                    for(let i=1; i<=8; i++) {
+                        const width = Math.floor(Math.random() * 60) + 30;
+                        document.write(`
+                            <div class="flex items-center gap-2">
+                                <span class="font-label-caps text-[10px] w-4 text-outline">${i}</span>
+                                <div class="flex-grow h-1 bg-surface-container-high rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary-fixed-dim" style="width: ${width}%"></div>
+                                </div>
+                                <span class="font-data-numeric text-[10px] w-8 text-right">${width}%</span>
+                            </div>
+                        `);
+                    }
+                </script>
+</div>
+</aside>
+<!-- Centerpiece: 3D Globe & Status -->
+<div class="flex-grow h-full flex flex-col items-center justify-center relative">
+<div class="relative w-[500px] h-[500px] flex items-center justify-center">
+<!-- Center brackets -->
+<div class="absolute inset-0 border border-primary/10 rounded-full"></div>
+<div class="absolute inset-4 border border-primary/20 rounded-full border-dashed"></div>
+<!-- STITCH_THREEJS_START:ANIMATION_20 class="absolute inset-0 w-full h-full" -->
+<div class="absolute inset-0 w-full h-full" style="display:block;">
+<script src="https://ajax.googleapis.com/ajax/libs/threejs/r125/three.min.js"></script>
+<div id="threejs-container-ANIMATION_20" style="width:100%;height:100%"></div>
+<script>
+(function() {
+  const container = document.getElementById('threejs-container-ANIMATION_20');
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const width = container.clientWidth || window.innerWidth;
+const height = container.clientHeight || window.innerHeight;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+camera.position.z = 5;
+
+const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+renderer.setSize(width, height);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+// Global Colors
+const cyan = new THREE.Color(0x3FE0FF);
+
+// 1. Holographic Globe (Wireframe Sphere)
+const globeGeom = new THREE.SphereGeometry(2, 32, 32);
+const globeMat = new THREE.MeshPhongMaterial({
+  color: cyan,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.4,
+  side: THREE.DoubleSide
+});
+const globe = new THREE.Mesh(globeGeom, globeMat);
+scene.push && scene.add(globe); // Safety
+
+// 2. Bright Glowing Core
+const coreGeom = new THREE.SphereGeometry(0.3, 16, 16);
+const coreMat = new THREE.MeshBasicMaterial({ color: cyan });
+const core = new THREE.Mesh(coreGeom, coreMat);
+globe.add(core);
+
+// 3. Orbital Rings
+function createRing(innerRadius, outerRadius, rotationX, rotationY, speed) {
+  const ringGeom = new THREE.RingGeometry(innerRadius, outerRadius, 64);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: cyan,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.6
+  });
+  const ring = new THREE.Mesh(ringGeom, ringMat);
+  ring.rotation.x = rotationX;
+  ring.rotation.y = rotationY;
+  
+  // Add some wireframe/segments to the ring for tech feel
+  const ringEdges = new THREE.EdgesGeometry(ringGeom);
+  const ringLine = new THREE.LineSegments(ringEdges, new THREE.LineBasicMaterial({ color: cyan, opacity: 0.8 }));
+  ring.add(ringLine);
+
+  return { mesh: ring, speed };
+}
+
+const rings = [
+  createRing(2.4, 2.42, Math.PI / 2.5, 0.2, 0.005),
+  createRing(2.6, 2.61, -Math.PI / 3, -0.4, -0.008),
+  createRing(2.2, 2.21, 0.5, 0.8, 0.01)
+];
+
+rings.forEach(r => scene.add(r.mesh));
+
+// Lights
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+const pointLight = new THREE.PointLight(cyan, 2, 10);
+pointLight.position.set(0, 0, 2);
+scene.add(pointLight);
+
+// Animation Loop
+function animate(t) {
+  requestAnimationFrame(animate);
+  
+  globe.rotation.y += 0.002;
+  globe.rotation.x += 0.001;
+  
+  rings.forEach(r => {
+    r.mesh.rotation.z += r.speed;
+  });
+  
+  // Pulse core
+  core.scale.setScalar(1 + Math.sin(t * 0.003) * 0.1);
+  
+  renderer.render(scene, camera);
+}
+
+animate(0);
+
+// Resize handling
+window.addEventListener('resize', () => {
+  const w = container.clientWidth || window.innerWidth;
+  const h = container.clientHeight || window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+})();
+</script>
+</div>
+<!-- STITCH_THREEJS_END:ANIMATION_20 -->
+<!-- Crosshairs -->
+<div class="absolute w-full h-px bg-primary/20"></div>
+<div class="absolute h-full w-px bg-primary/20"></div>
+</div>
+<div class="mt-8 text-center flex flex-col items-center">
+<div class="font-headline-sm text-headline-sm text-primary-fixed-dim pulse mb-2">
+                    STANDBY / say "Jarvis"...
+                </div>
+<div class="flex gap-1 h-2 items-end justify-center">
+<div class="w-1 bg-primary-fixed-dim animate-[pulse_1s_ease-in-out_infinite]" style="height: 40%"></div>
+<div class="w-1 bg-primary-fixed-dim animate-[pulse_1.2s_ease-in-out_infinite_0.1s]" style="height: 80%"></div>
+<div class="w-1 bg-primary-fixed-dim animate-[pulse_0.8s_ease-in-out_infinite_0.2s]" style="height: 60%"></div>
+<div class="w-1 bg-primary-fixed-dim animate-[pulse_1.1s_ease-in-out_infinite_0.3s]" style="height: 100%"></div>
+<div class="w-1 bg-primary-fixed-dim animate-[pulse_0.9s_ease-in-out_infinite_0.4s]" style="height: 50%"></div>
+</div>
+</div>
+</div>
+<!-- Right Panel: Memory & Network -->
+<aside class="glass-panel w-80 h-3/4 p-gutter perspective-right flex flex-col gap-widget-gap glow-border">
+<div class="hud-bracket bracket-tl"></div><div class="hud-bracket bracket-tr"></div>
+<div class="hud-bracket bracket-bl"></div><div class="hud-bracket bracket-br"></div>
+<div class="flex items-center justify-between border-b border-primary/20 pb-2">
+<span class="font-label-caps text-label-caps text-secondary">DIAGNOSTICS // VRAM</span>
+<span class="material-symbols-outlined text-primary-fixed-dim" style="font-variation-settings: 'FILL' 1;">sensors</span>
+</div>
+<!-- Memory Usage -->
+<div class="mt-4">
+<div class="flex justify-between font-label-caps text-label-caps mb-2">
+<span class="text-outline">ALLOCATED</span>
+<span class="text-primary-fixed-dim">102.4 TB</span>
+</div>
+<div class="h-2 w-full bg-surface-container-high relative border border-primary/20">
+<div class="absolute top-0 left-0 h-full bg-primary-fixed-dim w-3/4 shadow-[0_0_10px_rgba(0,218,243,0.8)]"></div>
+<!-- Micro markers -->
+<div class="absolute inset-0 flex justify-between">
+<div class="w-px h-full bg-background/50"></div>
+<div class="w-px h-full bg-background/50"></div>
+<div class="w-px h-full bg-background/50"></div>
+<div class="w-px h-full bg-background/50"></div>
+</div>
+</div>
+</div>
+<!-- Storage -->
+<div class="mt-4 border-b border-primary/10 pb-4">
+<div class="flex justify-between font-label-caps text-label-caps mb-2">
+<span class="text-outline">STORAGE CLUSTER</span>
+<span class="text-secondary-fixed">45%</span>
+</div>
+<div class="flex gap-1 h-8">
+<div class="flex-grow bg-primary-fixed-dim/80"></div>
+<div class="flex-grow bg-primary-fixed-dim/80"></div>
+<div class="flex-grow bg-primary-fixed-dim/40"></div>
+<div class="flex-grow bg-surface-container"></div>
+<div class="flex-grow bg-surface-container"></div>
+</div>
+</div>
+<!-- Network Graph -->
+<div class="flex-grow mt-4 flex flex-col">
+<div class="font-label-caps text-label-caps text-secondary mb-2">UPLINK ACTIVITY</div>
+<div class="flex-grow relative border border-primary/20 bg-primary/5 flex items-end p-1 gap-1">
+<script>
+                        for(let i=0; i<20; i++) {
+                            const h = Math.floor(Math.random() * 80) + 10;
+                            document.write(`<div class="flex-grow bg-primary-fixed-dim/60 hover:bg-primary-fixed-dim transition-all duration-300" style="height: ${h}%"></div>`);
+                        }
+                    </script>
+</div>
+<div class="flex justify-between mt-2 font-data-numeric text-[10px] text-outline">
+<span>TX: 1.2GB/s</span>
+<span>RX: 3.4GB/s</span>
+</div>
+</div>
+</aside>
+</main>
+<!-- Bottom Command Bar -->
+<footer class="w-full flex justify-center z-10 pb-2">
+<div class="glass-panel w-full max-w-2xl p-2 flex items-center gap-4 glow-border">
+<div class="hud-bracket bracket-tl"></div><div class="hud-bracket bracket-tr"></div>
+<div class="hud-bracket bracket-bl"></div><div class="hud-bracket bracket-br"></div>
+<div class="flex items-center gap-2 px-2">
+<span class="material-symbols-outlined text-primary-fixed-dim pulse" style="font-variation-settings: 'FILL' 1;">mic</span>
+<span class="font-label-caps text-[10px] text-primary-fixed-dim">LISTENING</span>
+</div>
+<input class="flex-grow bg-transparent border-none focus:ring-0 font-body-md text-primary placeholder:text-outline/50 outline-none" placeholder="Awaiting command input..." readonly="" type="text"/>
+<button class="bg-primary-fixed-dim/10 hover:bg-primary-fixed-dim/20 border border-primary-fixed-dim text-primary-fixed-dim font-label-caps text-label-caps px-6 py-2 transition-colors duration-300 flex items-center gap-2">
+                SEND
+                <span class="material-symbols-outlined text-sm">send</span>
+</button>
+</div>
+</footer>
+<script>
+        // Simple clock update
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('clock').textContent = timeString;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+    </script>
+</body></html>

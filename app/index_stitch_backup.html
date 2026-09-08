@@ -1,0 +1,511 @@
+<!DOCTYPE html><html class="dark" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>J.A.R.V.I.S. Command Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#00626e",
+                        "on-error": "#690005",
+                        "error-container": "#93000a",
+                        "on-tertiary": "#621100",
+                        "surface-tint": "#00daf3",
+                        "on-background": "#e1e2e7",
+                        "surface-container-high": "#282a2e",
+                        "primary": "#c3f5ff",
+                        "primary-fixed-dim": "#00daf3",
+                        "primary-container": "#00e5ff",
+                        "tertiary-fixed-dim": "#ffb4a2",
+                        "inverse-surface": "#e1e2e7",
+                        "surface-variant": "#323539",
+                        "surface-container-lowest": "#0c0e12",
+                        "surface-container-low": "#191c1f",
+                        "surface": "#111417",
+                        "on-tertiary-container": "#aa2600",
+                        "primary-fixed": "#9cf0ff",
+                        "surface-bright": "#37393d",
+                        "outline-variant": "#3b494c",
+                        "secondary": "#95d0d8",
+                        "secondary-fixed-dim": "#95d0d8",
+                        "tertiary-container": "#ffc2b3",
+                        "outline": "#849396",
+                        "surface-container": "#1d2023",
+                        "on-surface-variant": "#bac9cc",
+                        "inverse-on-surface": "#2e3134",
+                        "on-primary-fixed-variant": "#004f58",
+                        "on-secondary-fixed": "#001f23",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#83bfc7",
+                        "secondary-container": "#034f56",
+                        "on-primary-fixed": "#001f24",
+                        "tertiary": "#ffe7e2",
+                        "on-tertiary-fixed": "#3c0700",
+                        "surface-dim": "#111417",
+                        "secondary-fixed": "#b0edf5",
+                        "on-surface": "#e1e2e7",
+                        "inverse-primary": "#006875",
+                        "on-tertiary-fixed-variant": "#8a1d00",
+                        "on-secondary": "#00363c",
+                        "on-primary": "#00363d",
+                        "on-secondary-fixed-variant": "#034f56",
+                        "surface-container-highest": "#323539",
+                        "error": "#ffb4ab",
+                        "tertiary-fixed": "#ffdad2",
+                        "background": "#111417"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "margin-edge": "32px",
+                        "widget-gap": "24px",
+                        "container-padding": "12px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["JetBrains Mono"],
+                        "body-md": ["JetBrains Mono"],
+                        "headline-sm": ["Space Grotesk"],
+                        "headline-lg": ["Space Grotesk"],
+                        "headline-lg-mobile": ["Space Grotesk"],
+                        "display-lg": ["Space Grotesk"],
+                        "data-numeric": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.2em", "fontWeight": "700" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "letterSpacing": "0.1em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "data-numeric": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.02em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .hud-grid {
+            background-image: 
+                linear-gradient(to right, rgba(0, 218, 243, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 218, 243, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .vignette {
+            background: radial-gradient(ellipse at center, transparent 30%, rgba(17, 20, 23, 0.8) 80%, rgba(17, 20, 23, 1) 100%);
+        }
+        .glow-text {
+            text-shadow: 0 0 10px rgba(0, 218, 243, 0.6);
+        }
+        .glow-box {
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.2), inset 0 0 10px rgba(0, 229, 255, 0.1);
+        }
+        
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+        .animate-scan {
+            animation: scanline 8s linear infinite;
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background h-screen w-screen overflow-hidden relative selection:bg-primary-container selection:text-on-primary-container">
+<!-- Environmental Layers -->
+<div class="absolute inset-0 hud-grid pointer-events-none z-0"></div>
+<div class="absolute inset-0 w-full h-[5px] bg-primary-fixed-dim/20 shadow-[0_0_20px_rgba(0,218,243,0.5)] opacity-50 blur-sm animate-scan pointer-events-none z-10"></div>
+<div class="absolute inset-0 vignette pointer-events-none z-20"></div>
+<!-- Header: Brand (Top Left) -->
+<div class="absolute top-margin-edge left-margin-edge z-50 flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-primary-container flex items-center justify-center glow-box animate-[spin_10s_linear_infinite]">
+<div class="w-4 h-4 rounded-full border-t-2 border-primary-container"></div>
+</div>
+<h1 class="font-headline-sm text-headline-sm tracking-widest text-primary-fixed-dim glow-text uppercase">SVPREME SYSTEMS</h1>
+</div>
+<!-- Header: Clock (Top Right) -->
+<div class="absolute top-margin-edge right-margin-edge z-50 text-right flex flex-col items-end">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary-container text-[16px] animate-pulse">sensors</span>
+<div class="font-label-caps text-label-caps text-primary-container uppercase tracking-widest">LIVE FEED</div>
+</div>
+<div class="font-data-numeric text-display-lg text-primary-fixed-dim glow-text tracking-wider leading-none" id="clock-time">17:06:59</div>
+<div class="font-label-caps text-label-caps text-outline mt-2 uppercase tracking-[0.3em]" id="clock-date">WEDNESDAY // 2026.08.19</div>
+</div>
+<div class="absolute top-[92px] left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2.5">
+<div class="flex items-end gap-[3px] h-8" id="cores"></div>
+<div class="flex gap-6 font-label-caps text-label-caps text-outline tracking-widest">
+<span>UPTIME <b class="text-primary-fixed-dim" id="t-uptime">-</b></span>
+<span>PROC <b class="text-primary-fixed-dim" id="t-procs">-</b></span>
+<span>LOAD <b class="text-primary-fixed-dim" id="t-load">-</b></span>
+<span>SWAP <b class="text-primary-fixed-dim" id="t-swap">-</b></span>
+<span>PWR <b class="text-primary-fixed-dim" id="t-bat">-</b></span>
+</div>
+<div class="font-label-caps text-[10px] text-primary-container/70 tracking-widest">TOP PROCESS <b class="text-primary-fixed-dim" id="t-top">-</b></div>
+</div>
+<!-- Central Focal Point: AI Core -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] z-30 flex items-center justify-center">
+<!-- Structural Rings -->
+<div class="absolute inset-0 rounded-full border border-primary-container/20 shadow-[0_0_80px_rgba(0,229,255,0.15)] animate-[spin_30s_linear_infinite]"></div>
+<div class="absolute inset-8 rounded-full border border-dashed border-primary-fixed-dim/30 animate-[spin_40s_linear_infinite_reverse]"></div>
+<div class="absolute inset-16 rounded-full border-[0.5px] border-primary-container/40"></div>
+<!-- Crosshairs -->
+<div class="absolute top-0 bottom-0 left-1/2 w-[1px] bg-primary-container/20"></div>
+<div class="absolute left-0 right-0 top-1/2 h-[1px] bg-primary-container/20"></div>
+<div class="absolute inset-0 rounded-full pointer-events-none z-10 animate-[spin_5s_linear_infinite]" style="background:conic-gradient(from 0deg, transparent 0deg, rgba(0,229,255,0.16) 45deg, transparent 95deg);"></div>
+<!-- The Shader Orb -->
+<div class="relative w-[300px] h-[300px] rounded-full overflow-hidden shadow-[0_0_100px_rgba(0,218,243,0.4)] ring-1 ring-primary-container/50 bg-surface-container-lowest flex items-center justify-center">
+<!-- STITCH_SHADER_START:ANIMATION_14 class="absolute inset-0 w-full h-full object-cover mix-blend-screen" -->
+<div class="absolute inset-0 w-full h-full object-cover mix-blend-screen" style="display:block;">
+<canvas id="shader-canvas-ANIMATION_14" style="display:block;width:100%;height:100%"></canvas>
+<script>
+(function() {
+  const canvas = document.getElementById('shader-canvas-ANIMATION_14');
+
+  // Sync the WebGL drawing-buffer size with the CSS-driven layout size.
+  // This fires on initial layout and whenever the element is resized.
+  function syncSize() {
+    const w = canvas.clientWidth  || 1280;
+    const h = canvas.clientHeight || 720;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width  = w;
+      canvas.height = h;
+    }
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(syncSize).observe(canvas);
+  }
+  syncSize();
+
+  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) return;
+  const vs = `attribute vec2 a_position;
+varying vec2 v_texCoord;
+void main() {
+  v_texCoord = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+  const fs = `precision highp float;
+uniform float u_time;
+uniform vec2 u_resolution;
+varying vec2 v_texCoord;
+
+// Simplex 2D noise
+vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+float snoise(vec2 v){
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+           -0.577350269189626, 0.024390243902439);
+  vec2 i  = floor(v + dot(v, C.yy) );
+  vec2 x0 = v -   i + dot(i, C.xx);
+  vec2 i1;
+  i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod(i, 289.0);
+  vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+  + i.x + vec3(0.0, i1.x, 1.0 ));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy),
+    dot(x12.zw,x12.zw)), 0.0);
+  m = m*m ;
+  m = m*m ;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+  vec3 g;
+  g.x  = a0.x  * x0.x  + h.x  * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+void main() {
+    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+    
+    float d = length(uv);
+    
+    // Breathing pulse
+    float pulse = sin(u_time * 1.5) * 0.05 + 1.0;
+    float coreDist = d / pulse;
+    
+    // Internal energy noise
+    float noise = snoise(uv * 3.0 + u_time * 0.4) * 0.1;
+    
+    // Main orb glow
+    float orb = 0.08 / (coreDist - 0.4 + noise);
+    orb *= smoothstep(0.7, 0.4, coreDist);
+    
+    // Concentric rings
+    float ring1 = abs(sin(d * 12.0 - u_time * 2.0)) * 0.1;
+    ring1 = 0.01 / (abs(d - 0.65 - ring1) + 0.02);
+    
+    float ring2 = 0.005 / (abs(d - 0.85) + 0.05);
+    
+    // Color palette (#00E5FF)
+    vec3 cyan = vec3(0.0, 0.898, 1.0);
+    
+    // Combine layers
+    vec3 color = cyan * (orb + ring1 + ring2 * 0.5);
+    
+    // Core highlight
+    float center = smoothstep(0.2, 0.0, d);
+    color += cyan * center * 0.8;
+
+    // Atmospheric haze
+    color += cyan * (0.05 / (d + 0.5)) * 0.3;
+
+    gl_FragColor = vec4(color, color.r * 0.8);
+}`;
+  function cs(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, cs(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, cs(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+  const uTime = gl.getUniformLocation(prog, 'u_time');
+  const uRes = gl.getUniformLocation(prog, 'u_resolution');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  // u_mouse is in pixel coordinates matching u_resolution (ShaderToy convention).
+  // Shaders that need normalized coords should use: u_mouse / u_resolution.
+  let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+  window.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height) {
+      const nx = (event.clientX - rect.left) / rect.width;
+      const ny = 1.0 - (event.clientY - rect.top) / rect.height;
+      mouse.x = nx * canvas.width;
+      mouse.y = ny * canvas.height;
+    }
+  });
+
+  function render(t) {
+    if (typeof ResizeObserver === 'undefined') syncSize();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (uTime) gl.uniform1f(uTime, t * 0.001);
+    if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+    if (uMouse) gl.uniform2f(uMouse, mouse.x, mouse.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+  }
+  render(0);
+})();
+</script>
+</div>
+<!-- STITCH_SHADER_END:ANIMATION_14 -->
+<!-- Inner core detail overlay -->
+<div class="absolute inset-0 rounded-full border-[2px] border-primary-container/30 border-dashed animate-[spin_10s_linear_infinite] pointer-events-none"></div>
+</div>
+</div>
+<!-- Satellite Gauges (Ring Layout) -->
+<!-- CPU Gauge (Top Left) -->
+<div class="absolute top-[15%] left-[20%] w-40 h-40 z-40 flex items-center justify-center group">
+<svg class="absolute inset-0 w-full h-full -rotate-90">
+<circle class="text-surface-variant" cx="80" cy="80" fill="none" r="70" stroke="currentColor" stroke-width="1"></circle>
+<circle class="text-primary-container shadow-[0_0_10px_rgba(0,229,255,0.8)] drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" cx="80" cy="80" fill="none" r="70" stroke="currentColor" id="cpu-arc" stroke-dasharray="439" stroke-dashoffset="254" stroke-width="3"></circle>
+<circle class="text-primary-fixed-dim/50 animate-[spin_20s_linear_infinite]" cx="80" cy="80" fill="none" r="60" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1"></circle>
+</svg>
+<div class="relative flex flex-col items-center">
+<span id="cpu-val" class="font-data-numeric text-headline-lg text-primary-fixed-dim glow-text leading-none">42<span class="text-headline-sm">%</span></span>
+<span class="font-label-caps text-label-caps text-outline mt-1 tracking-widest">CPU LOAD</span>
+</div>
+<!-- Target Bracket -->
+<div class="absolute -inset-4 border border-primary-container/0 group-hover:border-primary-container/30 transition-colors duration-500">
+<div class="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary-container opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary-container opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+</div>
+<!-- Memory Gauge (Top Right) -->
+<div class="absolute top-[15%] right-[20%] w-40 h-40 z-40 flex items-center justify-center group">
+<svg class="absolute inset-0 w-full h-full -rotate-90">
+<circle class="text-surface-variant" cx="80" cy="80" fill="none" r="70" stroke="currentColor" stroke-width="1"></circle>
+<circle class="text-primary-container shadow-[0_0_10px_rgba(0,229,255,0.8)] drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" cx="80" cy="80" fill="none" r="70" stroke="currentColor" id="ram-arc" stroke-dasharray="439" stroke-dashoffset="52" stroke-width="3"></circle>
+<circle class="text-primary-fixed-dim/50 animate-[spin_25s_linear_infinite_reverse]" cx="80" cy="80" fill="none" r="60" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1"></circle>
+</svg>
+<div class="relative flex flex-col items-center">
+<span id="ram-val" class="font-data-numeric text-headline-lg text-primary-fixed-dim glow-text leading-none">88<span class="text-headline-sm">%</span></span>
+<span class="font-label-caps text-label-caps text-outline mt-1 tracking-widest">MEMORY</span>
+</div>
+<!-- Target Bracket -->
+<div class="absolute -inset-4 border border-primary-container/0 group-hover:border-primary-container/30 transition-colors duration-500">
+<div class="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary-container opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary-container opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+</div>
+<!-- Network Status (Bottom Left) -->
+<div class="absolute top-[58%] left-[2%] w-48 h-24 z-40 flex items-center group">
+<div class="relative w-full h-full flex flex-col justify-center border-l-2 border-primary-container/50 pl-4 bg-gradient-to-r from-primary-container/10 to-transparent">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary-container text-[20px] animate-pulse">cell_tower</span>
+<span class="font-label-caps text-label-caps text-primary-fixed-dim tracking-widest">UPLINK STATUS</span>
+</div>
+<div class="w-full"><canvas id="spark" class="w-full block" style="height:28px" width="180" height="28"></canvas><div class="font-label-caps text-[10px] text-primary-fixed-dim tracking-widest flex gap-3 mt-1"><span>&#8595; <b id="net-down">0</b></span><span>&#8593; <b id="net-up">0</b> KB/s</span></div></div>
+<!-- Animated data line -->
+<div class="absolute bottom-0 left-0 w-full h-[1px] bg-surface-variant overflow-hidden">
+<div class="w-1/3 h-full bg-primary-container animate-[scanline_2s_linear_infinite] opacity-50"></div>
+</div>
+<div class="absolute top-0 -left-[5px] w-2 h-2 bg-primary-container rounded-full shadow-[0_0_10px_rgba(0,229,255,0.8)]"></div>
+<div class="absolute bottom-0 -left-[5px] w-2 h-2 bg-primary-container rounded-full shadow-[0_0_10px_rgba(0,229,255,0.8)]"></div>
+</div>
+</div>
+<!-- Disk Storage (Bottom Right) -->
+<div class="absolute top-[58%] right-[2%] w-56 h-24 z-40 flex items-center group">
+<div class="relative w-full h-full flex flex-col justify-center border-r-2 border-primary-container/50 pr-4 items-end bg-gradient-to-l from-primary-container/10 to-transparent">
+<div class="flex items-center gap-2 mb-2">
+<span class="font-label-caps text-label-caps text-primary-fixed-dim tracking-widest">CORE STORAGE</span>
+<span class="material-symbols-outlined text-primary-container text-[20px]">database</span>
+</div>
+<div id="disk-val" class="font-data-numeric text-headline-sm text-primary-fixed-dim glow-text">– <span class="text-outline text-body-md">GB FREE</span></div>
+<!-- Storage Bar -->
+<div class="w-full h-1 bg-surface-variant mt-2 rounded-full overflow-hidden">
+<div id="disk-bar" class="h-full bg-primary-container shadow-[0_0_10px_rgba(0,229,255,0.8)]" style="width:39%"></div>
+</div>
+<div class="absolute top-0 -right-[5px] w-2 h-2 bg-primary-container rounded-full shadow-[0_0_10px_rgba(0,229,255,0.8)]"></div>
+<div class="absolute bottom-0 -right-[5px] w-2 h-2 bg-primary-container rounded-full shadow-[0_0_10px_rgba(0,229,255,0.8)]"></div>
+</div>
+</div>
+<!-- Data Stream / Decorative Element (Left Edge) -->
+
+<div id="log" class="absolute bottom-[116px] left-1/2 -translate-x-1/2 w-full max-w-xl z-50 flex flex-col gap-1.5 px-5 py-3 max-h-[30vh] overflow-y-auto text-center pointer-events-none rounded-xl bg-surface-container-lowest/55 backdrop-blur-sm"></div>
+<!-- Input Bar (Bottom Center) -->
+<div class="absolute bottom-margin-edge left-1/2 -translate-x-1/2 w-full max-w-3xl z-50">
+<div class="relative group">
+<!-- Neon Border Accent -->
+<div class="absolute -inset-px bg-gradient-to-r from-transparent via-primary-container/50 to-transparent opacity-50 blur-[2px] group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+<div class="relative flex items-center bg-surface-container-lowest/80 backdrop-blur-xl border border-primary-container/30 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+<!-- Terminal Prompt Icon -->
+<div class="pl-4 pr-2 flex items-center border-r border-primary-container/20 h-full py-4">
+<span class="material-symbols-outlined text-primary-fixed-dim text-[20px] animate-pulse">terminal</span>
+</div>
+<input id="box" class="w-full bg-transparent border-none text-primary-fixed-dim font-label-caps text-body-md pl-4 pr-12 py-4 focus:outline-none focus:ring-0 placeholder:text-primary-fixed-dim/30 tracking-widest uppercase" placeholder="ENTER COMMAND OR QUERY..." type="text">
+<!-- Blinking cursor effect on focus -->
+<div class="absolute right-6 top-1/2 -translate-y-1/2 flex gap-1 pointer-events-none opacity-0 group-focus-within:opacity-100 transition-opacity">
+<div class="w-1.5 h-5 bg-primary-container animate-pulse"></div>
+</div>
+<!-- Corner HUD Brackets -->
+<div class="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary-container"></div>
+<div class="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary-container"></div>
+<div class="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary-container"></div>
+<div class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary-container"></div>
+</div>
+</div>
+</div>
+<!-- Javascript for Clock -->
+<script>
+        function updateClock() {
+            const now = new Date();
+            
+            // Time
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clock-time').textContent = `${hours}:${minutes}:${seconds}`;
+            
+            // Date
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            
+            const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+            const dayName = days[now.getDay()];
+            
+            document.getElementById('clock-date').textContent = `${dayName} // ${year}.${month}.${day}`;
+        }
+        
+        setInterval(updateClock, 1000);
+        updateClock(); // initial call
+    </script>
+<script>
+(function(){
+  var box=document.getElementById('box'), log=document.getElementById('log');
+  var $=function(id){return document.getElementById(id);};
+  function esc(t){ return (t||'').replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  function ln(cls,html){ var d=document.createElement('div'); d.className=cls; d.innerHTML=html; log.appendChild(d);
+    while(log.children.length>8) log.removeChild(log.firstChild); log.scrollTop=log.scrollHeight; return d; }
+  var you=function(t){return ln('font-label-caps text-label-caps text-outline tracking-widest','&gt; '+esc(t));},
+      jv=function(t,e){return ln('font-body-md text-body-md '+(e?'text-error':'text-primary-fixed-dim glow-text'),esc(t));},
+      act=function(t){return ln('font-label-caps text-[10px] text-primary-container/60 tracking-widest','&#8627; '+esc(t));};
+  var busy=false;
+  function submit(){ var t=box.value.trim(); if(!t||busy) return; box.value=''; you(t); busy=true;
+    var think=ln('font-label-caps text-label-caps text-primary-container animate-pulse tracking-[0.3em]','PROCESSING...');
+    window.pywebview.api.chat(t).then(function(r){ think.remove(); (r.activity||[]).forEach(act); jv(r.reply||'…'); busy=false; box.focus(); })
+      .catch(function(e){ think.remove(); jv('A fault occurred, sir: '+e,true); busy=false; }); }
+  box.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+
+  var cpuArc=$('cpu-arc'),cpuVal=$('cpu-val'),ramArc=$('ram-arc'),ramVal=$('ram-val'),
+      diskVal=$('disk-val'),diskBar=$('disk-bar'),coresEl=$('cores'),
+      spark=$('spark'),sctx=spark?spark.getContext('2d'):null,hist=[];
+  function arc(el,pct){ if(el) el.setAttribute('stroke-dashoffset',(439*(1-pct/100)).toFixed(0)); }
+  function fmtUp(s){ var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60); return (d?d+'d ':'')+h+'h '+m+'m'; }
+  function fit(){ if(!spark) return; var r=spark.getBoundingClientRect(); if(r.width){ spark.width=r.width; spark.height=r.height; } }
+  function draw(){ if(!sctx||hist.length<2) return; var w=spark.width,h=spark.height; sctx.clearRect(0,0,w,h);
+    var mx=Math.max(50,Math.max.apply(null,hist)),st=w/(hist.length-1),i;
+    sctx.beginPath(); for(i=0;i<hist.length;i++){ var x=i*st,y=h-(hist[i]/mx)*(h-3)-2; i?sctx.lineTo(x,y):sctx.moveTo(x,y); }
+    sctx.lineTo(w,h); sctx.lineTo(0,h); sctx.closePath();
+    var g=sctx.createLinearGradient(0,0,0,h); g.addColorStop(0,'rgba(0,229,255,.35)'); g.addColorStop(1,'rgba(0,229,255,0)'); sctx.fillStyle=g; sctx.fill();
+    sctx.beginPath(); for(i=0;i<hist.length;i++){ var x2=i*st,y2=h-(hist[i]/mx)*(h-3)-2; i?sctx.lineTo(x2,y2):sctx.moveTo(x2,y2); }
+    sctx.strokeStyle='#00daf3'; sctx.lineWidth=1.5; sctx.stroke(); }
+  function poll(){ if(!(window.pywebview&&window.pywebview.api)) return;
+    window.pywebview.api.stats().then(function(s){
+      arc(cpuArc,s.cpu); if(cpuVal) cpuVal.innerHTML=s.cpu+'<span class="text-headline-sm">%</span>';
+      arc(ramArc,s.mem); if(ramVal) ramVal.innerHTML=s.mem+'<span class="text-headline-sm">%</span>';
+      if(diskVal) diskVal.innerHTML=s.disk_free+' <span class="text-outline text-body-md">GB FREE</span>';
+      if(diskBar) diskBar.style.width=s.disk+'%';
+      if(coresEl){ if(coresEl.children.length!==s.ncore){ coresEl.innerHTML=''; for(var i=0;i<s.ncore;i++){ var b=document.createElement('div'); b.style.width='4px'; b.style.transition='height .5s,opacity .5s'; b.className='bg-primary-container rounded-sm'; coresEl.appendChild(b);} }
+        for(var j=0;j<s.cores.length;j++){ var bar=coresEl.children[j]; if(bar){ bar.style.height=Math.max(3,s.cores[j]/100*32)+'px'; bar.style.opacity=(0.35+s.cores[j]/150).toFixed(2);} } }
+      if($('t-uptime')) $('t-uptime').textContent=fmtUp(s.uptime);
+      if($('t-procs')) $('t-procs').textContent=s.procs;
+      if($('t-load')) $('t-load').textContent=s.load;
+      if($('t-swap')) $('t-swap').textContent=s.swap+'%';
+      if($('t-bat')) $('t-bat').textContent=(s.bat.pct!=null?(s.bat.pct+'%'+(s.bat.plug?'⚡':'')):'AC');
+      if($('t-top')) $('t-top').textContent=(s.top&&s.top.name!=='—'?s.top.name+' '+s.top.cpu+'%':'—');
+      if($('net-down')) $('net-down').textContent=s.down;
+      if($('net-up')) $('net-up').textContent=s.up;
+      hist.push(s.down); if(hist.length>50) hist.shift(); draw();
+    }).catch(function(){}); }
+  function boot(){ fit(); var h=new Date().getHours(),p=h<12?'morning':h<18?'afternoon':'evening';
+    jv('Good '+p+', sir. All systems online.'); box.focus(); poll(); setInterval(poll,1500); }
+  window.addEventListener('resize',fit);
+  if(window.pywebview&&window.pywebview.api) boot(); else window.addEventListener('pywebviewready',boot);
+})();
+</script>
+<button id="voicebtn" class="absolute bottom-8 right-8 z-50 w-11 h-11 rounded-full border border-primary-container/40 text-primary-fixed-dim hover:text-primary-container hover:border-primary-container transition-colors flex items-center justify-center text-lg" title="Toggle J.A.R.V.I.S. voice (V)">&#128266;</button>
+<script>
+(function(){ var b=document.getElementById('voicebtn'); if(!b) return; var on=true;
+  b.addEventListener('click',function(){ on=!on; b.innerHTML=on?'&#128266;':'&#128263;';
+    if(window.pywebview&&window.pywebview.api){ window.pywebview.api.set_voice(on); } });
+  document.addEventListener('keydown',function(e){ if((e.key==='v'||e.key==='V')&&document.activeElement!==document.getElementById('box')) b.click(); });
+})();
+</script>
+<div id="listening-badge" class="absolute bottom-8 right-8 z-50 flex items-center gap-2 font-label-caps text-label-caps text-primary-container tracking-widest select-none">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse" style="box-shadow:0 0 8px #00e5ff"></span> LISTENING
+</div>
+<script>
+(function(){ var b=document.getElementById("box"); if(b) b.placeholder=String.fromCharCode(83)+'ay "Hey Jarvis" - always listening'; })();
+</script>
+</body></html>

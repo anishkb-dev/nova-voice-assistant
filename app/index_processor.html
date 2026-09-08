@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>J.A.R.V.I.S.</title>
+<style>
+  :root{ --cy:#00e5ff; --cy-dim:#0a4b57; --bg:#020608; --panel:rgba(0,229,255,.05); }
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    background:
+      radial-gradient(ellipse at 25% 15%, rgba(0,229,255,.08), transparent 60%),
+      linear-gradient(0deg,#010406,#020a0e);
+    color:#cfefff; font-family:"SF Mono",Menlo,Consolas,monospace; overflow:hidden; background-color:var(--bg);
+  }
+  body::before{ content:""; position:fixed; inset:0; pointer-events:none; opacity:.10;
+    background-image:linear-gradient(var(--cy) 1px,transparent 1px),linear-gradient(90deg,var(--cy) 1px,transparent 1px);
+    background-size:44px 44px; }
+  .wrap{ display:flex; height:100vh; }
+  /* left rail: LIVE PROCESSOR */
+  .rail{ width:310px; flex:none; display:flex; flex-direction:column; align-items:center; gap:20px;
+    padding:26px 20px; border-right:1px solid rgba(0,229,255,.15);
+    background:linear-gradient(180deg,rgba(0,229,255,.03),transparent); }
+  .clock{ font-size:28px; letter-spacing:3px; color:#eafcff; text-shadow:0 0 12px var(--cy); }
+  .date{ font-size:10px; letter-spacing:2px; color:#6fd6ea; text-transform:uppercase; margin-top:-6px; }
+  /* CPU ring */
+  .cpuring{ width:172px; height:172px; border-radius:50%; position:relative; display:grid; place-items:center;
+    background:conic-gradient(var(--cy) 0deg, rgba(0,229,255,.10) 0deg);
+    box-shadow:0 0 26px rgba(0,229,255,.25); transition:background .6s linear; }
+  .cpuhole{ width:132px; height:132px; border-radius:50%; background:var(--bg);
+    border:1px solid rgba(0,229,255,.2); display:grid; place-items:center; text-align:center; }
+  .cpuval{ font-size:38px; color:#eafcff; text-shadow:0 0 14px var(--cy); line-height:1; }
+  .cpulbl{ font-size:9px; letter-spacing:3px; color:var(--cy); text-transform:uppercase; margin-top:6px; }
+  .cpusub{ font-size:8px; letter-spacing:2px; color:#4c9fb2; text-transform:uppercase; }
+  /* per-core bars */
+  .cores{ display:flex; align-items:flex-end; gap:4px; height:42px; width:100%; justify-content:center; }
+  .corebar{ width:9px; height:8%; background:linear-gradient(0deg,var(--cy),#7ff); border-radius:2px 2px 0 0;
+    box-shadow:0 0 6px rgba(0,229,255,.5); transition:height .5s ease,opacity .5s; opacity:.4; }
+  .coreslbl{ font-size:8px; letter-spacing:2px; color:#4c9fb2; text-transform:uppercase; margin-top:-12px; }
+  /* meters */
+  .meters{ width:100%; display:flex; flex-direction:column; gap:12px; margin-top:2px; }
+  .meter .top{ display:flex; justify-content:space-between; font-size:9px; letter-spacing:2px;
+    text-transform:uppercase; color:#6fd6ea; margin-bottom:4px; }
+  .meter .top b{ color:#eafcff; }
+  .bar{ height:6px; background:rgba(0,229,255,.1); border-radius:3px; overflow:hidden; }
+  .bar .fill{ height:100%; width:0; background:linear-gradient(90deg,#0097b3,var(--cy)); border-radius:3px;
+    box-shadow:0 0 8px var(--cy); transition:width .6s ease; }
+  .net{ display:flex; justify-content:space-between; font-size:10px; letter-spacing:1px; color:#7fd6ea; width:100%; }
+  .brand{ font-size:11px; letter-spacing:4px; color:#3a90a3; text-transform:uppercase; margin-top:auto; }
+  .brand b{ color:var(--cy); }
+  /* right: conversation */
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  header{ padding:16px 24px; border-bottom:1px solid rgba(0,229,255,.15); display:flex; align-items:center; justify-content:space-between; }
+  header h1{ font-size:18px; letter-spacing:8px; color:#eafcff; text-shadow:0 0 14px var(--cy); font-weight:600; }
+  header .status{ font-size:10px; letter-spacing:2px; color:#3ad; text-transform:uppercase; }
+  header .status b{ color:#39ff88; }
+  #log{ flex:1; overflow-y:auto; padding:22px 26px; display:flex; flex-direction:column; gap:14px; }
+  #log::-webkit-scrollbar{ width:6px; } #log::-webkit-scrollbar-thumb{ background:var(--cy-dim); border-radius:3px; }
+  .msg{ max-width:78%; padding:11px 15px; border-radius:12px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; }
+  .me{ align-self:flex-end; background:rgba(0,229,255,.12); border:1px solid rgba(0,229,255,.35); color:#eafcff; }
+  .jv{ align-self:flex-start; background:var(--panel); border:1px solid rgba(0,229,255,.18); border-left:3px solid var(--cy); box-shadow:0 0 18px rgba(0,229,255,.06); }
+  .jv .who{ font-size:9px; letter-spacing:3px; color:var(--cy); text-transform:uppercase; display:block; margin-bottom:5px; }
+  .act{ align-self:flex-start; font-size:10.5px; letter-spacing:1px; color:#4c9fb2; font-style:italic; opacity:.85; }
+  .act::before{ content:"↳ "; }
+  .thinking{ align-self:flex-start; color:var(--cy); font-size:12px; letter-spacing:2px; }
+  .thinking span{ animation:blink 1.2s infinite; } .thinking span:nth-child(2){ animation-delay:.2s; } .thinking span:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink{ 0%,100%{ opacity:.2; } 50%{ opacity:1; } }
+  footer{ padding:16px 24px; border-top:1px solid rgba(0,229,255,.15); display:flex; gap:12px; }
+  #box{ flex:1; background:rgba(0,229,255,.05); border:1px solid rgba(0,229,255,.3); border-radius:10px; padding:12px 15px; color:#eafcff; font-family:inherit; font-size:13.5px; outline:none; }
+  #box:focus{ border-color:var(--cy); box-shadow:0 0 16px rgba(0,229,255,.25); }
+  #send{ background:linear-gradient(180deg,var(--cy),#0097b3); border:none; color:#012; font-weight:700; letter-spacing:2px; padding:0 22px; border-radius:10px; cursor:pointer; font-family:inherit; font-size:12px; }
+  #send:disabled{ opacity:.4; cursor:default; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="rail">
+    <div style="text-align:center"><div class="clock" id="clock">--:--</div><div class="date" id="date"></div></div>
+    <div class="cpuring" id="cpuring"><div class="cpuhole">
+      <div class="cpuval" id="cpuval">--</div><div class="cpulbl">Processor</div><div class="cpusub" id="cpusub"></div>
+    </div></div>
+    <div class="cores" id="cores"></div><div class="coreslbl">per-core load</div>
+    <div class="meters">
+      <div class="meter"><div class="top"><span>Memory</span><b id="memtxt">–</b></div><div class="bar"><div class="fill" id="memfill"></div></div></div>
+      <div class="meter"><div class="top"><span>Disk</span><b id="disktxt">–</b></div><div class="bar"><div class="fill" id="diskfill"></div></div></div>
+      <div class="net"><span id="netdown">↓ – KB/s</span><span id="netup">↑ – KB/s</span></div>
+    </div>
+    <div class="brand">SVPREME&nbsp;<b>SYSTEMS</b></div>
+  </div>
+  <div class="main">
+    <header><h1>J.A.R.V.I.S.</h1><div class="status">SYSTEM <b>ONLINE</b> · LOCAL</div></header>
+    <div id="log"></div>
+    <footer>
+      <input id="box" placeholder="Speak, sir…" autocomplete="off">
+      <button id="send">SEND</button>
+    </footer>
+  </div>
+</div>
+<script>
+  const log=document.getElementById('log'), box=document.getElementById('box'), send=document.getElementById('send');
+  function el(cls,html){ const d=document.createElement('div'); d.className=cls; d.innerHTML=html; log.appendChild(d); log.scrollTop=log.scrollHeight; return d; }
+  function esc(s){ return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  const addMe=t=>el('msg me',esc(t)), addJv=t=>el('msg jv','<span class="who">J.A.R.V.I.S.</span>'+esc(t)), addAct=t=>el('act',esc(t));
+
+  let busy=false;
+  async function submit(){
+    const t=box.value.trim(); if(!t||busy) return;
+    box.value=''; addMe(t); busy=true; send.disabled=true;
+    const think=el('thinking','THINKING<span>.</span><span>.</span><span>.</span>');
+    try{ const res=await window.pywebview.api.chat(t); think.remove(); (res.activity||[]).forEach(addAct); addJv(res.reply||'…'); }
+    catch(e){ think.remove(); addJv('A fault occurred, sir: '+e); }
+    busy=false; send.disabled=false; box.focus();
+  }
+  send.addEventListener('click',submit);
+  box.addEventListener('keydown',e=>{ if(e.key==='Enter') submit(); });
+
+  function tick(){ const d=new Date();
+    document.getElementById('clock').textContent=d.toTimeString().slice(0,5);
+    document.getElementById('date').textContent=d.toDateString(); }
+  setInterval(tick,1000); tick();
+
+  const cpuring=document.getElementById('cpuring'), cpuval=document.getElementById('cpuval'),
+        cpusub=document.getElementById('cpusub'), coresEl=document.getElementById('cores');
+  async function poll(){
+    try{
+      const s=await window.pywebview.api.stats();
+      cpuring.style.background=`conic-gradient(var(--cy) ${s.cpu*3.6}deg, rgba(0,229,255,.10) 0deg)`;
+      cpuval.textContent=s.cpu+'%'; cpusub.textContent=s.ncore+' cores';
+      if(coresEl.children.length!==s.ncore){ coresEl.innerHTML=''; for(let i=0;i<s.ncore;i++){ const b=document.createElement('div'); b.className='corebar'; coresEl.appendChild(b);} }
+      s.cores.forEach((c,i)=>{ const b=coresEl.children[i]; if(b){ b.style.height=Math.max(6,c)+'%'; b.style.opacity=(0.35+c/140).toFixed(2);} });
+      document.getElementById('memfill').style.width=s.mem+'%'; document.getElementById('memtxt').textContent=s.mem_gb+' / '+s.mem_tot+' GB';
+      document.getElementById('diskfill').style.width=s.disk+'%'; document.getElementById('disktxt').textContent=s.disk_free+' GB free';
+      document.getElementById('netdown').textContent='↓ '+s.down+' KB/s'; document.getElementById('netup').textContent='↑ '+s.up+' KB/s';
+    }catch(e){}
+  }
+
+  window.addEventListener('pywebviewready',()=>{
+    const h=new Date().getHours(), part=h<12?'morning':h<18?'afternoon':'evening';
+    addJv('Good '+part+', sir. All systems online. How may I be of service?');
+    box.focus(); poll(); setInterval(poll,1500);
+  });
+</script>
+</body>
+</html>

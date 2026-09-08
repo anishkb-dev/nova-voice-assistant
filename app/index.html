@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>J.A.R.V.I.S.</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<style>
+  /* motion tokens (see design.md) */
+  :root{--ease-out:cubic-bezier(.22,1,.36,1);--ease-io:cubic-bezier(.65,0,.35,1);
+    --t-fast:180ms;--t:260ms}
+  body{background:#02060b;color:#00e5ff;overflow:hidden;margin:0;height:100vh;width:100vw;position:relative;
+    font-family:"JetBrains Mono",monospace}
+
+  /* choreographed entrance — enters fast→slow, staggered in reading order */
+  @keyframes enter{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes enterL{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+  @keyframes enterR{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+  .anim{opacity:0;animation:enter var(--t) var(--ease-out) forwards}
+  /* tilted panels: fade only (transform is reserved for the 3D tilt) */
+  @keyframes fadein{to{opacity:1}}
+  .anim-l,.anim-r{opacity:0;animation:fadein 460ms var(--ease-out) forwards}
+  .d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.25s}.d4{animation-delay:.35s}.d5{animation-delay:.45s}
+  /* buttons + interactive get a real transition */
+  button,#send,#attach,.icon-dev,.bulb{transition:all var(--t-fast) var(--ease-io)}
+  #send:active{transform:scale(.96)}
+  @media (prefers-reduced-motion:reduce){
+    .anim,.anim-l,.anim-r{animation:none;opacity:1;transform:none}
+    *{animation-duration:.001s!important;transition-duration:.001s!important}
+  }
+  #bg{position:fixed;inset:0;z-index:0}
+  .scanlines{position:fixed;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,229,255,.03) 50%,rgba(0,229,255,.03));
+    background-size:100% 4px;z-index:50;pointer-events:none;opacity:.7}
+  .tactical-panel{background:rgba(12,14,18,.72);border:1px solid rgba(0,229,255,.4);position:relative;
+    clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px);backdrop-filter:blur(3px)}
+  .tb{position:absolute;width:22px;height:22px;border-color:#00e5ff;z-index:10}
+  .tl{top:0;left:0;border-top:2px solid;border-left:2px solid}.tr{top:0;right:0;border-top:2px solid;border-right:2px solid}
+  .bl{bottom:0;left:0;border-bottom:2px solid;border-left:2px solid}.br{bottom:0;right:0;border-bottom:2px solid;border-right:2px solid}
+  .shard{clip-path:polygon(0 0,calc(100% - 6px) 0,100% 100%,0 100%)}
+  .crosshair::before{content:'';position:absolute;top:50%;left:0;width:100%;height:1px;background:rgba(0,229,255,.25)}
+  .crosshair::after{content:'';position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(0,229,255,.25)}
+  .pulse{animation:pl 1.5s infinite steps(2,end)}@keyframes pl{0%,100%{opacity:1}50%{opacity:.3}}
+  #mic-eq .eqbar{width:3px;height:100%;background:#38ffa8;transform-origin:bottom;transform:scaleY(.1);opacity:.5;border-radius:1px;transition:transform .06s linear,opacity .18s,background .2s}
+  #mic-eq.on .eqbar{opacity:1}                 /* your voice detected */
+  #mic-eq.busy .eqbar{background:#ffb020}       /* Jarvis thinking/speaking */
+  .lbl{font-family:"JetBrains Mono";font-size:11px;letter-spacing:.2em;font-weight:700}
+  .num{font-family:"JetBrains Mono";font-variant-numeric:tabular-nums}
+  .disp{font-family:"Space Grotesk";letter-spacing:.05em}
+  .tilt-l{transform:perspective(1600px) rotateY(11deg);transform-origin:left center}
+  .tilt-r{transform:perspective(1600px) rotateY(-11deg);transform-origin:right center}
+  ::-webkit-scrollbar{width:0}
+  .msg{max-width:80%;font-size:13px;line-height:1.5;padding:8px 13px;white-space:pre-wrap;
+    animation:enter var(--t) var(--ease-out)}
+  .me{align-self:flex-end;background:rgba(0,229,255,.13);border:1px solid rgba(0,229,255,.4);color:#c3f5ff}
+  .jv{align-self:flex-start;background:rgba(0,229,255,.05);border-left:2px solid #00e5ff;color:#bfeaff}
+  .jv b{font-size:8px;letter-spacing:.3em;color:#00e5ff;display:block;margin-bottom:3px}
+  #boot{position:fixed;inset:0;z-index:80;background:#02060b;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;transition:opacity .7s}
+  #boot.gone{opacity:0;pointer-events:none}
+  #boot .bt{font-family:"Space Grotesk";font-size:28px;letter-spacing:.6em;color:var(--ice,#bff6ff);
+    text-shadow:0 0 24px #26e6ff;margin-bottom:6px;opacity:0;animation:fadein .5s var(--ease-out) forwards}
+  #boot .bt2{font-size:9px;letter-spacing:.4em;color:#4f7d8c;margin-bottom:26px;opacity:0;
+    animation:fadein .5s .2s var(--ease-out) forwards}
+  #boot-log{width:min(420px,80vw);display:flex;flex-direction:column;gap:9px;font-size:11px;letter-spacing:.12em}
+  .bline{display:flex;justify-content:space-between;color:#4f7d8c;opacity:0;animation:enter .3s var(--ease-out) forwards}
+  .bline b{color:#38ffa8;text-shadow:0 0 8px rgba(56,255,168,.6)}
+  .bline.warn b{color:#ffb020;text-shadow:0 0 8px rgba(255,176,32,.6)}
+  #boot-ready{margin-top:24px;font-family:"Space Grotesk";font-size:15px;letter-spacing:.5em;color:#26e6ff;
+    text-shadow:0 0 18px #26e6ff;opacity:0}
+  #boot-ready.show{animation:enter .5s var(--ease-out) forwards}
+</style>
+</head>
+<body style="margin:0;overflow:hidden">
+<canvas id="bg"></canvas>
+<div class="scanlines"></div>
+
+<!-- Top Bar -->
+<div id="stage" class="flex flex-col justify-between" style="width:1440px;height:900px;padding:30px;transform-origin:top left;position:relative">
+<header class="w-full flex justify-between items-start z-10 anim d1">
+  <div>
+    <h1 class="disp text-[#00e5ff] font-bold" style="font-size:28px;letter-spacing:.14em">J.A.R.V.I.S. // CMD</h1>
+    <div class="flex gap-2 mt-1">
+      <span class="lbl text-[9px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-0.5 border border-[#00e5ff]/40">SYS.VER 2.0.4</span>
+      <span class="lbl text-[9px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-0.5 border border-[#00e5ff]/40">AUTH: OMEGA</span>
+    </div>
+  </div>
+  <div class="flex flex-col items-center mt-1">
+    <div class="lbl text-[#00e5ff] flex items-center gap-6 border-b border-[#00e5ff]/40 pb-2 px-8" style="font-size:11px">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#00e5ff] pulse"></span><span>CORE ONLINE</span></div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#00e5ff] pulse" style="animation-delay:.5s"></span><span>MODEL GROQ-120B</span></div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 bg-[#00e5ff] pulse" style="animation-delay:.2s"></span><span>LINK SECURE</span></div>
+    </div>
+    <div class="mt-2 flex gap-3 text-[10px] text-[#849396]/80"><span>SVPREME SYSTEMS</span><span>//</span><span>NODE ALPHA-7</span></div>
+  </div>
+  <div class="text-right">
+    <div class="num text-[#00e5ff] font-bold" id="clock" style="font-size:22px;letter-spacing:.1em">--:--:--</div>
+    <div class="lbl text-[9px] text-[#849396] mt-1">LOCAL TIME</div>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="flex-grow flex justify-between items-center z-10 relative mt-6">
+  <!-- Left: CPU -->
+  <aside class="tactical-panel tilt-l anim-l d2 p-3 flex flex-col gap-2" style="height:82%;width:300px;overflow:hidden">
+    <span class="tb tl"></span><span class="tb tr"></span><span class="tb bl"></span><span class="tb br"></span>
+    <div class="flex items-center justify-between border-b border-[#00e5ff]/40 pb-2">
+      <span class="lbl text-[#00e5ff]">TELEMETRY // CPU</span>
+      <span class="material-symbols-outlined text-[#00e5ff]" style="font-variation-settings:'FILL' 1">memory</span>
+    </div>
+    <div class="relative w-full flex items-center justify-center border border-[#00e5ff]/20 bg-[#00e5ff]/5" style="height:104px">
+      <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style="animation:sp 12s linear infinite reverse">
+        <polygon fill="none" points="50,12 88,50 50,88 12,50" stroke="rgba(0,229,255,.35)" stroke-dasharray="2 4" stroke-width="1"/></svg>
+      <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style="animation:sp 16s linear infinite">
+        <circle cx="50" cy="50" r="36" fill="none" stroke="rgba(0,229,255,.7)" stroke-dasharray="10 5" stroke-width="1.5"/></svg>
+      <div class="text-center bg-[#02060b]/80 px-4 py-2 border border-[#00e5ff]/40 z-10">
+        <div class="disp text-[#00e5ff] font-bold" style="font-size:24px" id="cpu-val">--<span style="font-size:13px">%</span></div>
+        <div class="lbl text-[10px] text-[#849396]">SYS LOAD</div></div>
+    </div>
+    <div class="flex flex-col gap-2 mt-1">
+      <div class="flex justify-between lbl text-[#00e5ff]"><span>CORE ARRAY</span><span class="text-[#849396]">NOMINAL</span></div>
+      <div id="cores" class="flex flex-col gap-1.5"></div>
+    </div>
+    <!-- Network Link -->
+    <div class="border-t border-[#00e5ff]/20 pt-2 mt-1">
+      <div class="flex items-center justify-between mb-2">
+        <span class="lbl text-[10px] text-[#849396]">NETWORK LINK</span>
+        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="wifi-ico">wifi</span></div>
+      <div class="flex items-end gap-1 h-6" id="wifi-bars"></div>
+      <div class="flex justify-between mt-1.5 num text-[10px]"><span id="wifi-ssid" class="text-[#00e5ff]">—</span><span id="wifi-sig" class="text-[#849396]">--%</span></div>
+    </div>
+    <!-- Power Cell -->
+    <div class="border-t border-[#00e5ff]/20 pt-2">
+      <div class="flex items-center justify-between mb-1">
+        <span class="lbl text-[10px] text-[#849396]">POWER CELL</span>
+        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="bat-ico">battery_full</span></div>
+      <div class="flex items-center gap-2">
+        <div class="disp text-[#00e5ff] font-bold" style="font-size:17px" id="bat-val">--<span style="font-size:12px">%</span></div>
+        <div class="flex-1"><div class="h-2 bg-[#282a2e]"><div id="bat-bar" class="h-full bg-[#00e5ff]" style="width:0%"></div></div>
+        <div class="lbl text-[9px] text-[#849396] mt-1" id="bat-state">—</div></div>
+      </div>
+    </div>
+    <!-- Room Climate (live from the ESP32 sensor) -->
+    <div class="border-t border-[#00e5ff]/20 pt-2">
+      <div class="flex items-center justify-between mb-1">
+        <span class="lbl text-[10px] text-[#849396]">ROOM CLIMATE</span>
+        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="iot-ico">thermostat</span></div>
+      <div class="flex items-end gap-6">
+        <div><div class="disp text-[#00e5ff] font-bold" style="font-size:19px" id="iot-temp">--<span style="font-size:12px">°C</span></div>
+          <div class="lbl text-[9px] text-[#849396]">TEMP</div></div>
+        <div><div class="disp text-[#00e5ff] font-bold" style="font-size:19px" id="iot-hum">--<span style="font-size:12px">%</span></div>
+          <div class="lbl text-[9px] text-[#849396]">HUMIDITY</div></div>
+      </div>
+      <div class="lbl text-[9px] mt-1.5" id="iot-state" style="color:#849396">● SENSOR OFFLINE</div>
+    </div>
+    <!-- Volume (live; moves with gesture control) -->
+    <div class="border-t border-[#00e5ff]/20 pt-2">
+      <div class="flex items-center justify-between mb-1">
+        <span class="lbl text-[10px] text-[#849396]">VOLUME</span>
+        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px" id="vol-ico">volume_up</span></div>
+      <div class="flex items-center gap-2">
+        <div class="flex-grow rounded-full overflow-hidden" style="height:8px;background:#0a1620">
+          <div id="vol-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#00e5ff,#38ffa8);transition:width .12s linear"></div>
+        </div>
+        <span class="disp text-[#00e5ff] font-bold" style="font-size:16px;min-width:38px;text-align:right" id="vol-pct">0</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center: orb -->
+  <div class="flex-grow h-full flex flex-col items-center justify-center relative anim d3">
+    <div class="relative flex items-center justify-center" style="width:440px;height:440px">
+      <div class="crosshair absolute inset-0"></div>
+      <div class="absolute inset-0 border border-[#00e5ff]/15 rounded-full border-dashed"></div>
+      <canvas id="core" width="440" height="440" class="relative z-10" style="width:100%;height:100%"></canvas>
+      <div class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-[#00e5ff]/50"></div>
+      <div class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-[#00e5ff]/50"></div>
+      <div class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-[#00e5ff]/50"></div>
+      <div class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-[#00e5ff]/50"></div>
+    </div>
+    <div class="mt-6 text-center bg-[#02060b]/80 px-6 py-2 border border-[#00e5ff]/40">
+      <div class="lbl text-[#00e5ff] pulse" id="st-lbl">STANDBY // SAY "JARVIS"</div>
+      <div id="mic-eq" class="flex items-end justify-center gap-[3px] mt-2" style="height:16px"></div>
+    </div>
+  </div>
+
+  <!-- Right: Memory -->
+  <aside class="tactical-panel tilt-r anim-r d2 p-4 flex flex-col gap-3" style="height:82%;width:300px">
+    <span class="tb tl"></span><span class="tb tr"></span><span class="tb bl"></span><span class="tb br"></span>
+    <div class="flex items-center justify-between border-b border-[#00e5ff]/40 pb-2">
+      <span class="lbl text-[#00e5ff]">DIAGNOSTICS // MEM</span>
+      <span class="material-symbols-outlined text-[#00e5ff]" style="font-variation-settings:'FILL' 1">sensors</span>
+    </div>
+    <div>
+      <div class="flex justify-between text-[10px] mb-1"><span class="text-[#849396]">ALLOCATED</span><span class="text-[#00e5ff]" id="ram-val">--</span></div>
+      <div class="h-3 w-full bg-[#282a2e] relative border border-[#00e5ff]/40"><div id="ram-bar" class="absolute top-0 left-0 h-full bg-[#00e5ff] shard" style="width:0%"></div></div>
+    </div>
+    <div class="flex flex-col" style="height:120px">
+      <div class="flex justify-between lbl text-[#00e5ff] mb-2"><span>UPLINK TTM</span><span class="text-[#849396] text-[9px]">ENCRYPTED</span></div>
+      <div id="uplink" class="flex-grow relative border border-[#00e5ff]/40 bg-[#00e5ff]/5 flex items-end p-1 gap-1"></div>
+      <div class="flex justify-between mt-2 num text-[10px] text-[#00e5ff] bg-[#00e5ff]/10 px-2 py-1 border border-[#00e5ff]/20">
+        <span id="net-down">TX: 0</span><span id="net-up">RX: 0 KB/s</span></div>
+    </div>
+    <!-- Storage -->
+    <div class="border-t border-[#00e5ff]/20 pt-2">
+      <div class="flex items-center justify-between mb-2">
+        <span class="lbl text-[10px] text-[#849396]">STORAGE</span>
+        <span class="material-symbols-outlined text-[#00e5ff]" style="font-size:16px">database</span></div>
+      <div class="flex items-baseline justify-between mb-2">
+        <span class="disp text-[#00e5ff] font-bold" style="font-size:22px" id="disk-c-val">-- GB</span>
+        <span class="lbl text-[9px] text-[#849396]" id="disk-c-sub">free</span></div>
+      <div class="h-2.5 bg-[#282a2e] w-full"><div id="disk-c-bar" class="h-full bg-[#00e5ff]" style="width:0%;box-shadow:0 0 8px #00e5ff"></div></div>
+    </div>
+    <!-- Vitals -->
+    <div class="border-t border-[#00e5ff]/20 pt-2 grid grid-cols-2 gap-y-2 gap-x-3">
+      <div><div class="lbl text-[9px] text-[#849396]">UPTIME</div><div class="num text-[#00e5ff] text-[12px]" id="c-uptime">--</div></div>
+      <div><div class="lbl text-[9px] text-[#849396]">LOAD</div><div class="num text-[#00e5ff] text-[12px]" id="c-load">--</div></div>
+      <div><div class="lbl text-[9px] text-[#849396]">PROCESSES</div><div class="num text-[#00e5ff] text-[12px]" id="c-procs">--</div></div>
+      <div><div class="lbl text-[9px] text-[#849396]">SWAP</div><div class="num text-[#00e5ff] text-[12px]" id="c-swap">--</div></div>
+    </div>
+  </aside>
+</main>
+
+<!-- chat overlay (inside stage so it scales with everything) -->
+<div id="log" class="absolute left-1/2 -translate-x-1/2 z-20 flex flex-col gap-2 overflow-y-auto text-center" style="bottom:96px;width:600px;max-height:230px;-webkit-mask-image:linear-gradient(180deg,transparent,#000 24%)"></div>
+
+<!-- Command Bar -->
+<footer class="w-full flex justify-center z-10 pb-1 anim d5">
+  <div class="tactical-panel w-full max-w-3xl p-2 flex items-center gap-4">
+    <span class="tb tl"></span><span class="tb tr"></span><span class="tb bl"></span><span class="tb br"></span>
+    <div class="flex items-center gap-2 px-3 border-r border-[#00e5ff]/40">
+      <span class="material-symbols-outlined text-[#00e5ff] pulse" style="font-variation-settings:'FILL' 1">mic</span>
+      <span class="lbl text-[10px] text-[#00e5ff]">ACTIVE</span></div>
+    <button id="attach" title="Attach a file" class="text-[#00e5ff]/70 hover:text-[#00e5ff] transition-colors px-1">
+      <span class="material-symbols-outlined" style="font-size:20px">attach_file</span></button>
+    <input id="box" class="flex-grow bg-transparent border-none focus:ring-0 text-[#00e5ff] placeholder:text-[#00e5ff]/40 outline-none uppercase"
+      placeholder='ENTER COMMAND OR SAY "JARVIS"...' autocomplete="off" type="text"/>
+    <button id="stop" title="Stop Jarvis speaking (Esc, or click the orb)" style="display:none"
+      class="bg-[#ff5470]/10 hover:bg-[#ff5470]/30 border border-[#ff5470] text-[#ff5470] lbl px-5 py-2 transition-colors items-center gap-2">
+      <span class="material-symbols-outlined text-sm">stop_circle</span>STOP</button>
+    <button id="send" class="bg-[#00e5ff]/10 hover:bg-[#00e5ff]/30 border border-[#00e5ff] text-[#00e5ff] lbl px-8 py-2 transition-colors flex items-center gap-2">
+      EXECUTE<span class="material-symbols-outlined text-sm">send</span></button>
+  </div>
+</footer>
+</div><!-- #stage -->
+
+<div id="boot">
+  <div class="bt">J.A.R.V.I.S.</div>
+  <div class="bt2">SVPREME SYSTEMS // BOOT SEQUENCE</div>
+  <div id="boot-log"></div>
+  <div id="boot-ready">SYSTEMS ONLINE</div>
+</div>
+
+<style>@keyframes sp{100%{transform:rotate(360deg)}}</style>
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id);};
+
+  /* background particles + grid */
+  var bg=$("bg"),bx=bg.getContext("2d"),W,H,parts=[];
+  function rsz(){W=bg.width=innerWidth;H=bg.height=innerHeight;}
+  rsz();addEventListener("resize",rsz);
+  for(var i=0;i<60;i++){var p={s:i};p.x=((i*97)%100)/100;p.y=((i*53)%100)/100;p.vx=((i%7)-3)/9000;p.vy=((i%5)-2)/9000;p.r=.5+(i%3)*.6;parts.push(p);}
+  function bgDraw(t){bx.clearRect(0,0,W,H);var g=40,off=(t*0.005)%g;bx.strokeStyle="rgba(0,229,255,.045)";bx.lineWidth=1;
+    for(var y=-g+off;y<H+g;y+=g){bx.beginPath();bx.moveTo(0,y);bx.lineTo(W,y);bx.stroke();}
+    for(var x=-g+off;x<W+g;x+=g){bx.beginPath();bx.moveTo(x,0);bx.lineTo(x,H);bx.stroke();}
+    parts.forEach(function(p){p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
+      bx.beginPath();bx.arc(p.x*W,p.y*H,p.r,0,7);bx.fillStyle="rgba(0,229,255,.32)";bx.fill();});}
+
+  /* reactor core */
+  var cc=$("core"),cx=cc.getContext("2d"),CS=440,C=CS/2,state="standby",pulse=0,orb=[];
+  for(var k=0;k<48;k++)orb.push({a:(k/48)*Math.PI*2,r:120+(k%3)*26,sp:.002+(k%5)*.0006,sz:1+(k%3)});
+  var sc={standby:"0,229,255",listening:"56,255,168",thinking:"255,176,32",speaking:"0,229,255"};
+  function ring(rad,seg,rot,w,al,col){cx.strokeStyle="rgba("+col+","+al+")";cx.lineWidth=w;
+    for(var s=0;s<seg;s++){var a0=rot+(s/seg)*Math.PI*2,a1=a0+(Math.PI*2/seg)*0.62;cx.beginPath();cx.arc(C,C,rad,a0,a1);cx.stroke();}}
+  function coreDraw(t){cx.clearRect(0,0,CS,CS);var col=sc[state]||sc.standby,busy=(state==="thinking"),active=(state==="speaking"||state==="listening");
+    pulse+=((active?1:.4)-pulse)*0.06;var glow=0.5+0.5*Math.sin(t*0.004)*pulse;
+    ring(200,3,t*0.0004,2,.5,col);ring(182,60,-t*0.0006,2,.22,col);ring(150,24,t*(busy?0.004:0.001),3,.4,col);ring(150,1,t*0.003,2,.6,col);ring(120,40,-t*0.0012,2,.3,col);
+    cx.strokeStyle="rgba("+col+",.35)";cx.lineWidth=1;
+    for(var m=0;m<72;m++){var a=(m/72)*Math.PI*2,r1=96,r2=(m%6===0)?108:103;cx.beginPath();cx.moveTo(C+Math.cos(a)*r1,C+Math.sin(a)*r1);cx.lineTo(C+Math.cos(a)*r2,C+Math.sin(a)*r2);cx.stroke();}
+    orb.forEach(function(o){o.a+=o.sp*(busy?2.4:1);cx.beginPath();cx.arc(C+Math.cos(o.a)*o.r,C+Math.sin(o.a)*o.r,o.sz,0,7);cx.fillStyle="rgba("+col+",.7)";cx.fill();});
+    cx.beginPath();for(var w=0;w<=90;w++){var aa=(w/90)*Math.PI*2,amp=10*Math.sin(aa*6+t*0.006)*pulse+4*Math.sin(aa*13-t*0.004),rr=70+amp,xx=C+Math.cos(aa)*rr,yy=C+Math.sin(aa)*rr;w?cx.lineTo(xx,yy):cx.moveTo(xx,yy);}
+    cx.closePath();cx.strokeStyle="rgba("+col+",.55)";cx.lineWidth=1.5;cx.stroke();
+    var cg=cx.createRadialGradient(C,C,4,C,C,60);cg.addColorStop(0,"rgba(255,255,255,"+(0.85*glow)+")");cg.addColorStop(.4,"rgba("+col+","+(0.7*glow)+")");cg.addColorStop(1,"rgba("+col+",0)");
+    cx.fillStyle=cg;cx.beginPath();cx.arc(C,C,60,0,7);cx.fill();cx.beginPath();cx.arc(C,C,7+2*glow,0,7);cx.fillStyle="rgba(255,255,255,.95)";cx.fill();}
+  window.setCoreState=function(s){state=s;
+    var map={standby:['STANDBY // LISTENING',"#38ffa8"],listening:["LISTENING // SPEAK NOW","#38ffa8"],thinking:["PROCESSING // STAND BY","#ffb020"],speaking:["RESPONDING","#ffb020"]};
+    var m=map[s]||map.standby;$("st-lbl").textContent=m[0];$("st-lbl").style.color=m[1];
+    var eq=$("mic-eq");if(eq)eq.classList.toggle("busy", s==="thinking"||s==="speaking");  // amber when busy; height is voice-driven
+    var sb=$("stop");if(sb)sb.style.display=(s==="speaking")?"inline-flex":"none";};        // show STOP only while talking
+  function loop(t){bgDraw(t);coreDraw(t);requestAnimationFrame(loop);}requestAnimationFrame(loop);
+
+  function tick(){$("clock").textContent=new Date().toTimeString().slice(0,8);}setInterval(tick,1000);tick();
+
+  /* chat wiring */
+  var log=$("log"),box=$("box"),send=$("send");
+  function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+  function el(cls,html){var d=document.createElement("div");d.className=cls;d.innerHTML=html;log.appendChild(d);while(log.children.length>10)log.removeChild(log.firstChild);log.scrollTop=log.scrollHeight;return d;}
+  var addMe=function(t){return el("msg me",esc(t));},addJv=function(t){return el("msg jv","<b>J.A.R.V.I.S.</b>"+esc(t));},addAct=function(t){return el("text-[10px] text-[#849396] italic self-start","› "+esc(t));};
+  var busy=false;
+  function submit(){var t=box.value.trim();if(!t||busy)return;box.value="";addMe(t);busy=true;window.setCoreState("thinking");
+    var think=el("text-[#00e5ff] text-[12px] tracking-widest self-start","PROCESSING...");
+    window.pywebview.api.chat(t).then(function(r){think.remove();(r.activity||[]).forEach(addAct);addJv(r.reply||"…");window.setCoreState("speaking");
+      setTimeout(function(){if(!busy)window.setCoreState("standby");},2800);busy=false;box.focus();
+    }).catch(function(e){think.remove();addJv("A fault occurred, sir: "+e);window.setCoreState("standby");busy=false;});}
+  send.addEventListener("click",submit);
+  box.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submit();}});
+  (function(){                                   // build the bar + drive it from your real mic level
+    var eq=$("mic-eq"); if(!eq){return;}
+    var bars=[]; for(var i=0;i<7;i++){var b=document.createElement("div");b.className="eqbar";bars.push(b);eq.appendChild(b);}
+    function meter(stream){
+      var AC=window.AudioContext||window.webkitAudioContext; var ctx=new AC(); if(ctx.resume){ctx.resume();}
+      var an=ctx.createAnalyser(); an.fftSize=256; an.smoothingTimeConstant=0.55;
+      ctx.createMediaStreamSource(stream).connect(an);
+      var data=new Uint8Array(an.frequencyBinCount);
+      (function frame(){
+        an.getByteFrequencyData(data);
+        var sum=0; for(var i=2;i<26;i++){sum+=data[i];} var lvl=sum/24/255;   // ~voice band, 0..1
+        var talking=lvl>0.05; eq.classList.toggle("on",talking);
+        for(var b=0;b<bars.length;b++){
+          var h= talking ? Math.min(1,0.12+lvl*3*(0.55+0.45*Math.sin(Date.now()/90+b))) : 0.1;
+          bars[b].style.transform="scaleY("+h.toFixed(2)+")";
+        }
+        requestAnimationFrame(frame);
+      })();
+    }
+    if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+      navigator.mediaDevices.getUserMedia({audio:true}).then(meter).catch(function(err){eq.dataset.nomic=1;console.log("mic meter blocked:",err&&err.name);});
+    } else { eq.dataset.nomic=1; }
+    window.setCoreState(state);
+  })();
+  window.jarvisMicReset=function(){var e=$("mic-eq");if(e)e.classList.remove("on","busy");$("st-lbl").textContent="MIC OFFLINE";$("st-lbl").style.color="#849396";};
+  window.jarvisVolume=function(v,muted){var f=$("vol-fill"),p=$("vol-pct"),ic=$("vol-ico");if(!f)return;
+    f.style.width=(muted?0:Math.max(0,Math.min(100,v)))+"%";f.style.opacity=muted?.3:1;
+    if(p)p.textContent=muted?"MUTE":v;
+    if(ic)ic.textContent=muted?"volume_off":(v===0?"volume_mute":v<50?"volume_down":"volume_up");};
+  window.jarvisSay=function(t){addJv(t);window.setCoreState("speaking");setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
+  /* GUARANTEED interrupt — mic-independent: STOP button, click the orb, or press Esc */
+  function stopSpeak(){try{window.pywebview.api.stop_speaking();}catch(e){}window.setCoreState("standby");}
+  $("stop").addEventListener("click",stopSpeak);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")stopSpeak();});
+  (function(){var o=$("core");if(o){o.style.cursor="pointer";o.title="Click to stop Jarvis speaking";o.addEventListener("click",stopSpeak);}})();
+  /* attach file */
+  $("attach").addEventListener("click",function(){
+    if(!(window.pywebview&&window.pywebview.api))return;
+    window.pywebview.api.attach_file().then(function(r){
+      if(r&&r.ok){addAct("attached "+r.name);box.placeholder="Ask about "+r.name+"...";box.focus();}
+    });});
+
+  /* telemetry */
+  var coresEl=$("cores"),upEl=$("uplink"),hist=[];
+  /* micro-interaction: tween a number to its new value (ease-out) instead of jumping */
+  function countTo(el,target,suffix){
+    if(!el)return;var start=parseFloat(el.getAttribute("data-v")||"0")||0,t0=performance.now(),dur=450;
+    el.setAttribute("data-v",target);
+    (function step(t){var p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3),v=Math.round(start+(target-start)*e);
+      el.innerHTML=v+(suffix||"");if(p<1)requestAnimationFrame(step);})(t0);
+  }
+  function poll(){if(!(window.pywebview&&window.pywebview.api&&window.pywebview.api.stats))return;
+    window.pywebview.api.stats().then(function(s){
+      countTo($("cpu-val"),s.cpu,'<span style="font-size:16px">%</span>');
+      countTo($("ram-val"),s.mem,"%");$("ram-bar").style.width=s.mem+"%";
+      var NC=Math.min(2,s.ncore);
+      if(coresEl.children.length!==NC){coresEl.innerHTML="";for(var i=0;i<NC;i++){var d=document.createElement("div");d.className="flex items-center gap-3";
+        var lab=NC===1?"CPU":"C"+(i+1);
+        d.innerHTML='<span class="lbl text-[10px] w-9 text-[#00e5ff]/60 border border-[#00e5ff]/20 text-center bg-[#00e5ff]/5">'+lab+'</span><div class="flex-grow h-2 bg-[#282a2e] relative"><div class="h-full bg-[#00e5ff] shard" style="width:0%"></div></div><span class="num text-[10px] w-8 text-right text-[#00e5ff]">0%</span>';
+        coresEl.appendChild(d);}}
+      for(var j=0;j<NC;j++){var row=coresEl.children[j];if(row){row.querySelector(".h-full").style.width=Math.max(4,s.cores[j])+"%";row.querySelector(".num").textContent=s.cores[j]+"%";}}
+      $("net-down").textContent="TX: "+s.down;$("net-up").textContent="RX: "+s.up+" KB/s";
+      // center: WiFi signal bars (5)
+      var wb=$("wifi-bars");if(wb.children.length!==5){wb.innerHTML="";for(var wi=0;wi<5;wi++){var wbar=document.createElement("div");wbar.style.flex="1";wbar.style.height=(30+wi*16)+"%";wb.appendChild(wbar);}}
+      var wf=s.wifi||{signal:0,ssid:"—",up:false},litw=Math.round(wf.signal/100*5);
+      for(var wj=0;wj<5;wj++)wb.children[wj].style.background=wj<litw?"#00e5ff":"#1d2023";
+      $("wifi-ssid").textContent=wf.up?(wf.ssid==="<redacted>"?"CONNECTED":wf.ssid):"OFFLINE";
+      $("wifi-sig").textContent=wf.up?wf.signal+"%":"--";
+      $("wifi-ico").textContent=!wf.up?"wifi_off":(wf.signal>66?"wifi":wf.signal>33?"network_wifi_3_bar":"network_wifi_1_bar");
+      // center: battery
+      var bt=s.bat||{};if(bt.pct!=null){countTo($("bat-val"),bt.pct,'<span style="font-size:15px">%</span>');$("bat-bar").style.width=bt.pct+"%";
+        $("bat-state").textContent=bt.plug?"CHARGING":"ON BATTERY";$("bat-ico").textContent=bt.plug?"battery_charging_full":(bt.pct>66?"battery_full":bt.pct>33?"battery_5_bar":"battery_2_bar");
+        $("bat-bar").style.background=bt.pct<=20&&!bt.plug?"#ffb4ab":"#00e5ff";}else{$("bat-val").innerHTML="AC";$("bat-state").textContent="WIRED";}
+      // center: disk
+      $("disk-c-val").textContent=s.disk_free+" GB free";$("disk-c-bar").style.width=s.disk+"%";$("disk-c-sub").textContent=s.disk+"% used · "+s.disk_tot+" GB";
+      // center: vitals
+      if(s.uptime){var u=s.uptime,dd=Math.floor(u/86400),hh=Math.floor(u%86400/3600),mm=Math.floor(u%3600/60);$("c-uptime").textContent=(dd?dd+"d ":"")+hh+"h "+mm+"m";}
+      $("c-load").textContent=s.load;$("c-procs").textContent=s.procs;$("c-swap").textContent=s.swap+"%";
+      // left: room climate (live ESP32 sensor)
+      var io=s.iot||{};
+      if(io.fresh&&io.temp!=null){$("iot-temp").innerHTML=(+io.temp).toFixed(1)+'<span style="font-size:12px">°C</span>';
+        $("iot-hum").innerHTML=(io.humidity!=null?io.humidity:'--')+'<span style="font-size:12px">%</span>';
+        $("iot-state").textContent="● LIVE"+(io.motion?" · MOTION":"");$("iot-state").style.color="#00e5ff";$("iot-ico").style.color="#00e5ff";}
+      else{$("iot-state").textContent="● SENSOR OFFLINE";$("iot-state").style.color="#849396";$("iot-ico").style.color="#849396";}
+      if(s.top&&s.top.name!=="—")$("top-proc")&&($("top-proc").textContent="");
+      // uplink bars
+      hist.push(s.down);if(hist.length>22)hist.shift();
+      if(upEl.children.length!==22){upEl.innerHTML="";for(var b=0;b<22;b++){var bar=document.createElement("div");bar.className="flex-grow bg-[#00e5ff]/80 z-10";bar.style.clipPath="polygon(0 2px,100% 0,100% 100%,0 100%)";upEl.appendChild(bar);}}
+      var mx=Math.max(50,Math.max.apply(null,hist));
+      for(var q=0;q<22;q++){var v=hist[q]||0;upEl.children[q].style.height=Math.max(4,v/mx*100)+"%";}
+    }).catch(function(){});}
+
+  /* cinematic boot: systems come online one line at a time, each with a soft beep */
+  var _ac=null;
+  function beep(freq,dur,vol){
+    try{ _ac=_ac||new (window.AudioContext||window.webkitAudioContext)();
+      if(_ac.state==="suspended")_ac.resume();
+      var o=_ac.createOscillator(),g=_ac.createGain();
+      o.type="sine";o.frequency.value=freq;o.connect(g);g.connect(_ac.destination);
+      g.gain.setValueAtTime(0,_ac.currentTime);
+      g.gain.linearRampToValueAtTime(vol||0.05,_ac.currentTime+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,_ac.currentTime+(dur||0.12));
+      o.start();o.stop(_ac.currentTime+(dur||0.12));
+    }catch(e){}
+  }
+  (function boot(){
+    var log=$("boot-log");
+    var lines=[["NEURAL CORE","ONLINE"],["MQTT UPLINK","ONLINE"],["SENSOR ARRAY","ONLINE"],
+               ["VOICE ENGINE","ONLINE"],["SECURITY LAYER","ARMED"]];
+    var i=0;
+    function next(){
+      if(i<lines.length){
+        var row=document.createElement("div");row.className="bline";
+        row.innerHTML='<span>'+lines[i][0]+'</span><b>'+lines[i][1]+' ●</b>';
+        log.appendChild(row);
+        beep(520+i*120,0.09,0.04);
+        i++;setTimeout(next,300);
+      }else{
+        setTimeout(function(){
+          $("boot-ready").classList.add("show");
+          beep(880,0.5,0.06);
+          setTimeout(function(){beep(1320,0.5,0.05);},80);
+          setTimeout(function(){$("boot").classList.add("gone");},1000);
+        },250);
+      }
+    }
+    setTimeout(next,650);
+  })();
+  function start(){poll();setInterval(poll,1500);box.focus();}
+  if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);
+
+  // Scale the fixed 1440x900 HUD stage to fit any window size (centered, letterboxed).
+  // Everything scales together, so nothing ever clips whether windowed or full screen.
+  function fitHUD(){
+    var st=document.getElementById("stage"); if(!st)return;
+    var TOP=34;                               // reserve room so the HUD clears the macOS title bar
+    var availH=window.innerHeight-TOP;
+    var s=Math.min(window.innerWidth/1440, availH/900);
+    var x=(window.innerWidth-1440*s)/2, y=TOP+(availH-900*s)/2;
+    st.style.transform="translate("+x+"px,"+y+"px) scale("+s+")";
+  }
+  window.addEventListener("resize",fitHUD); fitHUD();
+})();
+</script>
+</body></html>
