@@ -1,0 +1,283 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>J.A.R.V.I.S.</title>
+<style>
+  :root{
+    --bg:#03060a; --cy:#26e6ff; --cy2:#00b4e0; --ice:#bff6ff;
+    --amber:#ffb020; --grn:#38ffa8; --mag:#ff3d81;
+    --line:rgba(38,230,255,.16); --line2:rgba(38,230,255,.34);
+    --txt:#bfeaff; --dim:#4f7d8c; --panel:rgba(6,20,28,.55);
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+    --accent:var(--cy);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{background:var(--bg);color:var(--txt);font-family:var(--mono);letter-spacing:.03em;
+    user-select:none;-webkit-user-select:none}
+  canvas{display:block}
+  #bg{position:fixed;inset:0;z-index:0}
+  #core{position:fixed;left:50%;top:46%;transform:translate(-50%,-50%);z-index:1}
+  .vig{position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:radial-gradient(ellipse 60% 55% at 50% 46%,transparent 40%,rgba(3,6,10,.55) 85%,rgba(3,6,10,.9) 100%)}
+  .scan{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:.5;mix-blend-mode:overlay;
+    background:repeating-linear-gradient(0deg,rgba(38,230,255,.06) 0 1px,transparent 1px 3px);
+    animation:scan 9s linear infinite}
+  @keyframes scan{to{transform:translateY(46px)}}
+
+  .brk{position:fixed;width:26px;height:26px;border:2px solid var(--line2);z-index:5;pointer-events:none;
+    filter:drop-shadow(0 0 4px rgba(38,230,255,.4))}
+  .brk.tl{top:14px;left:14px;border-right:0;border-bottom:0}
+  .brk.tr{top:14px;right:14px;border-left:0;border-bottom:0}
+  .brk.bl{bottom:14px;left:14px;border-right:0;border-top:0}
+  .brk.br{bottom:14px;right:14px;border-left:0;border-top:0}
+
+  .top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;
+    padding:20px 42px;z-index:6}
+  .brand{font-size:15px;letter-spacing:.6em;color:var(--ice);text-shadow:0 0 16px var(--cy);font-weight:600}
+  .brand small{display:block;font-size:8px;letter-spacing:.34em;color:var(--dim);margin-top:3px;font-weight:400}
+  .tstat{display:flex;gap:26px;align-items:center;font-size:9.5px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+  .tstat b{color:var(--ice)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--grn);
+    box-shadow:0 0 8px var(--grn);margin-right:7px;animation:blip 2.2s ease-in-out infinite}
+  @keyframes blip{0%,100%{opacity:1}50%{opacity:.3}}
+  .clock{font-size:30px;letter-spacing:.14em;color:var(--ice);text-shadow:0 0 14px var(--cy);
+    font-variant-numeric:tabular-nums;text-align:right;line-height:1}
+  .cdate{font-size:8.5px;letter-spacing:.3em;color:var(--dim);text-align:right;margin-top:4px;text-transform:uppercase}
+
+  .side{position:fixed;top:50%;transform:translateY(-50%);z-index:6;width:210px;display:flex;flex-direction:column;gap:16px}
+  .side.left{left:34px} .side.right{right:34px;align-items:flex-end}
+  .gauge{width:100%;text-align:center}
+  .gauge svg{width:120px;height:120px;filter:drop-shadow(0 0 6px rgba(38,230,255,.5))}
+  .gauge .gv{font-size:22px;fill:var(--ice);font-family:var(--mono)}
+  .gauge .gl{font-size:8px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase;margin-top:-6px}
+  .cell{border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(3px);
+    padding:10px 13px;position:relative;width:100%}
+  .cell::before,.cell::after{content:"";position:absolute;width:7px;height:7px;border:1.5px solid var(--cy)}
+  .cell::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .cell::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  .cell .k{font-size:8px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-bottom:4px}
+  .cell .val{font-size:14px;color:var(--ice)}
+  .bar{height:5px;background:rgba(38,230,255,.12);border-radius:3px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cy2),var(--cy));
+    box-shadow:0 0 8px var(--cy);border-radius:3px;transition:width .5s}
+  .cores{display:flex;gap:3px;align-items:flex-end;height:26px;margin-top:6px}
+  .cores i{flex:1;background:linear-gradient(0deg,var(--cy2),var(--ice));border-radius:1px;height:10%;
+    transition:height .4s,opacity .4s;opacity:.4}
+  canvas#spark{width:100%;height:34px;margin-top:4px}
+
+  .state{position:fixed;left:50%;top:calc(46% + 210px);transform:translateX(-50%);z-index:6;text-align:center}
+  .state .lbl{font-size:11px;letter-spacing:.4em;color:var(--accent);text-transform:uppercase;
+    text-shadow:0 0 12px var(--accent);transition:color .3s}
+  .state .sub{font-size:8px;letter-spacing:.24em;color:var(--dim);margin-top:5px;text-transform:uppercase}
+
+  .chat{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:6;width:min(720px,64vw);
+    display:flex;flex-direction:column;gap:9px;max-height:34vh;overflow-y:auto;
+    -webkit-mask-image:linear-gradient(180deg,transparent,#000 22%)}
+  .chat::-webkit-scrollbar{width:0}
+  .msg{max-width:82%;font-size:13.5px;line-height:1.5;padding:9px 14px;border-radius:11px;white-space:pre-wrap;
+    animation:rise .3s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .me{align-self:flex-end;background:rgba(38,230,255,.13);border:1px solid var(--line2);color:var(--ice)}
+  .jv{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--cy);
+    box-shadow:0 0 18px rgba(38,230,255,.07);backdrop-filter:blur(3px)}
+  .jv .w{font-size:8px;letter-spacing:.34em;color:var(--cy);text-transform:uppercase;display:block;margin-bottom:4px}
+  .act{align-self:flex-start;font-size:10px;letter-spacing:.06em;color:var(--dim);font-style:italic}
+  .act::before{content:"\203A ";color:var(--cy)}
+  .think{align-self:flex-start;color:var(--cy);font-size:12px;letter-spacing:.3em}
+  .think i{animation:bk 1.1s infinite;font-style:normal}
+  .think i:nth-child(2){animation-delay:.18s}.think i:nth-child(3){animation-delay:.36s}
+  @keyframes bk{0%,100%{opacity:.2}50%{opacity:1}}
+
+  .foot{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;width:min(720px,64vw);display:flex;gap:10px}
+  .ibox{flex:1;position:relative}
+  .ibox::before,.ibox::after{content:"";position:absolute;width:8px;height:8px;border:1.5px solid var(--cy)}
+  .ibox::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .ibox::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  #box{width:100%;background:var(--panel);border:1px solid var(--line2);backdrop-filter:blur(4px);
+    color:var(--ice);font-family:inherit;font-size:13.5px;letter-spacing:.03em;padding:13px 16px;outline:none}
+  #box::placeholder{color:var(--dim)}
+  #box:focus{border-color:var(--cy);box-shadow:0 0 18px rgba(38,230,255,.28)}
+  #send{background:linear-gradient(180deg,var(--cy),var(--cy2));border:none;color:#021018;font-weight:700;
+    letter-spacing:.2em;padding:0 24px;cursor:pointer;font-family:inherit;font-size:12px}
+  .listen{position:fixed;bottom:32px;right:42px;z-index:6;display:flex;align-items:center;gap:9px;
+    font-size:9px;letter-spacing:.3em;color:var(--accent);text-transform:uppercase}
+  .listen b{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent);
+    animation:blip 1.6s ease-in-out infinite}
+
+  #boot{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;transition:opacity .8s}
+  #boot .bt{font-size:22px;letter-spacing:.7em;color:var(--ice);text-shadow:0 0 20px var(--cy)}
+  #boot .bl{font-size:9px;letter-spacing:.3em;color:var(--dim)}
+  #boot.gone{opacity:0;pointer-events:none}
+  @media(max-width:900px){.side,.state{display:none}.chat,.foot{width:88vw}}
+</style></head>
+<body>
+<canvas id="bg"></canvas>
+<canvas id="core" width="440" height="440"></canvas>
+<div class="vig"></div><div class="scan"></div>
+<span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+
+<div class="top">
+  <div class="brand">J.A.R.V.I.S.<small>Just A Rather Very Intelligent System</small></div>
+  <div style="text-align:right"><div class="clock" id="clock">--:--</div><div class="cdate" id="cdate"></div></div>
+</div>
+<div class="top" style="top:64px;padding-top:0">
+  <div class="tstat"><span><span class="dot"></span>CORE <b>ONLINE</b></span></div>
+  <div class="tstat"><span>MODEL <b>QWEN&middot;GROQ</b></span><span>LINK <b>LOCAL</b></span></div>
+</div>
+
+<div class="side left">
+  <div class="gauge"><svg viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(38,230,255,.1)" stroke-width="6"/>
+    <circle id="cpu-arc" cx="60" cy="60" r="52" fill="none" stroke="#26e6ff" stroke-width="6"
+      stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327" transform="rotate(-90 60 60)"/>
+    <text id="cpu-val" class="gv" x="60" y="66" text-anchor="middle">&ndash;</text></svg>
+    <div class="gl">CPU Load</div></div>
+  <div class="cell"><div class="k">Per-core</div><div class="cores" id="cores"></div></div>
+  <div class="cell"><div class="k">Top Process</div><div class="val" id="t-top" style="font-size:12px">&ndash;</div></div>
+</div>
+
+<div class="side right">
+  <div class="gauge"><svg viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(38,230,255,.1)" stroke-width="6"/>
+    <circle id="ram-arc" cx="60" cy="60" r="52" fill="none" stroke="#bff6ff" stroke-width="6"
+      stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327" transform="rotate(-90 60 60)"/>
+    <text id="ram-val" class="gv" x="60" y="66" text-anchor="middle">&ndash;</text></svg>
+    <div class="gl">Memory</div></div>
+  <div class="cell"><div class="k">Storage</div><div class="val" id="disk-val" style="font-size:12px">&ndash;</div>
+    <div class="bar"><i id="disk-bar"></i></div></div>
+  <div class="cell"><div class="k">Network I/O</div><canvas id="spark" width="200" height="34"></canvas>
+    <div class="val" id="net-val" style="font-size:11px">&darr; 0 &uarr; 0 KB/s</div></div>
+</div>
+
+<div class="state"><div class="lbl" id="st-lbl">STANDBY</div><div class="sub" id="st-sub">say "Jarvis ..."</div></div>
+
+<div class="chat" id="log"></div>
+
+<div class="foot">
+  <div class="ibox"><input id="box" placeholder='Say "Jarvis ..." &mdash; or type here' autocomplete="off" aria-label="Message"></div>
+  <button id="send">SEND</button>
+</div>
+<div class="listen"><b></b> Listening</div>
+
+<div id="boot"><div class="bt">J.A.R.V.I.S.</div><div class="bl" id="bootl">INITIALISING CORE&hellip;</div></div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id);};
+
+  /* animated background */
+  var bg=$("bg"),bx=bg.getContext("2d"),W,H,parts=[];
+  function rsz(){W=bg.width=innerWidth;H=bg.height=innerHeight;}
+  rsz();addEventListener("resize",rsz);
+  for(var i=0;i<70;i++){var p={s:i};p.x=((i*97)%100)/100;p.y=((i*53)%100)/100;
+    p.vx=((i%7)-3)/9000;p.vy=((i%5)-2)/9000;p.r=.5+(i%3)*.6;parts.push(p);}
+  function bgDraw(t){bx.clearRect(0,0,W,H);
+    var g=64,off=(t*0.006)%g;bx.strokeStyle="rgba(38,230,255,.05)";bx.lineWidth=1;
+    for(var y=-g+off;y<H+g;y+=g){bx.beginPath();bx.moveTo(0,y);bx.lineTo(W,y);bx.stroke();}
+    for(var x=-g+off;x<W+g;x+=g){bx.beginPath();bx.moveTo(x,0);bx.lineTo(x,H);bx.stroke();}
+    parts.forEach(function(p){p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
+      bx.beginPath();bx.arc(p.x*W,p.y*H,p.r,0,7);bx.fillStyle="rgba(38,230,255,.35)";bx.fill();});}
+
+  /* reactor core */
+  var cc=$("core"),cx=cc.getContext("2d"),CS=440,C=CS/2;
+  var state="standby",pulse=0,orb=[];
+  for(var k=0;k<48;k++)orb.push({a:(k/48)*Math.PI*2,r:120+(k%3)*26,sp:.002+(k%5)*.0006,sz:1+(k%3)});
+  var stateColor={standby:"38,230,255",listening:"56,255,168",thinking:"255,176,32",speaking:"38,230,255"};
+  function ring(rad,seg,rot,w,alpha,col){cx.strokeStyle="rgba("+col+","+alpha+")";cx.lineWidth=w;
+    for(var s=0;s<seg;s++){var a0=rot+(s/seg)*Math.PI*2,a1=a0+(Math.PI*2/seg)*0.62;
+      cx.beginPath();cx.arc(C,C,rad,a0,a1);cx.stroke();}}
+  function coreDraw(t){cx.clearRect(0,0,CS,CS);
+    var col=stateColor[state]||stateColor.standby,busy=(state==="thinking"),
+        active=(state==="speaking"||state==="listening");
+    pulse+=((active?1:.4)-pulse)*0.06;
+    var glow=0.5+0.5*Math.sin(t*0.004)*pulse;
+    ring(200,3,t*0.0004,2,.5,col);ring(182,60,-t*0.0006,2,.22,col);
+    ring(150,24,t*(busy?0.004:0.001),3,.4,col);ring(150,1,t*0.003,2,.6,col);
+    ring(120,40,-t*0.0012,2,.3,col);
+    cx.strokeStyle="rgba("+col+",.35)";cx.lineWidth=1;
+    for(var m=0;m<72;m++){var a=(m/72)*Math.PI*2,r1=96,r2=(m%6===0)?108:103;
+      cx.beginPath();cx.moveTo(C+Math.cos(a)*r1,C+Math.sin(a)*r1);cx.lineTo(C+Math.cos(a)*r2,C+Math.sin(a)*r2);cx.stroke();}
+    orb.forEach(function(o){o.a+=o.sp*(busy?2.4:1);
+      cx.beginPath();cx.arc(C+Math.cos(o.a)*o.r,C+Math.sin(o.a)*o.r,o.sz,0,7);cx.fillStyle="rgba("+col+",.7)";cx.fill();});
+    cx.beginPath();
+    for(var w=0;w<=90;w++){var aa=(w/90)*Math.PI*2,amp=10*Math.sin(aa*6+t*0.006)*pulse+4*Math.sin(aa*13-t*0.004),
+      rr=70+amp,xx=C+Math.cos(aa)*rr,yy=C+Math.sin(aa)*rr;w?cx.lineTo(xx,yy):cx.moveTo(xx,yy);}
+    cx.closePath();cx.strokeStyle="rgba("+col+",.55)";cx.lineWidth=1.5;cx.stroke();
+    var cg=cx.createRadialGradient(C,C,4,C,C,60);
+    cg.addColorStop(0,"rgba(255,255,255,"+(0.85*glow)+")");
+    cg.addColorStop(.4,"rgba("+col+","+(0.7*glow)+")");cg.addColorStop(1,"rgba("+col+",0)");
+    cx.fillStyle=cg;cx.beginPath();cx.arc(C,C,60,0,7);cx.fill();
+    cx.beginPath();cx.arc(C,C,7+2*glow,0,7);cx.fillStyle="rgba(255,255,255,.95)";cx.fill();}
+  window.setCoreState=function(s){state=s;
+    var map={standby:["STANDBY",'say "Jarvis ..."',"#26e6ff"],listening:["LISTENING","speak now","#38ffa8"],
+      thinking:["PROCESSING","stand by, sir","#ffb020"],speaking:["RESPONDING","","#26e6ff"]};
+    var m=map[s]||map.standby;$("st-lbl").textContent=m[0];$("st-sub").textContent=m[1];
+    document.documentElement.style.setProperty("--accent",m[2]);$("st-lbl").style.color=m[2];};
+  function loop(t){bgDraw(t);coreDraw(t);requestAnimationFrame(loop);}requestAnimationFrame(loop);
+
+  function tick(){var d=new Date();$("clock").textContent=d.toTimeString().slice(0,5);
+    $("cdate").textContent=d.toDateString().toUpperCase();}setInterval(tick,1000);tick();
+
+  /* chat wiring */
+  var log=$("log"),box=$("box"),send=$("send");
+  function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+  function el(cls,html){var d=document.createElement("div");d.className=cls;d.innerHTML=html;log.appendChild(d);
+    while(log.children.length>10)log.removeChild(log.firstChild);log.scrollTop=log.scrollHeight;return d;}
+  var addMe=function(t){return el("msg me",esc(t));},
+      addJv=function(t){return el("msg jv",'<span class="w">J.A.R.V.I.S.</span>'+esc(t));},
+      addAct=function(t){return el("act",esc(t));};
+  var busy=false;
+  function submit(){var t=box.value.trim();if(!t||busy)return;box.value="";addMe(t);busy=true;
+    window.setCoreState("thinking");
+    var think=el("think","PROCESSING<i>.</i><i>.</i><i>.</i>");
+    window.pywebview.api.chat(t).then(function(r){think.remove();(r.activity||[]).forEach(addAct);
+      addJv(r.reply||"…");window.setCoreState("speaking");
+      setTimeout(function(){if(!busy)window.setCoreState("standby");},2600);busy=false;box.focus();
+    }).catch(function(e){think.remove();addJv("A fault occurred, sir: "+e);window.setCoreState("standby");busy=false;});}
+  send.addEventListener("click",submit);
+  box.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submit();}});
+  window.jarvisMicReset=function(){};
+  /* proactive speech from JARVIS (status brief, alerts) — show + pulse the core */
+  window.jarvisSay=function(t){addJv(t);window.setCoreState("speaking");
+    setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
+
+  /* telemetry */
+  var spark=$("spark"),sx=spark.getContext("2d"),hist=[];
+  function fitSpark(){var r=spark.getBoundingClientRect();if(r.width){spark.width=r.width;spark.height=r.height;}}
+  function drawSpark(){if(hist.length<2)return;var w=spark.width,h=spark.height;sx.clearRect(0,0,w,h);
+    var mx=Math.max(50,Math.max.apply(null,hist)),st=w/(hist.length-1),i;
+    sx.beginPath();for(i=0;i<hist.length;i++){var x=i*st,y=h-(hist[i]/mx)*(h-3)-2;i?sx.lineTo(x,y):sx.moveTo(x,y);}
+    sx.lineTo(w,h);sx.lineTo(0,h);sx.closePath();
+    var g=sx.createLinearGradient(0,0,0,h);g.addColorStop(0,"rgba(38,230,255,.4)");g.addColorStop(1,"rgba(38,230,255,0)");
+    sx.fillStyle=g;sx.fill();
+    sx.beginPath();for(i=0;i<hist.length;i++){var x2=i*st,y2=h-(hist[i]/mx)*(h-3)-2;i?sx.lineTo(x2,y2):sx.moveTo(x2,y2);}
+    sx.strokeStyle="#bff6ff";sx.lineWidth=1.5;sx.stroke();}
+  function arc(el,pct){if(el)el.setAttribute("stroke-dashoffset",(327*(1-pct/100)).toFixed(0));}
+  var coresEl=$("cores");
+  function poll(){if(!(window.pywebview&&window.pywebview.api&&window.pywebview.api.stats))return;
+    window.pywebview.api.stats().then(function(s){
+      arc($("cpu-arc"),s.cpu);$("cpu-val").textContent=s.cpu+"%";
+      arc($("ram-arc"),s.mem);$("ram-val").textContent=s.mem+"%";
+      $("disk-val").textContent=s.disk_free+" GB free";$("disk-bar").style.width=s.disk+"%";
+      if(coresEl.children.length!==s.ncore){coresEl.innerHTML="";for(var i=0;i<s.ncore;i++)coresEl.appendChild(document.createElement("i"));}
+      for(var j=0;j<s.cores.length;j++){var b=coresEl.children[j];if(b){b.style.height=Math.max(8,s.cores[j])+"%";b.style.opacity=(0.35+s.cores[j]/150).toFixed(2);}}
+      if(s.top&&s.top.name!=="—")$("t-top").textContent=s.top.name+" "+s.top.cpu+"%";
+      $("net-val").textContent="↓ "+s.down+" ↑ "+s.up+" KB/s";
+      hist.push(s.down);if(hist.length>48)hist.shift();drawSpark();
+    }).catch(function(){});}
+
+  /* boot animation runs on load (independent of the backend) */
+  (function boot(){var b=$("boot"),bl=$("bootl"),
+    steps=["INITIALISING CORE…","LOADING NEURAL LINK…","CALIBRATING SENSORS…","SYSTEMS ONLINE"],i=0;
+    var iv=setInterval(function(){i++;if(i<steps.length)bl.textContent=steps[i];
+      else{clearInterval(iv);b.classList.add("gone");}},420);})();
+  window.setCoreState("standby");fitSpark();
+
+  function start(){    /* backend-dependent bits — status brief comes from the backend via jarvisSay */
+    poll();setInterval(poll,1500);box.focus();
+  }
+  if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);
+})();
+</script>
+</body></html>

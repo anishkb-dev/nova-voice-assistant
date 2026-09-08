@@ -1,0 +1,129 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>Jarvis IoT — Smart Room</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+  :root{--bg:#03060b;--cy:#26e6ff;--ice:#bff6ff;--dim:#4f7d8c;--line:rgba(38,230,255,.2);--panel:rgba(8,22,30,.7);
+    --amber:#ffb020;--grn:#38ffa8;--red:#ff5470}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:radial-gradient(ellipse at 50% 0%,#0a2430,#03060b 70%);color:#bfeaff;min-height:100vh;
+    font-family:"SF Mono",Menlo,monospace;letter-spacing:.02em;padding:32px}
+  h1{font-size:20px;letter-spacing:.4em;color:var(--ice);text-shadow:0 0 14px var(--cy);text-align:center;margin-bottom:4px}
+  .sub{text-align:center;font-size:10px;letter-spacing:.24em;color:var(--dim);text-transform:uppercase;margin-bottom:8px}
+  #conn{text-align:center;font-size:10px;letter-spacing:.2em;margin-bottom:24px}
+  .grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .card{border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(4px);padding:22px;position:relative;
+    box-shadow:0 0 30px rgba(38,230,255,.05)}
+  .card::before,.card::after{content:"";position:absolute;width:10px;height:10px;border:1.5px solid var(--cy)}
+  .card::before{top:-1px;left:-1px;border-right:0;border-bottom:0}.card::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  .card h2{font-size:11px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-bottom:16px}
+  /* room visual */
+  .room{grid-column:1/3;display:flex;align-items:center;justify-content:space-around;padding:30px}
+  .bulb{width:110px;height:110px;border-radius:50%;position:relative;display:grid;place-items:center;transition:all .4s;
+    background:radial-gradient(circle at 50% 40%,#1a2530,#0a1218);border:2px solid #223}
+  .bulb.on{background:radial-gradient(circle at 50% 40%,#fff7d6,#ffd85a 55%,#c98b00);border-color:#ffe08a;
+    box-shadow:0 0 50px #ffd85a,0 0 100px rgba(255,216,90,.5)}
+  .bulb .ic{font-size:44px;filter:grayscale(1) brightness(.5)}.bulb.on .ic{filter:none}
+  .dev{text-align:center}
+  .dev .lbl{font-size:10px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase;margin-top:12px}
+  .dev .st{font-size:13px;font-weight:600;margin-top:3px}
+  .icon-dev{width:80px;height:80px;border-radius:12px;display:grid;place-items:center;font-size:34px;border:2px solid #223;
+    background:#0a1218;transition:all .4s;color:#3a4a55}
+  .icon-dev.on{border-color:var(--cy);color:var(--cy);box-shadow:0 0 26px rgba(38,230,255,.4);background:rgba(38,230,255,.08)}
+  .fan.on .spin{animation:spin .5s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* gauges */
+  .metric{display:flex;align-items:baseline;gap:8px}
+  .metric .v{font-size:40px;color:var(--ice);text-shadow:0 0 12px var(--cy);font-variant-numeric:tabular-nums}
+  .metric .u{font-size:14px;color:var(--dim)}
+  .bar{height:8px;background:rgba(38,230,255,.12);border-radius:4px;overflow:hidden;margin-top:14px}
+  .bar i{display:block;height:100%;width:0;border-radius:4px;transition:width .6s;box-shadow:0 0 8px currentColor}
+  .motion{display:flex;align-items:center;gap:14px;margin-top:6px}
+  .motion .dot{width:26px;height:26px;border-radius:50%;background:#1a2530;transition:all .3s;border:2px solid #223}
+  .motion .dot.active{background:var(--red);border-color:var(--red);box-shadow:0 0 24px var(--red)}
+  .btns{display:flex;gap:10px;margin-top:18px}
+  button{flex:1;background:rgba(38,230,255,.08);border:1px solid var(--line);color:var(--cy);font-family:inherit;
+    font-size:11px;letter-spacing:.14em;padding:11px;cursor:pointer;transition:.2s;text-transform:uppercase}
+  button:hover{background:rgba(38,230,255,.22);border-color:var(--cy)}
+  .full{grid-column:1/3}
+  .hint{text-align:center;font-size:10px;color:var(--dim);margin-top:22px;letter-spacing:.1em}
+  @media(max-width:700px){.grid{grid-template-columns:1fr}.room,.full{grid-column:1}}
+</style></head>
+<body>
+<h1>SMART ROOM</h1>
+<div class="sub">Jarvis IoT · MQTT · simulated ESP32</div>
+<div id="conn" style="color:var(--amber)">◌ connecting to broker…</div>
+
+<div class="grid">
+  <!-- room visual -->
+  <div class="card room">
+    <div class="dev"><div class="bulb" id="bulb"><span class="ic">💡</span></div>
+      <div class="lbl">Light</div><div class="st" id="light-st">—</div></div>
+    <div class="dev"><div class="icon-dev fan" id="fan"><span class="spin">✳</span></div>
+      <div class="lbl">Fan</div><div class="st" id="fan-st">—</div></div>
+    <div class="dev"><div class="icon-dev" id="plug">🔌</div>
+      <div class="lbl">Plug</div><div class="st" id="plug-st">—</div></div>
+  </div>
+
+  <!-- temperature -->
+  <div class="card">
+    <h2>Temperature</h2>
+    <div class="metric"><span class="v" id="temp">--</span><span class="u">°C</span></div>
+    <div class="bar"><i id="temp-bar" style="background:var(--amber);color:var(--amber)"></i></div>
+  </div>
+  <!-- humidity -->
+  <div class="card">
+    <h2>Humidity</h2>
+    <div class="metric"><span class="v" id="hum">--</span><span class="u">%</span></div>
+    <div class="bar"><i id="hum-bar" style="background:var(--cy);color:var(--cy)"></i></div>
+  </div>
+  <!-- motion -->
+  <div class="card">
+    <h2>Motion Sensor</h2>
+    <div class="motion"><span class="dot" id="motion-dot"></span><span id="motion-st" style="font-size:13px">no motion</span></div>
+  </div>
+  <!-- controls -->
+  <div class="card">
+    <h2>Manual Control</h2>
+    <div class="btns">
+      <button onclick="cmd('light','toggle')">Light</button>
+      <button onclick="cmd('fan','toggle')">Fan</button>
+      <button onclick="cmd('plug','toggle')">Plug</button>
+    </div>
+    <div class="btns"><button onclick="allOff()" style="color:var(--red);border-color:rgba(255,84,112,.4)">All Off</button></div>
+  </div>
+</div>
+<div class="hint">Tell Jarvis: "turn on the light" · "what's the temperature" · "turn everything off"</div>
+
+<script>
+  var ROOM="room", client;
+  function setDev(dev,val){
+    var on=val==="on";
+    document.getElementById(dev+"-st").textContent=val.toUpperCase();
+    document.getElementById(dev+"-st").style.color=on?"var(--grn)":"var(--dim)";
+    var el=document.getElementById(dev==="light"?"bulb":dev);
+    if(el) el.classList.toggle("on",on);
+  }
+  function connect(){
+    client=mqtt.connect("ws://localhost:9001");
+    client.on("connect",function(){
+      document.getElementById("conn").innerHTML="● broker connected";
+      document.getElementById("conn").style.color="var(--grn)";
+      client.subscribe("home/"+ROOM+"/#");
+    });
+    client.on("close",function(){document.getElementById("conn").innerHTML="○ broker offline — is Mosquitto running?";document.getElementById("conn").style.color="var(--red)";});
+    client.on("message",function(topic,payload){
+      var key=topic.split("/").pop(), val=payload.toString();
+      if(key==="light"||key==="fan"||key==="plug") setDev(key,val);
+      else if(key==="temp"){var t=parseFloat(val);document.getElementById("temp").textContent=t.toFixed(1);
+        document.getElementById("temp-bar").style.width=Math.max(0,Math.min(100,(t-15)/20*100))+"%";}
+      else if(key==="humidity"){document.getElementById("hum").textContent=val;document.getElementById("hum-bar").style.width=val+"%";}
+      else if(key==="motion"){var m=val==="1";document.getElementById("motion-dot").classList.toggle("active",m);
+        document.getElementById("motion-st").textContent=m?"MOTION DETECTED":"no motion";
+        document.getElementById("motion-st").style.color=m?"var(--red)":"var(--dim)";}
+    });
+  }
+  window.cmd=function(dev,action){ if(client&&client.connected) client.publish("home/"+ROOM+"/"+dev+"/set",action); };
+  window.allOff=function(){ ["light","fan","plug"].forEach(function(d){window.cmd(d,"off");}); };
+  connect();
+</script>
+</body></html>

@@ -1,0 +1,47 @@
+# === SECRETS — never commit ===
+.groq_key
+.claude_key
+.nvidia_key
+*_key
+*.key
+.env
+secrets.h
+iot/esp32_room/secrets.h
+# Tuya cloud creds live in ~/tinytuya.json (outside repo) — keep it there
+
+# === Personal / biometric / private state ===
+owner_face.npy
+voice_calib.json
+voice_profile.json
+camera.json
+conversation.json
+memory.json
+.vol_state
+.jarvis.lock
+
+# === Logs ===
+*.log
+audit.log
+jarvis_run.log
+
+# === Duplicate / stray firmware copy (canonical is iot/esp32_room/esp32_room.ino) ===
+iot/esp32_room.ino
+
+# === Nova runtime output (Claude-Code + design workspaces) ===
+nova_code/
+nova_designs/
+
+# === Python / OS junk ===
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/
+
+# === Large model blobs (download separately, never commit — GitHub caps at 100MB) ===
+silero_vad.onnx
+hand_landmarker.task
+app/models/
+*.bin
+*.onnx
+*.task
