@@ -407,6 +407,53 @@ def code(task: str) -> str:
         return "Done, sir — saved to the nova_code folder."
     return "Done, sir. " + (out[-450:] if len(out) > 450 else out)
 
+def look(question: str = "") -> str:
+    """Look at what's on the SCREEN (a screenshot — NOT the webcam) and answer about it.
+    For 'what's on my screen', 'read this', 'what does this error/chart say', 'describe this'.
+    Captures the display, sends it to a vision model (Gemini), returns a spoken answer."""
+    import os, subprocess, base64, tempfile, time
+    try:
+        import router
+    except Exception:
+        return "My vision brain isn't available, sir."
+    tmp = os.path.join(tempfile.gettempdir(), "nova_screen_%d.png" % int(time.time()))
+    try:
+        subprocess.run(["screencapture", "-x", tmp], check=True, timeout=15)   # -x: silent; grabs the DISPLAY, not the camera
+        subprocess.run(["sips", "-Z", "1600", tmp], capture_output=True, timeout=15)  # downscale for speed/size
+        b64 = base64.b64encode(open(tmp, "rb").read()).decode()
+    except Exception as e:
+        return "Couldn't capture the screen: %s" % str(e)[:80]
+    finally:
+        try: os.remove(tmp)
+        except OSError: pass
+    q = (question or "").strip() or "Describe what's on this screen."
+    msg = [{"role": "user", "content": [
+        {"type": "text", "text": q + " Answer briefly and clearly, suitable to be read aloud."},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64," + b64}}]}]
+    try:
+        r = router.chat("vision", msg, temperature=0.3, max_tokens=500, timeout=60)
+    except Exception as e:
+        return "Couldn't reach a vision brain (needs a Gemini key): %s" % str(e)[:80]
+    return (r.get("content") or "").strip() or "I couldn't make out the screen, sir."
+
+def think(question: str) -> str:
+    """Answer a hard question with deep reasoning — routes to the best free REASONING brain
+    (Cerebras/Qwen), not the fast chat model. For 'think hard about', 'reason through',
+    'explain in depth', 'analyze', or genuinely tricky problems. Kept spoken-friendly."""
+    try:
+        import router
+    except Exception:
+        return "My reasoning brain isn't available, sir."
+    sysp = ("You are a sharp expert. Reason the problem through carefully, then give a clear, "
+            "well-justified answer in a few sentences — concise enough to be read aloud.")
+    try:
+        r = router.chat("reason", [{"role": "system", "content": sysp},
+                                   {"role": "user", "content": question}],
+                        temperature=0.3, max_tokens=700, timeout=60)
+    except Exception as e:
+        return "Couldn't reach a reasoning brain: %s" % str(e)[:100]
+    return (r.get("content") or "").strip() or "I couldn't work that one out, sir."
+
 def design(prompt: str) -> str:
     """Generate a self-contained HTML design (poster/page/flyer/card) from a description and open it.
     For 'design a ...', 'make a poster/landing page/menu/flyer', 'create a webpage that ...'.
@@ -455,7 +502,8 @@ FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": searc
          "send_whatsapp": send_whatsapp, "generate_image": generate_image, "read_file": read_file,
          "write_file": write_file, "list_files": list_files,
          "iot_control": iot_control, "iot_status": iot_status,
-         "ac": ac, "gesture_control": gesture_control, "code": code, "design": design}
+         "ac": ac, "gesture_control": gesture_control, "code": code, "design": design,
+         "think": think, "look": look}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -587,6 +635,14 @@ TOOLS = [
         "name": "design", "description": "Generate a visual design as a self-contained HTML page and open it. Use for 'design a poster/flyer/landing page/menu/card/resume', 'make a webpage that ...', 'mock up a ...'.",
         "parameters": {"type": "object", "properties": {
             "prompt": {"type": "string", "description": "What to design, in natural language, e.g. 'a minimalist poster for a jazz night on Friday at 8pm'"}}, "required": ["prompt"]}}},
+    {"type": "function", "function": {
+        "name": "think", "description": "Answer a hard/complex question with deep step-by-step reasoning (uses the strongest reasoning model, not the fast chat one). Use for 'think hard about', 'reason through', 'explain in depth', 'analyze', tricky math/logic/decisions.",
+        "parameters": {"type": "object", "properties": {
+            "question": {"type": "string", "description": "The question or problem to reason through"}}, "required": ["question"]}}},
+    {"type": "function", "function": {
+        "name": "look", "description": "Look at what's currently on the SCREEN (a screenshot, not the webcam) and answer about it. Use for 'what's on my screen', 'read this', 'what does this error/chart say', 'describe this'.",
+        "parameters": {"type": "object", "properties": {
+            "question": {"type": "string", "description": "What to answer about the screen, e.g. 'what does this error mean' (leave empty to just describe the screen)"}}}}},
 ]
 
 # ---------- the loop ----------

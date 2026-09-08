@@ -36,8 +36,8 @@ M = {
     "groq_fast":     "openai/gpt-oss-20b",   # verified live on your Groq key
     "groq_big":      "openai/gpt-oss-120b",  # verified
     "groq_reason":   "qwen/qwen3.8-27b",     # verified — reasoning model, needs effort control (see EXTRA)
-    "cerebras":      "llama-3.3-70b",        # verify at cerebras model list once you add the key
-    "gemini":        "gemini-2.5-flash",     # verify at ai.google.dev once you add the key
+    "cerebras":      "qwen-3.8-27b",         # valid slug; needs billing/free-tier enabled on the account
+    "gemini":        "gemini-3.6-flash",     # current Gemini flash (2.5-flash was retired for new users)
     "mistral_code":  "codestral-latest",     # verify at mistral once you add the key
     "openrouter_code":"deepseek/deepseek-chat-v3:free",
     "openrouter_gen": "meta-llama/llama-3.3-70b-instruct:free",
@@ -58,12 +58,13 @@ EXTRA = {
 CHAINS = {
     "fast":   [("groq", M["groq_fast"]), ("cerebras", M["cerebras"]),
                ("sambanova", M["sambanova"]), ("lmstudio", M["lmstudio"]), ("ollama", M["ollama"])],
-    "reason": [("cerebras", M["cerebras"]), ("groq", M["groq_reason"]),
-               ("gemini", M["gemini"]), ("lmstudio", M["lmstudio"]), ("ollama", M["ollama"])],
+    "reason": [("groq", M["groq_reason"]), ("gemini", M["gemini"]),
+               ("cerebras", M["cerebras"]), ("lmstudio", M["lmstudio"]), ("ollama", M["ollama"])],
     "code":   [("groq", M["groq_big"]), ("mistral", M["mistral_code"]),
                ("openrouter", M["openrouter_code"]), ("lmstudio", M["lmstudio"]), ("ollama", M["ollama"])],
     "design": [("gemini", M["gemini"]), ("openrouter", M["openrouter_gen"]),
                ("groq", M["groq_big"]), ("lmstudio", M["lmstudio"]), ("ollama", M["ollama"])],
+    "vision": [("gemini", M["gemini"]), ("lmstudio", "google/gemma-4-31b")],  # multimodal only — for screen vision
 }
 DEFAULT_SKILL = "fast"
 
