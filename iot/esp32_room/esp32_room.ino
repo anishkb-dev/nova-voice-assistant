@@ -165,7 +165,7 @@ void connectMqtt() {
     Serial.print("MQTT...");
     snprintf(topic, sizeof(topic), "home/%s/status", ROOM);
     // last-will: broker publishes "offline" (retained) if this device drops
-    if (mqtt.connect("esp32-room", nullptr, nullptr, topic, 0, true, "offline")) {
+    if (mqtt.connect("esp32-room", SECRET_MQTT_USER, SECRET_MQTT_PASS, topic, 0, true, "offline")) {
       mqtt.publish(topic, "online", true);      // retained: new subscribers see we're up
       snprintf(topic, sizeof(topic), "home/%s/+/set", ROOM);
       mqtt.subscribe(topic);                    // listen for light/fan/plug commands

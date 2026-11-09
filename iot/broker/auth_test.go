@@ -2,11 +2,18 @@ package main
 
 import "testing"
 
-func TestDeviceTopic(t *testing.T) {
-	for _, ok := range []string{"home/room/ac/set", "home/room/#", "home/car/throttle"} {
-		if !deviceTopic(ok) { t.Error("should allow", ok) }
+func TestAllowed(t *testing.T) {
+	cases := []struct {
+		user, topic string
+		ok          bool
+	}{
+		{"nova", "home/hub/heard", true}, {"nova", "#", true},
+		{"room", "home/room/ac/set", true}, {"room", "home/room/#", true},
+		{"room", "home/hub/heard", false}, {"room", "home/car/throttle", false}, {"room", "#", false},
+		{"", "home/car/throttle", true}, {"", "home/room/light/set", false}, {"", "home/hub/heard", false},
+		{"", "home/sleep", false}, {"", "#", false}, {"", "home/+/heard", false},
 	}
-	for _, bad := range []string{"home/hub/heard", "home/mac/stt/1", "home/sleep", "#", "home/+/heard", "home/roomx"} {
-		if deviceTopic(bad) { t.Error("should deny", bad) }
+	for _, c := range cases {
+		if allowed(c.user, c.topic) != c.ok { t.Errorf("%q %q want %v", c.user, c.topic, c.ok) }
 	}
 }
