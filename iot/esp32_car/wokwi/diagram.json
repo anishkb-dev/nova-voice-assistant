@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "Anish / JARVIS",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-ssd1306", "id": "oled", "top": -120, "left": 210, "attrs": {} },
+    { "type": "wokwi-servo", "id": "servo", "top": 130, "left": 230, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "sonar", "top": 10, "left": 300, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "pot", "top": 210, "left": -140, "attrs": {} },
+    { "type": "wokwi-pushbutton", "id": "btnF", "top": 300, "left": -160, "attrs": { "color": "green", "label": "FWD" } },
+    { "type": "wokwi-pushbutton", "id": "btnB", "top": 300, "left": 40, "attrs": { "color": "red", "label": "REV" } }
+  ],
+  "connections": [
+    [ "esp:3V3", "oled:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.1", "oled:GND", "black", [ "v0" ] ],
+    [ "esp:D21", "oled:SDA", "green", [ "v0" ] ],
+    [ "esp:D22", "oled:SCL", "gold", [ "v0" ] ],
+
+    [ "esp:5V", "servo:V+", "red", [ "v0" ] ],
+    [ "esp:GND.2", "servo:GND", "black", [ "v0" ] ],
+    [ "esp:D5", "servo:PWM", "orange", [ "v0" ] ],
+
+    [ "esp:5V", "sonar:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.1", "sonar:GND", "black", [ "v0" ] ],
+    [ "esp:D18", "sonar:TRIG", "blue", [ "v0" ] ],
+    [ "esp:D19", "sonar:ECHO", "purple", [ "v0" ] ],
+
+    [ "esp:3V3", "pot:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.2", "pot:GND", "black", [ "v0" ] ],
+    [ "esp:D34", "pot:SIG", "cyan", [ "v0" ] ],
+
+    [ "esp:D25", "btnF:1.l", "green", [ "v0" ] ],
+    [ "esp:GND.1", "btnF:2.l", "black", [ "v0" ] ],
+    [ "esp:D26", "btnB:1.l", "red", [ "v0" ] ],
+    [ "esp:GND.2", "btnB:2.l", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}

@@ -1,0 +1,264 @@
+<!doctype html><html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Nova Crawler</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Crawler">
+<meta name="theme-color" content="#0c0906">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  :root{--bg:#0a0705;--pnl:rgba(24,16,9,.55);--or:#ff9a42;--or2:#ffcf9a;--dim:#8a6a44;
+    --ok:#7fe08a;--stop:#ff6b5a;--glow:rgba(255,154,66,.16);--line:rgba(255,154,66,.22);}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  html,body{margin:0;height:100%;background:
+    radial-gradient(120% 90% at 50% -10%,rgba(255,154,66,.06),transparent 60%),var(--bg);
+    color:var(--or2);font-family:ui-monospace,Menlo,monospace;overflow:hidden;touch-action:none;overscroll-behavior:none}
+  /* faint tech grid + ambient stick glows */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:46px 46px;-webkit-mask-image:radial-gradient(120% 80% at 50% 50%,#000,transparent 78%);
+            mask-image:radial-gradient(120% 80% at 50% 50%,#000,transparent 78%)}
+  .aglow{position:fixed;width:66vh;height:66vh;border-radius:50%;top:50%;transform:translateY(-50%);z-index:0;pointer-events:none;
+    background:radial-gradient(circle,var(--glow),transparent 60%)}
+  .aglow.l{left:-16vh}.aglow.r{right:-16vh}
+
+  #pad{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;
+    height:100dvh;padding:0 max(18px,env(safe-area-inset-right)) 0 max(18px,env(safe-area-inset-left))}
+  .side{display:flex;flex-direction:column;align-items:center;gap:min(2vh,14px)}
+  .hint{font-size:min(2.3vh,14px);letter-spacing:.3em;color:var(--dim)}
+  .val{font-size:min(2.3vh,14px);letter-spacing:.1em;color:var(--or);min-height:1.2em;font-variant-numeric:tabular-nums}
+
+  /* --- steer buttons: side by side, a bit smaller than the throttle arrows --- */
+  .srow{display:flex;gap:min(2.4vh,16px)}
+  .srow .arrow{width:min(24vh,15vw);height:min(24vh,15vw)}
+  /* --- throttle arrows --- */
+  .arrow{width:min(27vh,21vw);height:min(27vh,21vw);border-radius:50%;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;font-weight:700;color:var(--or2);
+    border:2px solid var(--line);
+    background:radial-gradient(circle at 42% 34%,rgba(255,154,66,.16),rgba(255,154,66,.03) 62%,transparent 74%);
+    box-shadow:inset 0 0 40px rgba(255,154,66,.08);transition:box-shadow .05s}
+  .arrow .a{font-size:min(8vh,58px)}
+  .arrow .t{font-size:min(2vh,12px);letter-spacing:.16em;color:var(--dim)}
+  .arrow.hold{background:var(--or);color:#160e07;border-color:var(--or2);
+    box-shadow:0 0 46px rgba(255,154,66,.6),inset 0 0 20px rgba(255,255,255,.28)}
+  .arrow.hold .t{color:#2a1706}
+
+  /* --- center HUD --- */
+  .hud{width:min(36vw,340px);display:flex;flex-direction:column;gap:min(1.3vh,9px);
+    padding:min(1.8vh,12px) min(2vw,14px);border-radius:18px;
+    background:linear-gradient(180deg,rgba(30,20,11,.72),rgba(14,10,6,.6));
+    border:1px solid var(--line);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+    box-shadow:0 0 0 1px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.45),inset 0 0 40px rgba(255,154,66,.05)}
+  .htop{display:flex;align-items:center;justify-content:space-between}
+  .brand{color:var(--or);font-weight:700;font-size:min(2.2vh,15px);letter-spacing:.14em}
+  .pill{display:flex;align-items:center;gap:6px;font-size:min(1.8vh,11px);letter-spacing:.12em;color:var(--stop)}
+  .pill .dot{width:9px;height:9px;border-radius:50%;background:var(--stop);box-shadow:0 0 10px var(--stop)}
+  .pill.on{color:var(--ok)}.pill.on .dot{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .div{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+
+  .sig{display:flex;align-items:center;gap:9px;font-size:min(1.8vh,11px);letter-spacing:.12em;color:var(--dim)}
+  .bars{display:flex;align-items:flex-end;gap:3px;height:16px;flex:1}
+  .bars i{flex:1;background:rgba(255,154,66,.16);border-radius:1px}
+  .bars i:nth-child(1){height:35%}.bars i:nth-child(2){height:55%}.bars i:nth-child(3){height:78%}.bars i:nth-child(4){height:100%}
+  .bars i.on{background:var(--or);box-shadow:0 0 7px rgba(255,154,66,.6)}
+  .sig b{color:var(--or2);font-variant-numeric:tabular-nums}
+  .bat{display:flex;align-items:center;gap:9px;font-size:min(1.8vh,11px);letter-spacing:.12em;color:var(--dim)}
+  .cell{position:relative;flex:1;height:16px;border:1.5px solid var(--line);border-radius:4px;padding:2px}
+  .cell::after{content:"";position:absolute;right:-5px;top:4px;width:3px;height:6px;border-radius:0 2px 2px 0;background:var(--line)}
+  .cell i{display:block;height:100%;width:0;border-radius:2px;background:var(--ok);transition:width .6s,background .6s}
+  .bat b{min-width:3.6em;text-align:right;color:var(--or2);font-variant-numeric:tabular-nums}
+  .bat.low b{color:var(--stop);animation:pulse 1s infinite}
+
+  .cam{position:relative;height:min(30vh,150px);border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#000}
+  .cam img{width:100%;height:100%;object-fit:cover;display:block}
+  .cam .tag{position:absolute;left:6px;top:5px;font-size:min(1.5vh,9px);letter-spacing:.14em;color:var(--or2);
+    display:flex;align-items:center;gap:5px;text-shadow:0 0 4px #000}
+  .cam .tag i{width:7px;height:7px;border-radius:50%;background:var(--stop)}
+  .cam.live .tag i{animation:pulse 1s infinite}
+  .cam .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:min(1.7vh,11px);letter-spacing:.12em;color:var(--dim)}
+  .cam.live .msg{display:none}
+  .cam.big{position:fixed;inset:6vh 22vw;height:auto;z-index:4;box-shadow:0 0 60px rgba(0,0,0,.8)}
+  .meters{display:flex;gap:10px}.meters>*{flex:1}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+  .tile{border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:rgba(255,154,66,.03)}
+  .tile span{display:block;font-size:min(1.4vh,9px);letter-spacing:.14em;color:var(--dim)}
+  .tile b{display:block;font-size:min(2.3vh,14px);color:var(--or2);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tile.warn b{color:var(--stop)}
+  .rows{display:flex;flex-direction:column;gap:min(1vh,7px)}
+  .rows .r{display:flex;align-items:center;justify-content:space-between;font-size:min(1.9vh,12px);letter-spacing:.08em;color:var(--dim)}
+  .rows .r b{color:var(--or2);font-variant-numeric:tabular-nums;letter-spacing:.05em}
+
+  .modes{display:flex;gap:6px}
+  .mode{flex:1;padding:min(1.3vh,10px) 0;border-radius:10px;font-family:inherit;font-size:min(1.7vh,11px);
+    letter-spacing:.1em;font-weight:700;color:var(--dim);cursor:pointer;
+    border:1px solid var(--line);background:rgba(255,154,66,.04);transition:.12s}
+  .mode.auto.on{color:#06140a;background:var(--ok);border-color:var(--ok);box-shadow:0 0 20px rgba(127,224,138,.5);animation:pulse 1.2s infinite}
+  .mode.active{color:#160e07;background:var(--or);border-color:var(--or2);box-shadow:0 0 20px rgba(255,154,66,.4)}
+
+  .stop{margin-top:2px;padding:min(1.5vh,11px) 0;border-radius:11px;font-weight:700;text-align:center;
+    font-size:min(1.9vh,12px);letter-spacing:.16em;color:var(--stop);border:1px solid var(--stop);
+    background:radial-gradient(circle at 50% 0%,rgba(255,107,90,.16),rgba(255,107,90,.03))}
+  .stop:active{background:var(--stop);color:#160e07;box-shadow:0 0 30px rgba(255,107,90,.55)}
+
+  #rot{display:none}
+  @media (orientation:portrait){
+    #pad{filter:blur(2px);opacity:.25}
+    #rot{display:flex;position:fixed;inset:0;z-index:5;flex-direction:column;align-items:center;justify-content:center;
+      gap:14px;color:var(--or2);text-align:center;font-size:16px;letter-spacing:.06em}
+    #rot .ic{font-size:56px;color:var(--or)}
+  }
+</style></head><body>
+<div class="aglow l"></div><div class="aglow r"></div>
+
+<div id="pad">
+  <!-- LEFT thumb: steering (angle = how much it turns) -->
+  <div class="side">
+    <div class="hint">STEER</div>
+    <div class="srow">
+      <div class="arrow" data-steer="left"><span class="a">◀</span><span class="t">LEFT</span></div>
+      <div class="arrow" data-steer="right"><span class="a">▶</span><span class="t">RIGHT</span></div>
+    </div>
+    <div id="steerVal" class="val">CENTER</div>
+  </div>
+
+  <!-- center HUD -->
+  <div class="hud">
+    <div class="htop">
+      <span class="brand">◈ NOVA MK-IV</span>
+      <span id="link" class="pill"><span class="dot"></span>OFFLINE</span>
+    </div>
+    <div class="cam" id="cam"><img id="camImg" alt=""><div class="tag"><i></i>CAM</div><div class="msg" id="camMsg">NO CAMERA</div></div>
+    <div class="meters">
+      <div class="sig">SIG <div class="bars" id="bars"><i></i><i></i><i></i><i></i></div> <b id="rssi">—</b></div>
+      <div class="bat" id="bat">BAT <div class="cell"><i id="batFill"></i></div> <b id="batPct">—</b></div>
+    </div>
+    <div class="grid">
+      <div class="tile" id="kDist"><span>DIST</span><b id="vDist">—</b></div>
+      <div class="tile"><span>SPEED</span><b id="vSpd">—</b></div>
+      <div class="tile"><span>TRAVEL</span><b id="vOdo">—</b></div>
+      <div class="tile" id="kTilt"><span>TILT</span><b id="vTilt">—</b></div>
+      <div class="tile"><span>TURN</span><b id="vTurn">—</b></div>
+      <div class="tile"><span>VOLT</span><b id="tBat">—</b></div>
+    </div>
+    <div class="modes">
+      <button class="mode active" data-spd="45"  data-name="CRAWL">CRAWL</button>
+      <button class="mode"        data-spd="72"  data-name="SPORT">SPORT</button>
+      <button class="mode"        data-spd="100" data-name="TURBO">TURBO</button>
+      <button class="mode auto" id="autoBtn">AUTO</button>
+    </div>
+    <div id="stopBtn" class="stop">■ STOP</div>
+  </div>
+
+  <!-- RIGHT thumb: throttle -->
+  <div class="side">
+    <div class="hint">THROTTLE</div>
+    <div class="arrow" data-dir="forward"><span class="a">▲</span><span class="t">FWD</span></div>
+    <div class="arrow" data-dir="back"><span class="t">REV</span><span class="a">▼</span></div>
+  </div>
+</div>
+
+<div id="rot"><div class="ic">⟳</div>Rotate to landscape</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js"></script>
+<script>
+(function(){
+  var BROKER="ws://"+(location.hostname||"192.168.68.112")+":9001";   // page is served by the broker Mac
+  var link=document.getElementById("link");
+  var client=mqtt.connect(BROKER,{keepalive:20,reconnectPeriod:1500,clientId:"phone-"+Math.random().toString(16).slice(2,8)});
+  client.on("connect",function(){link.className="pill";link.innerHTML='<span class="dot"></span>WAITING CAR';
+    client.subscribe("home/car/#"); pub("pulse","600"); pub("speed",curSpd);});   // 600ms deadman; page heartbeats @200ms
+  client.on("close",function(){link.className="pill";link.innerHTML='<span class="dot"></span>OFFLINE';setBars(0);});
+  client.on("error",function(){link.className="pill";});
+  var CM_PER_TICK=3.7;   // ponytail: estimate (7 cm tyre / 6 ticks) — calibrate with a 1 m floor run
+  var ticks0=null, roll0=null, $=function(id){return document.getElementById(id);};
+  client.on("message",function(t,p){
+    var s=p.toString();
+    if(t==="home/car/status"){var on=s==="online";
+      link.className=on?"pill on":"pill";link.innerHTML='<span class="dot"></span>'+(on?"CAR ONLINE":"CAR OFFLINE");return;}
+    if(t==="home/car/distance"){var cm=parseFloat(s);
+      $("vDist").textContent=cm<0?"OPEN":Math.round(cm)+" cm";$("kDist").className=cm>0&&cm<25?"tile warn":"tile";return;}
+    if(t==="home/car/odo"){try{var o=JSON.parse(s);if(ticks0===null)ticks0=o.ticks;if(o.ticks<ticks0)ticks0=0;   // car rebooted
+      $("vSpd").textContent=(o.tps*CM_PER_TICK*0.036).toFixed(1)+" km/h";
+      $("vOdo").textContent=((o.ticks-ticks0)*CM_PER_TICK/100).toFixed(1)+" m";}catch(e){}return;}
+    if(t==="home/car/imu"){try{var m=JSON.parse(s),roll=Math.atan2(m.ay,m.az)*57.3;if(roll0===null)roll0=roll;
+      var r=Math.round(roll-roll0);$("vTilt").textContent=(r>0?"+":"")+r+"°";$("kTilt").className=Math.abs(r)>25?"tile warn":"tile";
+      $("vTurn").textContent=Math.round(m.gz)+"°/s";}catch(e){}return;}
+    if(t==="home/car/telemetry"){try{var d=JSON.parse(p.toString());
+      autoBtn.classList.toggle("on",d.mode==="auto");
+      if(d.rssi!=null){document.getElementById("rssi").textContent=d.rssi+"dBm";
+        setBars(d.rssi>=-55?4:d.rssi>=-65?3:d.rssi>=-75?2:d.rssi>=-85?1:0);}
+      if(d.vbat!=null){   // firmware owns the Li-ion curve; pct -1 = no pack sensed (e.g. USB only)
+        var pct=d.pct!=null?d.pct:-1, col=d.low||pct<20?"var(--stop)":pct<50?"var(--or)":"var(--ok)";
+        var f=document.getElementById("batFill"); f.style.width=Math.max(pct,0)+"%"; f.style.background=col;
+        document.getElementById("batPct").textContent=d.low?"LOW":pct<0?"—":pct+"%";
+        document.getElementById("bat").className=d.low?"bat low":"bat";
+        document.getElementById("tBat").textContent=pct<0?"—":d.vbat.toFixed(2)+"V"+(d.low?" · CHARGE":"");}
+    }catch(e){}}
+  });
+  var CAM=(new URLSearchParams(location.search)).get("cam");
+  try{if(CAM)localStorage.setItem("crawlerCam",CAM);else CAM=localStorage.getItem("crawlerCam");}catch(e){}
+  CAM=CAM||"192.168.68.107";   // CAM 02 on the car — DHCP, so ?cam=IP when it moves (or reserve it in the Deco app)
+  var camEl=$("cam"),camImg=$("camImg");
+  function camStart(){camImg.src="http://"+CAM+":81/stream?t="+Date.now();}
+  setInterval(function(){camEl.classList.toggle("live",camImg.naturalWidth>0);},1000);   // MJPEG never fires onload reliably
+  camImg.onerror=function(){$("camMsg").textContent="NO CAMERA ("+CAM+")";setTimeout(camStart,4000);};
+  camEl.addEventListener("click",function(){camEl.classList.toggle("big");});
+  camStart();
+  function pub(topic,val){if(client.connected)client.publish("home/car/"+topic,String(val));}
+  var barsEl=document.getElementById("bars").children;
+  function setBars(n){for(var i=0;i<4;i++)barsEl[i].className=i<n?"on":"";}
+
+  // ---- live command state + heartbeat (feeds the deadman while held) ----
+  var curThr=null, curSteer=0, curSpd=45;
+  setInterval(function(){ if(curThr)pub("throttle",curThr); if(curSteer)pub("steer",curSteer); },200);
+
+  // ---- drive modes (speed cap) ----
+  // ---- AUTO: car drives itself (sonar + camera + MPU); any arrow or STOP takes control back ----
+  var autoBtn=$("autoBtn");
+  autoBtn.addEventListener("click",function(){pub("mode",autoBtn.classList.contains("on")?"manual":"auto");});
+  [].slice.call(document.querySelectorAll(".mode[data-spd]")).forEach(function(b){
+    b.addEventListener("click",function(){
+      document.querySelector(".mode.active[data-spd]").classList.remove("active");
+      b.classList.add("active");
+      curSpd=b.getAttribute("data-spd");
+      pub("speed",curSpd);
+    });
+  });
+
+  // ---- throttle arrows (hold to drive) ----
+  [].slice.call(document.querySelectorAll("[data-dir]")).forEach(function(b){
+    var dir=b.getAttribute("data-dir");
+    function down(e){e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(_){}
+      b.classList.add("hold");curThr=dir;pub("throttle",dir);}
+    function up(e){if(e)e.preventDefault();b.classList.remove("hold");if(curThr===dir){curThr=null;pub("throttle","stop");}}
+    b.addEventListener("pointerdown",down);
+    b.addEventListener("pointerup",up);b.addEventListener("pointercancel",up);
+    // NOTE: no pointerleave — on touch it fires mid-hold and kills the press (forward→stop flapping)
+  });
+
+  // ---- steer buttons (hold to steer, release = center; full steer power) ----
+  var sv=document.getElementById("steerVal");
+  function reset(){curSteer=0;sv.textContent="CENTER";
+    [].slice.call(document.querySelectorAll("[data-steer]")).forEach(function(x){x.classList.remove("hold");});}
+  [].slice.call(document.querySelectorAll("[data-steer]")).forEach(function(b){
+    var dir=b.getAttribute("data-steer");
+    function down(e){e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(_){}
+      b.classList.add("hold");curSteer=dir;sv.textContent=dir==="left"?"◀ LEFT":"RIGHT ▶";pub("steer",dir);}
+    function up(e){if(e)e.preventDefault();b.classList.remove("hold");
+      if(curSteer===dir){curSteer=0;sv.textContent="CENTER";pub("steer","center");}}
+    b.addEventListener("pointerdown",down);
+    b.addEventListener("pointerup",up);b.addEventListener("pointercancel",up);
+  });
+
+  // ---- STOP: kill everything ----
+  document.getElementById("stopBtn").addEventListener("pointerdown",function(){
+    curThr=null;curSteer=0;pub("throttle","stop");pub("steer","center");reset();
+  });
+})();
+</script>
+</body></html>

@@ -1,0 +1,12 @@
+# MQTT broker for Nova on the hub (amqtt — pure Python; Homebrew/mosquitto don't support Intel Macs any more).
+# Same two listeners as iot/mosquitto.conf: raw MQTT for devices + Nova, WebSockets for the browser dashboard.
+listeners:
+  default:
+    type: tcp
+    bind: 0.0.0.0:1883
+  ws:
+    type: ws
+    bind: 0.0.0.0:9001
+plugins:
+  amqtt.plugins.authentication.AnonymousAuthPlugin:
+    allow_anonymous: true

@@ -17,12 +17,12 @@ camera.json
 conversation.json
 memory.json
 .vol_state
-.jarvis.lock
+.nova.lock
 
 # === Logs ===
 *.log
 audit.log
-jarvis_run.log
+nova_run.log
 
 # === Duplicate / stray firmware copy (canonical is iot/esp32_room/esp32_room.ino) ===
 iot/esp32_room.ino
@@ -45,3 +45,27 @@ app/models/
 *.bin
 *.onnx
 *.task
+
+# === Runtime state (per machine) ===
+.asleep
+.reminders.json
+.jarvis.lock
+*.lock
+
+# === Toolchains / caches / big binaries ===
+.arduino/
+.kokoro/
+.mlx/
+models/
+iot/esp32_*/build/
+iot/nova-broker
+iot/aec/nova_aec
+secrets.h*
+!secrets.h.example
+build/
+iot/broker/nova-broker*
+*.wav
+*.elf
+*.map
+internship-handoff.md
+nova_claude/

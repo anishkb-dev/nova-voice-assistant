@@ -1,0 +1,269 @@
+<title>Crawler Tray 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D bench; one floating spec panel top-left, hover tag follows the pointer. Single dark workshop look on purpose. */
+:root {
+  --bg: #15181d; --panel: rgba(29, 34, 41, .88); --line: #333a44;
+  --fg: #e6e9ee; --muted: #8e98a6; --accent: #f2a33a;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 12px; overflow: hidden; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; touch-action: none; }
+.panel {
+  position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px));
+  width: min(300px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 14px 16px; display: grid; gap: 12px; backdrop-filter: blur(6px);
+}
+h1 { margin: 0; font: 600 22px/1 var(--display); letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
+h1 span { color: var(--accent); }
+.sub { color: var(--muted); line-height: 1.5; margin: 0; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggles label, .toggles button {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 8px; background: transparent; color: var(--fg); font: inherit; cursor: pointer;
+}
+.toggles input { accent-color: var(--accent); margin: 0; }
+.toggles :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+#tag {
+  position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--accent); border-radius: 4px;
+  padding: 6px 8px; max-width: 240px; line-height: 1.45;
+}
+#tag b { color: var(--accent); font-weight: 500; }
+.hint { color: var(--muted); }
+@media (max-width: 480px) { .panel { gap: 8px; padding: 10px 12px; } .sub { display: none; } }
+</style>
+
+<div id="stage"></div>
+<div class="panel">
+  <h1>Crawler tray <span>v2</span></h1>
+  <p class="sub">The rebuild layout, to scale in cm. Tray 17 × 12 on a 5.2 cm riser inside the chassis box; L298N in the bay below.</p>
+  <div class="toggles">
+    <label><input type="checkbox" id="walls" checked> Walls</label>
+    <label><input type="checkbox" id="wires" checked> Wires</label>
+    <label><input type="checkbox" id="lift"> Lift tray</label>
+    <button type="button" id="reset">Reset view</button>
+  </div>
+  <div class="legend">
+    <span><i style="background:#3d7bf0"></i>signal</span>
+    <span><i style="background:#e5523f"></i>8V</span>
+    <span><i style="background:#f08a24"></i>5V</span>
+    <span><i style="background:#9aa3ad"></i>GND</span>
+    <span><i style="background:#e6c229"></i>3V3</span>
+    <span><i style="background:#111;outline:1px solid #555"></i>velcro</span>
+  </div>
+  <div class="hint">Drag to orbit · scroll or pinch to zoom · hover a part</div>
+</div>
+<div id="tag" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Plan coords from draw_layout_v2.py: x side-side 0..17 (car's left = 0), y back 0 -> front 12, z up from the floor (cm).
+// Three.js: X = x - 8.5, Y = z, Z = 6 - y (front of the car points to -Z).
+const BASE_Z = 12.8, TOP = BASE_Z + 0.5, WALL_H = 4, BAY = 7.6;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x15181d);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.getElementById("stage").appendChild(renderer.domElement);
+const cam = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+const controls = new THREE.OrbitControls(cam, renderer.domElement);
+controls.enableDamping = true; controls.target.set(0, 11, 0);
+function home() { cam.position.set(26, 32, -30); controls.target.set(0, 11, 0); controls.update(); }
+home();
+scene.add(new THREE.HemisphereLight(0xdfe6f0, 0x2a2f36, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(20, 40, -10); scene.add(sun);
+const grid = new THREE.GridHelper(60, 60, 0x3a414b, 0x252a31); scene.add(grid);
+
+const pickable = [];
+const groups = { car: new THREE.Group(), tray: new THREE.Group(), walls: new THREE.Group(), wires: new THREE.Group() };
+scene.add(groups.car, groups.tray); groups.tray.add(groups.walls, groups.wires);
+
+function box(x, y, w, d, z0, h, color, name, info, parent = groups.tray, opts = {}) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: .7, metalness: opts.metal || 0, transparent: !!opts.opacity, opacity: opts.opacity || 1 }));
+  m.position.set(x + w / 2 - 8.5, z0 + h / 2, 6 - (y + d / 2));
+  if (name) { m.userData = { name, info }; pickable.push(m); }
+  parent.add(m); return m;
+}
+function cyl(x, y, z, r, len, axis, color, name, info, parent = groups.tray) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 28), new THREE.MeshStandardMaterial({ color, roughness: .6 }));
+  m.position.set(x - 8.5, z, 6 - y);
+  if (axis === "x") m.rotation.z = Math.PI / 2;
+  if (axis === "y") m.rotation.x = Math.PI / 2;      // plan y = front-back
+  if (name) { m.userData = { name, info }; pickable.push(m); }
+  parent.add(m); return m;
+}
+
+// ---- car (stays put) ----
+const C = groups.car;
+for (const y of [-2.5, 14.5]) {
+  for (const x of [1.25, 15.75]) cyl(x, y, 3.5, 3.5, 2.5, "x", 0x24272b, "Tyre", "Ø 7 cm, wheelbase 17 cm", C);
+  cyl(8.5, y, 3.5, 0.6, 14, "x", 0x55595f, "Axle housing", y < 6 ? "Rear axle: FC-51 wheel sensor sits along its back" : "Front axle", C);
+}
+box(7.6, -2.5, 1.8, 17, 3.0, 1.5, 0x3b3f45, "Chassis rail", "", C);
+box(5.1, 1.5, 6.8, 9, 4.5, 3.1, 0x2f3338, "Chassis box", "Top 8.8 cm off the floor; the riser stands in its 1.2 cm deep bay", C);
+for (const [x, y, w, d] of [[5.1, 1.5, 6.8, .3], [5.1, 10.2, 6.8, .3], [5.1, 1.5, .3, 9], [11.6, 1.5, .3, 9]]) box(x, y, w, d, BAY, 1.2, 0x2f3338, null, null, C);
+
+// riser (5.9 x 5.5 x 5.2, finger-jointed PVC) + L298N inside
+const RX = 5.55, RY = 3.25, PVC = 0xeceae4;
+const POST = "One of 4 closed corner posts (L of a 1.95 front/back strip + a 1.25 side strip). 2 cm open sides between them for motor wires + air.";
+for (const [x, y] of [[RX, RY], [RX + 3.95, RY], [RX, RY + 5.0], [RX + 3.95, RY + 5.0]]) {
+  box(x, y, 1.95, .5, BAY, 5.2, PVC, "Riser corner post", POST, C, { opacity: .6 });
+  box(x + .475, y, 1.0, .5, BAY + 5.2, .5, 0xd8d4c8, null, null, groups.tray);            // top tab, sits in the base slot
+}
+for (const [x, y] of [[RX, RY + .5], [RX + 5.4, RY + .5], [RX, RY + 3.75], [RX + 5.4, RY + 3.75]])
+  box(x, y, .5, 1.25, BAY, 5.2, PVC, "Riser corner post", POST, C, { opacity: .6 });
+for (const x of [RX - 3, RX + 5.9]) for (const y of [RY + .9, RY + 4.1])
+  box(x, y, 3, .5, BAY + 1.2, 4.0, PVC, "Gusset", "3 × 4 triangle (drawn as a block) on the outside of each side strip, under the tray", C, { opacity: .45 });
+// L298N (measured): board 4.3 x 4.3, 2.5 tall with the heatsink (2.5 x 2 on the car's left half);
+// terminals: OUT1/2 facing front, OUT3/4 facing back, 12V / GND / 5V + the logic pins facing the car's right
+const LB = BAY + .1;
+box(6.35, 3.85, 4.3, 4.3, LB, .16, 0xc0392b, "L298N", "4.3 × 4.3 board, 2.5 tall. Room inside the riser: 4.9 side-side × 4.5 front-back.", C);
+box(6.5, 4.75, 2.0, 2.5, LB + .16, 2.34, 0x9ca3ab, "L298N heatsink", "2.5 × 2, on the car's left half of the board", C, { metal: .5 });
+box(8.0, 7.4, 1.0, .75, LB + .16, 1.0, 0x2a62c9, "OUT1 / OUT2", "Front motor terminal: wires leave through the front opening", C);
+box(8.0, 3.85, 1.0, .75, LB + .16, 1.0, 0x2a62c9, "OUT3 / OUT4", "Rear motor terminal: wires leave through the back opening", C);
+box(9.9, 5.25, .75, 1.5, LB + .16, 1.0, 0x2a62c9, "12V / GND / 5V terminal", "Faces the car's right, right under hole P. 5V terminal stays empty (5V-EN jumper on).", C);
+box(10.35, 4.0, .25, 1.2, LB + .16, .9, 0x111111, "Logic pins", "ENA IN1 IN2 IN3 IN4 ENB, beside the power terminal", C);
+cyl(9.6, 6.95, LB + .7, .5, 1.6, "x", 0x1e8a4c, "1000 µF cap", "Lying flat, legs into +12V / GND with the wires, stripe to GND", C);
+for (const [y0, y1] of [[8.15, 9.6], [3.85, 2.4]]) for (const dx of [-.2, .2]) {      // motor wires out through the front / back openings
+  const v = [[8.5 + dx, y0, LB + .7], [8.5 + dx, (y0 + y1) / 2, LB + .7], [8.5 + dx, y1, LB - 1.2]].map(([x, y, z]) => new THREE.Vector3(x - 8.5, z, 6 - y));
+  C.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(v), 24, .1, 6), new THREE.MeshStandardMaterial({ color: dx < 0 ? 0xe5523f : 0x222222 })));
+}
+
+// ---- tray (lifts) ----
+box(0, 0, 17, 12, BASE_Z, .5, PVC, "Upper base", "17 × 12 cm, 5 mm PVC. Holes S (signal) and P (power) are slots inside the riser outline.");
+const W = groups.walls;
+box(0.6, 10.9, 15.8, .5, TOP, WALL_H, PVC, "Front wall", "Sonar holes, OLED window (car's left), camera plate behind (car's right)", W, { opacity: .8 });
+box(0.6, 0.6, 15.8, .5, TOP, WALL_H, PVC, "Back wall", "USB slot, wheel-sensor hole, charge-lead slot", W, { opacity: .8 });
+box(0.6, 1.1, .5, 9.8, TOP, WALL_H, PVC, "Side wall", "9.8 × 4", W, { opacity: .8 });
+box(15.9, 1.1, .5, 9.8, TOP, WALL_H, PVC, "Side wall", "9.8 × 4", W, { opacity: .8 });
+
+// signal side
+for (const [x, y] of [[1.5, 1.5], [5.9, 1.5], [1.5, 7.7], [5.9, 7.7]]) cyl(x, y, TOP + 1, .25, 2, null, 0xf2efe6);
+box(1.2, 1.2, 5.0, 6.8, TOP + 2, .16, 0x2c5aa0, "ESP32 expansion board", "6.8 × 5 on 4 nylon standoffs (2 cm). USB end faces the back slot. 1000 µF on its 5V/GND pins.");
+box(2.3, 1.4, 2.8, 5.2, TOP + 2.16, .9, 0x1b1d20, "ESP32 DevKit", "30-pin module, USB toward the back wall");
+box(4.0, 8.6, 2.0, 1.6, TOP, .16, 0x2b6cb0, "MPU6050", "2.0 × 1.6, flat on the base. I2C 21/22.");
+box(2.35, 10.55, 2.5, .2, TOP + .5, 2.7, 0x2b6cb0, "OLED", "Behind the front-wall window (2.3 × 1.2), pins pointing back. I2C 21/22.");
+// centre
+box(6.9, 2.6, 3.2, 6.1, TOP, .12, 0x111111, "Velcro pad", "Hook side on the base, loop side on the battery: stops it sliding");
+box(6.65, 2.15, 3.7, 7.0, TOP + .12, 1.8, 0x2f6f8f, "Battery 2S", "7 × 3.7 × 1.8. Velcro pad + strap only, lifts out. Its switch rides on its lead.");
+// velcro strap: up slot, over the battery, down slot, under the base (inside the riser)
+const SZ = TOP + .12 + 1.8, STRAP = 0x111111, SI = "Two velcro ties joined into one strap through the 2 slots. Undo it to lift the battery out.";
+box(6.3, 6.35, 4.4, 1.5, SZ, .12, STRAP, "Battery strap", SI);
+for (const x of [6.3, 10.55]) box(x, 6.35, .15, 1.5, BASE_Z - .15, SZ - BASE_Z + .27, STRAP, "Battery strap", SI);
+box(6.3, 6.35, 4.4, 1.5, BASE_Z - .15, .12, STRAP, "Battery strap", SI);
+box(6.4, 1.15, 4.5, .9, TOP, 1.7, 0x7b2d2d, "UBEC (on its edge)", "4.5 × 1.7 standing against the back wall. 8V in (right end) → 5V out (left end) to the ESP board.");
+box(11.2, 1.4, 1.2, .8, TOP, .8, 0xd9d9d9, "Battery plug", "Car side of the battery lead: + to 8V Wago A, − to GND Wago");
+box(6.25, 10.6, 4.5, .2, TOP + .3, 2.0, 0x1f6f8b, "HC-SR04 sonar", "PCB inside the front wall; Trig 18, Echo via 1k/1.8k to 19");
+for (const dx of [-1.3, 1.3]) cyl(8.5 + dx, 11.3, TOP + 2.1, .8, 1.2, "y", 0xc9ced4, "Sonar transducer", "Through the 17 mm front-wall holes");
+// power side
+for (const [x, y, n, c] of [[13.75, 1.2, "Wago 8V A", "battery + · link to B · L298N +12V"], [12.85, 3.4, "Wago 8V B", "link from A · UBEC in + · INA POW"], [11.5, 3.4, "Wago GND", "battery − · L298N GND · UBEC in −"]]) {
+  box(x, y, 1.3, 2.0, TOP, .8, 0xe8e8e8, n, c, groups.tray, { opacity: .85 });
+  box(x + .1, y + .3, 1.1, 1.2, TOP + .8, .25, 0xf08a24);
+}
+box(15.7, 3.4, .16, 4.0, TOP + .6, 3.0, 0x7d2a8a, "INA3221", "4 × 3 board standing against the inside of the right wall (foam tape), pins up. POW to 8V Wago B; I2C 21/22 via the front gap.");
+box(11.2, 10.4, 4.0, .5, TOP, 8.5, PVC, "Camera plate", "4 × 8.5, glued inside the front wall, rises 4.5 above it");
+for (const x of [11.3, 14.6]) box(x, 7.9, .5, 2.5, TOP, 3.0, PVC, "Camera brace", "2.5 × 6 triangle (drawn as a block)");
+box(12.45, 10.9, 1.5, .9, TOP + WALL_H + 1.1, 2.5, 0xffe9a8, "Spacer block", "3+ PVC spacers stacked so the CAM's pins clear the plate");
+box(11.85, 11.8, 2.7, .15, TOP + WALL_H + .1, 4.0, 0x2a2d31, "ESP32-CAM", "Lens end up, on the spacer block above the front wall");
+cyl(13.2, 12.1, TOP + WALL_H + 3.2, .45, .6, "y", 0x0d0f12, "Camera lens", "Tilted ~7° down by the spacer");
+
+// ---- wiring: bundles hug the base along 3 channels, tied with velcro on adhesive mounts ----
+// front gap (y ~10) · left of the battery (x ~6.4, stacked) · right of the battery (x 11.0, between strap slot and camera brace)
+const BLUE = 0x3d7bf0, LBLUE = 0x8fb6ff, RED = 0xe5523f, ORANGE = 0xf08a24, GND = 0x9aa3ad, V33 = 0xe6c229;
+const T = TOP + .1, ESPZ = TOP + 2.3, S = .15;
+function bundle(name, info, pts, colors, base = [0, 0, 0], r = .07) {
+  colors.forEach((color, k) => {
+    const o = (k - (colors.length - 1) / 2) * S;               // spread diagonally in y + z: parallel on every leg
+    const v = pts.map(([x, y, z]) => new THREE.Vector3(x + base[0] - 8.5, z + base[2] + o, 6 - (y + base[1] + o)));
+    const path = new THREE.CurvePath();
+    for (let i = 0; i < v.length - 1; i++) path.add(new THREE.LineCurve3(v[i], v[i + 1]));
+    const m = new THREE.Mesh(new THREE.TubeGeometry(path, 24 * v.length, r, 6, false), new THREE.MeshStandardMaterial({ color, roughness: .5 }));
+    m.userData = { name, info }; pickable.push(m); groups.wires.add(m);
+  });
+}
+function tie(x, y, z, w, d, h, label) {                    // velcro wrap + adhesive mount under it
+  box(x - w / 2, y - d / 2, w, d, z, h, 0x111111, "Velcro tie", label, groups.wires, { opacity: .92 });
+  if (z <= T + .2) box(x - .6, y - .6, 1.2, 1.2, TOP, .1, 0x2b2b2b, "Adhesive tie mount", "Stick-on mount; the velcro tie threads through it", groups.wires);
+}
+const I2C = [V33, GND, BLUE, LBLUE], SONAR = [ORANGE, GND, BLUE, LBLUE];
+// L298N signals: straight up hole S, onto the ESP's right-hand header
+bundle("L298N signals", "ENA 13 · IN1 14 · IN2 27 · IN3 26 · IN4 25 · ENB 33, up hole S",
+  [[10.45, 4.6, LB + 1.1], [10.2, 4.6, LB + 3.0], [6.35, 4.8, LB + 3.0], [6.35, 4.8, ESPZ], [5.85, 4.8, ESPZ]], [BLUE, LBLUE, BLUE, LBLUE, BLUE, LBLUE], [0, 0, 0], .06);
+tie(8.2, 4.7, LB + 2.85, .35, .9, .35, "Ties the 6 signal wires as they cross over the heatsink to hole S");
+// sonar: off its pins, down, along the front gap, back past the battery's left side, onto the ESP
+bundle("Sonar wires", "5V · GND · Trig 18 · Echo via 1k/1.8k to 19",
+  [[8.5, 10.55, TOP + .4], [8.5, 10.3, T], [6.42, 10.3, T], [6.42, 8.2, T], [6.25, 8.0, ESPZ], [5.9, 7.7, ESPZ]], SONAR);
+// INA I2C: left off the INA, up the right channel, along the front gap, down the left channel
+bundle("INA3221 I2C", "3V3 · GND · SDA 21 · SCL 22",
+  [[15.6, 6.85, TOP + 3.4], [15.4, 6.85, T], [11.0, 6.85, T], [11.0, 9.85, T], [6.42, 9.85, T], [6.42, 8.2, T + .7], [6.25, 8.0, ESPZ + .5], [5.6, 7.7, ESPZ + .5]], I2C);
+// camera 5V: from the ESP board, down the left channel, across the front gap, up the right channel, round the brace, up the plate
+bundle("Camera power", "5V + GND from the ESP board to the CAM's bottom pins (through the plate's jumper hole)",
+  [[5.5, 7.6, ESPZ + 1], [6.25, 7.9, ESPZ + 1], [6.42, 8.2, T + 1.3], [6.42, 9.45, T + .2], [11.15, 9.45, T], [11.15, 7.7, T], [13.2, 7.7, T], [13.2, 10.25, T], [13.2, 10.25, TOP + WALL_H + .5], [13.2, 11.8, TOP + WALL_H + .5]], [ORANGE, GND]);
+tie(8.5, 9.85, T - .05, .35, 1.4, .75, "Front gap: sonar + INA + camera bundles");
+tie(6.42, 9.0, T - .05, .55, .35, 1.6, "Left channel, stacked bundles");
+tie(11.0, 8.4, T - .05, .55, .35, .7, "Right channel: INA + camera");
+tie(13.2, 9.0, T - .05, .45, .35, .5, "Camera wires to the plate");
+// OLED + MPU: short runs onto the ESP's front edge
+bundle("OLED I2C", "3V3 · GND · SDA 21 · SCL 22, down behind the OLED, under the MPU's left", [[3.6, 10.5, TOP + 2.9], [3.6, 10.3, T], [3.6, 8.1, T], [3.6, 7.9, ESPZ]], I2C);
+bundle("MPU6050 I2C", "3V3 · GND · SDA 21 · SCL 22", [[5.0, 8.6, T], [5.0, 8.15, T], [5.0, 7.9, ESPZ]], I2C);
+tie(3.6, 9.2, T - .05, .6, .35, .6, "OLED wires");
+// power (20-22 AWG): every run is short and stays on the right
+const P = .11;
+bundle("Battery lead (+)", "Battery → its switch → plug → 8V Wago A", [[10.35, 2.6, T + 1], [10.8, 2.6, T], [10.8, 1.8, T], [11.2, 1.8, T + .4]], [RED], [0, 0, 0], P);
+bundle("Battery lead (−)", "Battery → plug → GND Wago", [[10.35, 2.3, T + 1], [10.7, 2.3, T + .1], [10.7, 2.05, T + .1], [11.2, 2.05, T + .4]], [GND], [0, 0, 0], P);
+bundle("Plug + → 8V Wago A", "", [[12.4, 1.8, T + .4], [13.75, 1.8, T + .4]], [RED], [0, 0, 0], P);
+bundle("Plug − → GND Wago", "", [[12.0, 2.2, T + .4], [12.0, 3.4, T + .4]], [GND], [0, 0, 0], P);
+bundle("8V Wago A → UBEC in +", "Runs along the back wall, behind the plug", [[13.75, 1.3, T + .4], [10.95, 1.3, T + .4]], [RED], [0, 0, 0], P);
+bundle("GND Wago → UBEC in −", "", [[11.5, 3.7, T + .4], [11.42, 3.7, T + .4], [11.42, 2.3, T + .4], [10.95, 2.0, T + .5]], [GND], [0, 0, 0], P);
+bundle("8V link A → B", "", [[14.4, 3.2, T + .4], [14.4, 3.3, T + .4], [13.8, 3.3, T + .4], [13.8, 3.4, T + .4]], [RED], [0, 0, 0], P);
+bundle("8V Wago B → L298N +12V", "Down hole P to the L298N's +12V terminal", [[13.2, 5.4, T + .4], [13.2, 5.62, T], [10.65, 5.62, T], [10.65, 5.4, T], [10.65, 5.4, LB + 1.4], [10.3, 5.6, LB + 1.0]], [RED], [0, 0, 0], P);
+bundle("GND Wago → L298N GND", "Down hole P to the L298N's GND terminal", [[11.5, 4.6, T + .4], [10.65, 4.6, T], [10.65, 5.0, LB + 1.4], [10.3, 5.9, LB + 1.0]], [GND], [0, 0, 0], P);
+bundle("8V Wago B → INA POW", "Battery voltage sense", [[13.9, 5.4, T + .4], [13.9, 5.55, T], [15.4, 5.55, T], [15.6, 4.2, TOP + 3.4]], [RED], [0, 0, 0], .06);
+bundle("UBEC 5V out → ESP board", "Servo plug onto the board's 5V / GND pins; 1000 µF on the same pins", [[6.4, 1.6, T + .9], [6.1, 1.6, T + .9], [5.85, 1.6, ESPZ]], [ORANGE, GND]);
+cyl(5.4, 1.5, ESPZ + .6, .4, 1.2, null, 0x1e8a4c, "1000 µF cap", "On the ESP board's 5V / GND pins, stripe to GND");
+tie(10.8, 2.2, T - .05, .5, .9, .55, "Battery lead pair, so a tug can't pull it out of the plug");
+tie(12.1, 5.62, T - .05, .35, .5, .45, "+12V run to hole P");
+
+// ---- UI ----
+const $ = id => document.getElementById(id);
+$("walls").onchange = e => groups.walls.visible = e.target.checked;
+$("wires").onchange = e => groups.wires.visible = e.target.checked;
+let liftTarget = 0;
+$("lift").onchange = e => liftTarget = e.target.checked ? 7 : 0;
+$("reset").onclick = home;
+
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), tag = $("tag");
+let hovered = null;
+renderer.domElement.addEventListener("pointermove", e => {
+  ptr.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ptr, cam);
+  const hit = ray.intersectObjects(pickable.filter(m => m.visible && m.parent.visible), false)[0];
+  if (hovered) hovered.material.emissive.setHex(0);
+  hovered = hit ? hit.object : null;
+  if (hovered) {
+    hovered.material.emissive.setHex(0x3a2a10);
+    tag.innerHTML = `<b>${hovered.userData.name}</b>${hovered.userData.info ? "<br>" + hovered.userData.info : ""}`;
+    tag.style.left = Math.min(e.clientX + 14, innerWidth - 250) + "px"; tag.style.top = (e.clientY + 14) + "px";
+    tag.hidden = false;
+  } else tag.hidden = true;
+});
+renderer.domElement.addEventListener("pointerleave", () => { tag.hidden = true; });
+
+function resize() { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+(function loop() {
+  const y = groups.tray.position.y;
+  groups.tray.position.y = still ? liftTarget : y + (liftTarget - y) * .12;
+  controls.update(); renderer.render(scene, cam); requestAnimationFrame(loop);
+})();
+</script>

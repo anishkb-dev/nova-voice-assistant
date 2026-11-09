@@ -174,10 +174,10 @@ window.setCoreState=function(s){coreBusy=(s==="thinking"||s==="speaking");
     speaking:['RESPONDING','#8ad46a'],listening:['LISTENING','#ffd29a']}[s]||['ALL SYSTEMS OPERATIONAL','#ffd29a'];
   var e=$("st-lbl");if(e){e.textContent=m[0];e.style.color=m[1];}
   $("stop").style.display=(s==="speaking")?"inline-block":"none";};
-window.jarvisSay=function(t){addMsg("nova","<b>NOVA</b>"+esc(t));window.setCoreState("speaking");
+window.novaSay=function(t){addMsg("nova","<b>NOVA</b>"+esc(t));window.setCoreState("speaking");
   setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
-window.jarvisVolume=function(v,muted){var f=$("vol-fill"),p=$("vol-pct");if(f)f.style.width=(muted?0:v)+"%";if(p)p.textContent=muted?"MUTE":Math.round(v);};
-window.jarvisMicReset=function(){var e=$("st-lbl");if(e){e.textContent="MIC OFFLINE";e.style.color="#c07a38";}};
+window.novaVolume=function(v,muted){var f=$("vol-fill"),p=$("vol-pct");if(f)f.style.width=(muted?0:v)+"%";if(p)p.textContent=muted?"MUTE":Math.round(v);};
+window.novaMicReset=function(){var e=$("st-lbl");if(e){e.textContent="MIC OFFLINE";e.style.color="#c07a38";}};
 
 function addMsg(cls,html){var m=document.createElement("div");m.className="msg "+cls;m.innerHTML=html;
   var l=$("log");l.appendChild(m);while(l.children.length>8)l.removeChild(l.firstChild);l.scrollTop=1e9;}

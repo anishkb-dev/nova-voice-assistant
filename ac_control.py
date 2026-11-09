@@ -7,7 +7,7 @@
   python3 ac_control.py fan high
   python3 ac_control.py status
 
-Jarvis calls ac("on") / ac("temp 24") / ac("mode cool") / ac("status").
+Nova calls ac("on") / ac("temp 24") / ac("mode cool") / ac("status").
 Must use Tuya's IR-Control-Hub API — the generic device command returns
 success but fires NO IR. Credentials from ~/tinytuya.json (tinytuya wizard).
 """
@@ -71,6 +71,20 @@ def ac(cmd):
             _MODE_NAME.get(int(s.get("mode", -1)), "?"),
             s.get("temp", "?"),
             _FAN_NAME.get(int(s.get("wind", -1)), "?"))
+
+    if head in ("increase", "raise", "warmer", "up", "hotter"):
+        cur = _status().get("temp")
+        if cur is None:
+            return "Couldn't read the AC to adjust it."
+        t = min(30, int(cur) + 1)
+        return "Up to %d degrees." % t if _cmd("temp", t) else "The AC didn't respond."
+
+    if head in ("decrease", "lower", "colder", "down", "reduce", "cooler"):
+        cur = _status().get("temp")
+        if cur is None:
+            return "Couldn't read the AC to adjust it."
+        t = max(16, int(cur) - 1)
+        return "Down to %d degrees." % t if _cmd("temp", t) else "The AC didn't respond."
 
     if head in ("temp", "temperature", "set", "cool", "heat"):
         if head in ("cool", "heat"):

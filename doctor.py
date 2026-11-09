@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""JARVIS doctor — one-shot health check of every subsystem.
+"""NOVA doctor — one-shot health check of every subsystem.
 
     python3 ~/anish-ai/doctor.py
 
 Prints PASS / WARN / FAIL for: python deps, API keys, the brain, the mic,
 the AC (Tuya IR blaster), the smart room (MQTT + ESP32), face recognition,
-and the running JARVIS process (+ recent errors in its log). Run it from the
+and the running NOVA process (+ recent errors in its log). Run it from the
 Terminal (not an IDE) so the mic check has microphone permission.
 """
 import os, sys, subprocess, json, time
@@ -79,9 +79,9 @@ try:
     line("ok" if ins else "bad", "input devices", ", ".join(n for _, n in ins) or "none")
     idx = next((i for i, n in ins if "macbook" in n.lower() or "built-in" in n.lower()),
                ins[0][0] if ins else None)
-    _jarvis_up = subprocess.run(["pgrep", "-f", "nova_app.py"], capture_output=True).returncode == 0
-    if _jarvis_up:                                # don't grab the mic out from under a running JARVIS
-        line("warn", "capture level", "skipped — JARVIS is holding the mic. Stop it first to level-test.")
+    _nova_up = subprocess.run(["pgrep", "-f", "nova_app.py"], capture_output=True).returncode == 0
+    if _nova_up:                                # don't grab the mic out from under a running NOVA
+        line("warn", "capture level", "skipped — NOVA is holding the mic. Stop it first to level-test.")
     elif idx is not None:
         s = pa.open(rate=16000, channels=1, format=pyaudio.paInt16, input=True,
                     input_device_index=idx, frames_per_buffer=1280)
@@ -147,10 +147,10 @@ line("ok" if os.path.exists(os.path.join(AI, "owner_face.npy")) else "warn", "ow
      "yes" if os.path.exists(os.path.join(AI, "owner_face.npy")) else "no — run: python3 face_id.py enroll")
 
 # ---------- running process + recent errors ----------
-head("JARVIS process")
+head("NOVA process")
 pids = subprocess.run(["pgrep", "-f", "nova_app.py"], capture_output=True, text=True).stdout.split()
 line("ok" if pids else "warn", "process", "running (pid %s)" % pids[0] if pids else "not running")
-log = "/tmp/jarvis.log"
+log = "/tmp/nova.log"
 if os.path.exists(log):
     txt = open(log, "rb").read().decode("utf-8", "ignore")
     armed = "[hf] listening (" in txt
@@ -162,4 +162,4 @@ if os.path.exists(log):
 # ---------- summary ----------
 print("\n\033[1mSummary:%s %s%d pass%s  %s%d warn%s  %s%d fail%s" %
       (RST, G, OK, RST, Y, WARN, RST, R, BAD, RST))
-print(DIM + "Tip: live view -> tail -f /tmp/jarvis.log   (voice lines start with [hf])" + RST)
+print(DIM + "Tip: live view -> tail -f /tmp/nova.log   (voice lines start with [hf])" + RST)

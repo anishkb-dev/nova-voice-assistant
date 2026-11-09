@@ -43,7 +43,7 @@ M = {
     "openrouter_gen": "google/gemma-4-31b-it:free",     # OpenRouter's free roster is Nemotron/Gemma-class now
     "sambanova":     "Meta-Llama-3.3-70B-Instruct",
     "lmstudio":      "qwen/qwen3.8-27b",     # verified live on your LM Studio box (also has gemma-4-31b, gpt-oss-120b)
-    "ollama":        "jarvis:latest",        # verified — your local custom model
+    "ollama":        "nova:latest",        # verified — your local custom model
 }
 
 # per-(provider,model) extra body params, e.g. taming reasoning models

@@ -1,6 +1,6 @@
 # J.A.R.V.I.S. — Design System
 
-The rules every Jarvis UI follows so it stays consistent and tasteful. When
+The rules every Nova UI follows so it stays consistent and tasteful. When
 changing the interface, read this first; when adding something new, extend the
 tokens here rather than inventing one-off values.
 
@@ -89,7 +89,7 @@ Ambient loops (orb pulse, scanline) are separate and slow (3–10s).
 
 - Labels name what a person recognizes (`NETWORK LINK`, not `wlan0`).
 - A control says what happens (`EXECUTE`, `ALL OFF`).
-- Jarvis speaks in character; the UI stays terse and technical.
+- Nova speaks in character; the UI stays terse and technical.
 
 ---
 

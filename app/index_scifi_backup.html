@@ -149,12 +149,12 @@
     <div class="val" id="net-val" style="font-size:11px">&darr; 0 &uarr; 0 KB/s</div></div>
 </div>
 
-<div class="state"><div class="lbl" id="st-lbl">STANDBY</div><div class="sub" id="st-sub">say "Jarvis ..."</div></div>
+<div class="state"><div class="lbl" id="st-lbl">STANDBY</div><div class="sub" id="st-sub">say "Nova ..."</div></div>
 
 <div class="chat" id="log"></div>
 
 <div class="foot">
-  <div class="ibox"><input id="box" placeholder='Say "Jarvis ..." &mdash; or type here' autocomplete="off" aria-label="Message"></div>
+  <div class="ibox"><input id="box" placeholder='Say "Nova ..." &mdash; or type here' autocomplete="off" aria-label="Message"></div>
   <button id="send">SEND</button>
 </div>
 <div class="listen"><b></b> Listening</div>
@@ -210,7 +210,7 @@
     cx.fillStyle=cg;cx.beginPath();cx.arc(C,C,60,0,7);cx.fill();
     cx.beginPath();cx.arc(C,C,7+2*glow,0,7);cx.fillStyle="rgba(255,255,255,.95)";cx.fill();}
   window.setCoreState=function(s){state=s;
-    var map={standby:["STANDBY",'say "Jarvis ..."',"#26e6ff"],listening:["LISTENING","speak now","#38ffa8"],
+    var map={standby:["STANDBY",'say "Nova ..."',"#26e6ff"],listening:["LISTENING","speak now","#38ffa8"],
       thinking:["PROCESSING","stand by, sir","#ffb020"],speaking:["RESPONDING","","#26e6ff"]};
     var m=map[s]||map.standby;$("st-lbl").textContent=m[0];$("st-sub").textContent=m[1];
     document.documentElement.style.setProperty("--accent",m[2]);$("st-lbl").style.color=m[2];};
@@ -237,9 +237,9 @@
     }).catch(function(e){think.remove();addJv("A fault occurred, sir: "+e);window.setCoreState("standby");busy=false;});}
   send.addEventListener("click",submit);
   box.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();submit();}});
-  window.jarvisMicReset=function(){};
-  /* proactive speech from JARVIS (status brief, alerts) — show + pulse the core */
-  window.jarvisSay=function(t){addJv(t);window.setCoreState("speaking");
+  window.novaMicReset=function(){};
+  /* proactive speech from NOVA (status brief, alerts) — show + pulse the core */
+  window.novaSay=function(t){addJv(t);window.setCoreState("speaking");
     setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
 
   /* telemetry */
@@ -274,7 +274,7 @@
       else{clearInterval(iv);b.classList.add("gone");}},420);})();
   window.setCoreState("standby");fitSpark();
 
-  function start(){    /* backend-dependent bits — status brief comes from the backend via jarvisSay */
+  function start(){    /* backend-dependent bits — status brief comes from the backend via novaSay */
     poll();setInterval(poll,1500);box.focus();
   }
   if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);

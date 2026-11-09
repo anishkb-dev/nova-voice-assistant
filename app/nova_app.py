@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""NOVA desktop app — native window (pywebview) over the local `jarvis` model.
-Reuses the tools from ~/anish-ai/nova.py. Run:  python3 ~/anish-ai/app/jarvis_app.py"""
+"""NOVA desktop app — native window (pywebview) over the local `nova` model.
+Reuses the tools from ~/anish-ai/nova.py. Run:  python3 ~/anish-ai/app/nova_app.py"""
 import os, sys, json, re, time, threading, asyncio, subprocess, webview, psutil
 try:
     import edge_tts  # in-process neural TTS (no CLI spawn = ~1.3s less lag)
@@ -13,21 +13,52 @@ WHISPER_MODEL = os.path.expanduser("~/anish-ai/app/models/ggml-small.en.bin")   
 
 # Finder-launched apps get a minimal PATH; add Homebrew so sox/whisper/mpv/etc. resolve.
 os.environ["PATH"] = "/opt/homebrew/bin:" + os.environ.get("PATH", "")
+WORKER = os.environ.get("NOVA_ROLE") == "worker"   # hub: no voice/window; runs devices + automations for the Mac
+HEADLESS = WORKER or os.environ.get("NOVA_HEADLESS") == "1"
+# mic + camera live on the hub (on the table); the Mac is window + typed chat. NOVA_SENSES=1 forces them on.
+import socket
+ON_SENSES = not WORKER and (socket.gethostname().split(".")[0] == "nova-hub" or os.environ.get("NOVA_SENSES") == "1")
 
 # Wake word — "Nova", broadened for common Whisper mishearings on a rough mic.
 WAKE_RE = re.compile(
     r"(?:hey\s+)?(?:nova|novah|noba|nofa|nowa|nava|navah|noma|novo|"
-    r"novea|nyova|knova|nowva|novo|nolva)\b",
+    r"novea|nyova|knova|nowva|novo|nolva|noah|noaa|noa)\b",
     re.IGNORECASE)
 
-# barge-in / interrupt words — spoken over Jarvis to make it stop talking
+# barge-in / interrupt words — spoken over Nova to make it stop talking
 BARGE_RE = re.compile(r"\b(stop|quiet|silence|enough|shut\s?up|cancel|hush|never\s?mind)\b", re.IGNORECASE)
 BARGE_RMS = 400   # loudness floor for frame-level barge-in: your speech clears it, the ducked self-echo doesn't (tune if it self-triggers or misses)
 
 # Tiered brain: Claude -> Groq -> local Qwen (falls through on any error / quota).
 CLAUDE_MODEL = "claude-sonnet-5"   # smartest primary tier: vast knowledge + reasoning (Haiku was faster but shallower)
-GROQ_MODEL = "qwen/qwen3.8-27b"   # reliable tool-calling + clean content. gpt-oss-120b returned empty/garbage replies.
-GROQ_ALT_MODEL = "qwen/qwen3.6-27b"   # fallback when the primary hits its per-model 429 rate limit (separate budget)
+GROQ_MODEL = "openai/gpt-oss-120b"   # primary: ~0.6s, solid tool calls (needs reasoning_effort=low, set in _brain_openai)
+GROQ_ALT_MODEL = "qwen/qwen3.8-27b"   # 2nd per-model budget; was primary but hit 429 + flaky tool_use_failed
+MLX_MODEL = "mlx-community/Qwen3-8B-4bit"   # private brain: runs on the M4 GPU via ~/anish-ai/.mlx (mlx_lm server)
+MLX_URL = "http://127.0.0.1:8088/v1"
+KOKORO_URL = "http://127.0.0.1:8089"   # local Daniel voice (tts_server.py)
+# Groq free tier = 8k tokens/min PER MODEL; all 37 tools = ~3.2k tokens per call, so one tool-using reply
+# burned a model's whole minute. Send the core set always + specialist tools only when the request hints at them.
+CORE_TOOLS = {"get_datetime", "search_web", "read_webpage", "get_weather", "iot_control", "ac", "lights",
+              "iot_status", "remember", "run_command", "set_volume", "open_app", "system_status"}
+EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it hands a command to the Mac; swap for Pop/Glass/Purr
+TOOL_HINTS = [   # (regex on the latest user turns, extra tools)
+    (r"music|song|play|pause|spotify|track", {"play_music", "stop_music", "mute"}),
+    (r"remind|calendar|meeting|schedule|event|appointment|timer|alarm|tomorrow|notify", {"set_reminder", "create_reminder", "create_calendar_event", "notify"}),
+    (r"message|text |whatsapp|imessage|send", {"send_imessage", "send_whatsapp"}),
+    (r"screen|screenshot|look at|what.?s this", {"take_screenshot", "look"}),
+    (r"file|folder|save|document|directory", {"read_file", "write_file", "list_files"}),
+    (r"code|script|program|build|debug|fix|app\b", {"code"}),
+    (r"design|poster|flyer|banner|page", {"design"}),
+    (r"think|reason|analy|figure out", {"think"}),
+    (r"image|picture|draw|photo", {"generate_image"}),
+    (r"lock", {"lock_screen"}),
+    (r"dark mode|light mode|appearance", {"set_appearance"}),
+    (r"clipboard|copied|paste", {"get_clipboard"}),
+    (r"drive|car|crawler|forward|reverse", {"drive"}),
+    (r"strip|led|colou?r|panel", {"light_panel"}),
+    (r"mute|quiet|silence", {"mute"}),
+    (r"find my|where.?s my|where is my|ring my|lost my|locate my", {"find_device"}),
+]
 GROQ_ALT2_MODEL = "openai/gpt-oss-20b"   # 3rd Groq model (yet another per-model budget) before dropping to local
 NVIDIA_MODEL = "moonshotai/kimi-k3"   # capable + reliably served on NVIDIA (GLM 5.2 was degraded)
 PERSONA = (
@@ -74,6 +105,11 @@ import ollama
 HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nova_stitch.html")  # Stitch HUD, wired (index.html / index_reactor.html kept as backups)
 
 
+
+def _say_clock(h, m):
+    """'07:41' -> '7 41', '7:05' -> '7 oh 5', '9:00' -> "9 o'clock": Kokoro reads ':' as junk and '05' as 'zero five'."""
+    return "%d o'clock" % h if m == 0 else ("%d oh %d" % (h, m) if m < 10 else "%d %d" % (h, m))
+
 class Api:
     CONVO_PATH = os.path.expanduser("~/anish-ai/conversation.json")
 
@@ -93,23 +129,33 @@ class Api:
         self.memory = self._load_memory()   # cross-session memory (facts about the user)
         self._alerted = {}                  # de-dupe proactive alerts
         self._iot_data = {"temp": None, "humidity": None, "motion": False, "online": False, "ts": 0}
+        self._car_data = {"throttle": "stop", "steer": "center", "rssi": None, "online": False, "ts": 0}
         self._last_motion_ts = time.time()   # suppress a welcome for the first few min after boot
         self._last_welcome_ts = 0
         threading.Thread(target=self._iot_listener, daemon=True).start()  # live climate for the HUD
+        nova.SPEAK = self.speak                 # reminders fire in Daniel's voice on the room speaker
+        nova.resume_reminders()                 # re-arm timed reminders saved before a restart
+        if not nova.IS_HUB:
+            threading.Thread(target=self._volume_mirror, daemon=True).start()
+        threading.Thread(target=self._health_watch, daemon=True).start()   # Telegram when hub/ESP32 drop off
+        if os.path.exists(os.path.expanduser("~/anish-ai/.icloud_user_key")):   # Mac only: pre-login Find My
+            threading.Thread(target=__import__("findmy").warm, daemon=True).start()
         self._mic_gain = 70                 # normal input gain for the current mic
         self._close_mic = False             # lavalier/USB: close mic rejects the speaker -> no ducking needed
-        self._ducked = False                # mic ducked while Jarvis speaks (reduces self-echo)
+        self._ducked = False                # mic ducked while Nova speaks (reduces self-echo)
         threading.Thread(target=self._duck_loop, daemon=True).start()
         threading.Thread(target=self._volume_loop, daemon=True).start()  # live volume bar in the HUD
         threading.Thread(target=self._warm_face, daemon=True).start()    # preload face-recognition model
         self.vprofile = self._load_vprofile()   # learns your voice timing + vocabulary over time
         self._last_cmd_at = 0
+        self._cam_on = True                 # HUD WEBCAM button toggles this (set_camera)
         try:
-            print(nova.gesture_control("start"), flush=True)  # always-on: raise open palm to control volume
+            if not ON_SENSES or os.environ.get("NOVA_GESTURES") == "0": raise RuntimeError("gestures off here")
+            print(nova.gesture_control("start"), flush=True)  # always-on: webcam room presence
         except Exception as e:
             print("[gesture] autostart failed:", e, flush=True)
         import atexit
-        atexit.register(lambda: nova.gesture_control("stop"))  # release camera when Jarvis exits
+        atexit.register(lambda: nova.gesture_control("stop"))  # release camera when Nova exits
 
     # ---------- cross-session memory ----------
     MEM_PATH = os.path.expanduser("~/anish-ai/memory.json")
@@ -154,7 +200,6 @@ class Api:
     def speak(self, text):
         if not self.voice or not text:
             return
-        self.stop_speaking()
         # Build a clean SPOKEN version (screen still shows the full text/code).
         spoken = re.sub(r"\bN\.?O\.?V\.?A\.?\b", "Nova", text, flags=re.IGNORECASE)
         spoken = re.sub(r"```.*?```", " The code is on your screen, sir. ",
@@ -162,8 +207,22 @@ class Api:
         spoken = spoken.replace("`", "")                  # inline-code backticks
         spoken = re.sub(r"[*_#>|]+", " ", spoken)         # markdown symbols
         spoken = re.sub(r"https?://\S+", "a link", spoken)  # don't spell out URLs
+        spoken = re.sub(r"\b(\d{1,2}):(\d{2})\b", lambda m: _say_clock(int(m.group(1)), int(m.group(2))), spoken)
+        spoken = re.sub(r"\s*°\s*C\b", " degrees Celsius", spoken)   # Kokoro drops "°" -> "24 C"
+        spoken = re.sub(r"\s*°\s*F\b", " degrees Fahrenheit", spoken)
+        spoken = spoken.replace("°", " degrees")
         spoken = re.sub(r"\s+", " ", spoken).strip()
         self._last_spoken, self._spoken_at = spoken.lower(), time.time()  # for mic self-echo filtering
+        if self._hub_link and not nova.IS_HUB:           # home (hub reachable) -> all speech on the room speaker
+            try:
+                threading.Thread(target=nova._hub_send, args=("said", spoken.lower()), daemon=True).start()   # hub: tell my voice from yours
+                with self._hub_speak_lock:               # one reply at a time: overlapping speaks talked over each other
+                    if not self._kokoro_to_hub(spoken):  # local Daniel voice; else hub synthesizes with edge-tts
+                        nova._hub_send("say", spoken)
+                return
+            except Exception as e:
+                print("[speak] hub speaker unreachable, using this Mac:", e, flush=True)
+        self.stop_speaking()
 
         self._speak_gen += 1
         gen = self._speak_gen
@@ -179,7 +238,7 @@ class Api:
             # afplay occasionally dies instantly with AudioQueueStart (-66681) when the output device
             # is transitioning; retry once, then fall back to the built-in voice so speech is never lost.
             for attempt in (0, 1):
-                p = subprocess.Popen(["afplay", "-v", "0.7", path], stderr=subprocess.DEVNULL)
+                p = subprocess.Popen(["afplay", "-v", "1.0", path], stderr=subprocess.DEVNULL)
                 time.sleep(0.12)
                 if p.poll() is None or p.returncode == 0:
                     return p                      # playing (or already finished cleanly)
@@ -190,11 +249,11 @@ class Api:
             return p
 
         # Synthesize + START the first chunk SYNCHRONOUSLY. speak() returns the instant audio
-        # begins, so the caller shows the text at the same moment Jarvis starts talking (zero gap).
+        # begins, so the caller shows the text at the same moment Nova starts talking (zero gap).
         started = False
         try:
             if edge_tts is not None:
-                f0 = "/tmp/jarvis_tts_0.mp3"
+                f0 = "/tmp/nova_tts_0.mp3"
                 if _synth(chunks[0], f0) and gen == self._speak_gen:
                     self._say = _play(f0, chunks[0])
                     started = True
@@ -215,7 +274,7 @@ class Api:
                 for i in range(1, len(chunks)):
                     if gen != self._speak_gen:
                         return
-                    f = "/tmp/jarvis_tts_%d.mp3" % i
+                    f = "/tmp/nova_tts_%d.mp3" % i
                     try:
                         if not _synth(chunks[i], f):
                             return
@@ -233,6 +292,116 @@ class Api:
                     prev = self._say
             threading.Thread(target=_rest, daemon=True).start()
 
+    def _kokoro_up(self):
+        """Is the local Kokoro voice server answering? If not, start it (warms ~15s) and say no for now."""
+        import urllib.request
+        import socket
+        try:   # port open = server alive. (An HTTP GET hung while it was busy synthesizing -> false "down"
+            socket.create_connection(("127.0.0.1", 8089), timeout=0.3).close(); return True   # -> edge-tts talked over Daniel)
+        except Exception:
+            pass
+        if not (self._kokoro_proc and self._kokoro_proc.poll() is None):
+            self._kokoro_proc = subprocess.Popen(
+                [os.path.expanduser("~/anish-ai/.mlx/bin/python"), os.path.expanduser("~/anish-ai/tts_server.py")],
+                stdout=subprocess.DEVNULL, stderr=open("/tmp/nova_tts.log", "ab"))
+        return False
+
+    def _kokoro_to_hub(self, spoken):
+        """Synthesize sentence by sentence on the M4 and ship each WAV to the hub as soon as it's ready."""
+        import urllib.request
+        if not self._kokoro_up():
+            return False
+        chunks = [c.strip() for c in re.split(r"(?<=[.!?:;])\s+", spoken) if c.strip()] or [spoken]   # ':' ';' too: lists were one 18s chunk
+        m = re.match(r"(.{10,}?[,;:—])\s+(.{15,})$", chunks[0])   # long first sentence -> split at its first comma
+        if len(chunks[0]) > 45 and m:                       # (synth time grows with length: 0.4s short vs ~1s long)
+            chunks[0:1] = [m.group(1), m.group(2)]
+        gen = self._speak_gen
+        for i, ch in enumerate(chunks):
+            if self._speak_gen != gen:                      # "Nova, stop" from the hub -> drop the rest
+                return True
+            try:
+                wav = urllib.request.urlopen(urllib.request.Request(KOKORO_URL, data=ch.encode()), timeout=15).read()
+            except Exception as e:
+                print("[kokoro] failed: %s" % e, flush=True)
+                if i == 0:
+                    return False                          # nothing played yet -> caller falls back to edge-tts
+                nova._hub_send("say", " ".join(chunks[i:])); return True
+            nova._hub_send("audio", wav)
+        return True
+
+    _stt_wait = {}     # hub: request id -> [Event, text]
+
+    def _mac_stt(self, wav_bytes, timeout=4.0):
+        """Hub side: send a WAV to the Mac's local Whisper, wait for the text ('' on timeout)."""
+        import uuid
+        rid = uuid.uuid4().hex[:8]; ev = threading.Event(); self._stt_wait[rid] = [ev, ""]
+        try:
+            import paho.mqtt.client as mqtt
+            try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+            except Exception: c = mqtt.Client()
+            nova._pub(c, [("home/mac/stt/" + rid, wav_bytes)])
+            ev.wait(timeout)
+            return self._stt_wait[rid][1]
+        except Exception as e:
+            print("[hf] mac stt err:", str(e)[:60], flush=True); return ""
+        finally:
+            self._stt_wait.pop(rid, None)
+
+    _local_whisper = None
+
+    def _local_stt(self, wav_bytes):
+        """Mac side: faster-whisper base.en on CPU (0.6 s on the M4). Fed a numpy array — PyAV's file decode is broken here."""
+        import io, wave, numpy as np
+        if self._local_whisper is None:
+            from faster_whisper import WhisperModel
+            type(self)._local_whisper = WhisperModel("small.en", device="cpu", compute_type="int8", cpu_threads=8)
+        w = wave.open(io.BytesIO(wav_bytes))
+        a = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
+        segs, _ = self._local_whisper.transcribe(a, language="en", beam_size=1)
+        return " ".join(x.text for x in segs).strip()
+
+    def _warm_stt(self):
+        try:
+            from faster_whisper import WhisperModel
+            type(self)._local_whisper = type(self)._local_whisper or WhisperModel("small.en", device="cpu", compute_type="int8", cpu_threads=8)
+        except Exception as e:
+            print("[stt] local whisper unavailable:", e, flush=True)
+
+    def _volume_mirror(self):
+        """Keep the hub speaker (Nova's voice) at the Mac's volume — keys, Nova, anything; muted = 0."""
+        last = None
+        while True:
+            try:
+                v, muted = subprocess.run(["osascript", "-e", 'set s to get volume settings',
+                                           "-e", 'return (output volume of s as string) & "," & (output muted of s as string)'],
+                                          capture_output=True, text=True, timeout=5).stdout.strip().split(",")
+                lvl = 0 if muted == "true" else int(v)
+                if lvl != last:
+                    nova._hub_send("volume", lvl); last = lvl
+            except Exception:
+                pass
+            time.sleep(2)   # ponytail: polled, ~2 s lag; no CoreAudio listener needed
+
+    def _hub_audio_player(self):
+        """Hub: play Kokoro WAVs from the Mac in order. _hub_speaking holds the mic off meanwhile."""
+        n = 0
+        while True:
+            wav = self._audio_q.get()
+            if time.time() < self._mute_until:      # interrupted -> the rest of that reply is stale
+                self._hub_speaking = not self._audio_q.empty(); continue
+            self._hub_speaking = True
+            n += 1; path = "/tmp/nova_k_%d.wav" % (n % 4)
+            try:
+                with open(path, "wb") as f:
+                    f.write(wav)
+                print("[hub] play %.1fs" % ((len(wav) - 44) / 48000.0), flush=True)   # timing: reply reached the speaker
+                self._say = subprocess.Popen(["afplay", path], stderr=subprocess.DEVNULL)
+                self._say.wait()
+            except Exception as e:
+                print("[hub] audio play failed: %s" % e, flush=True)
+            if self._audio_q.empty():
+                self._hub_speaking = False
+
     def stop_speaking(self):
         self._speak_gen += 1               # abort any in-flight streaming loop
         try:
@@ -242,6 +411,176 @@ class Api:
             pass
         subprocess.run(["pkill", "-x", "afplay"], capture_output=True)
         subprocess.run(["killall", "say"], capture_output=True)
+        if not nova.IS_HUB:
+            nova._hub_send("stop", "1")    # the voice plays on the hub's speaker — cut it there too
+
+    ROUTINES = os.path.expanduser("~/anish-ai/routines.json")
+
+    def _match_routine(self, low):
+        """(name, routine) if the utterance contains one of a routine's phrases. Re-reads the file so edits apply live."""
+        try:
+            rs = json.load(open(self.ROUTINES))
+        except Exception as e:
+            print("[routine] can't read routines.json:", e, flush=True); return None
+        if re.match(r"^\W*(?:hey\s+|ok\s+|okay\s+|ask\s+|tell\s+)?(?:claude|claud|clod|cloud|clawed)\b", low):
+            return None                                   # "Claude, good night" is for Claude, not the routine
+        text = " " + re.sub(r"[^a-z' ]", " ", low.replace("’", "'")) + " "
+        if re.search(r"\b(list|what)\b.*\broutines?\b", text):
+            names = [k for k in rs if not k.startswith("_")]
+            return ("_list", {"reply": "Your routines are: " + ", ".join(names) + ".", "steps": []})
+        for name, r in rs.items():
+            if name.startswith("_"):
+                continue
+            if any(" %s " % p.lower() in text for p in r.get("phrases", [])):
+                return (name, r)
+        return None
+
+    def _routine_step(self, st):
+        do, arg = st.get("do"), st.get("arg")
+        if do == "mic":    return str(self.set_handsfree(arg in (True, "on")))
+        if do == "camera": return str(self.set_camera(arg in (True, "on")))
+        if do == "automations":                       # goodnight pauses sensor rules, morning/home resume them
+            self._auto_on = arg in (True, "on")
+            if not nova.IS_HUB: nova._hub_send("automations", "on" if self._auto_on else "off")   # they run on the hub
+            return "automations " + ("on" if self._auto_on else "paused")
+        fn = nova.FUNCS.get(do)
+        if not fn:
+            return "unknown step %r" % do
+        return str(fn(**arg) if isinstance(arg, dict) else fn() if arg is None else fn(arg))
+
+    def _run_routine(self, name, r):
+        """Spoken steps run now (their results join the reply); the rest run in the background so
+        a slow device (BLE strip, IR cloud) never delays the answer. after_min steps are scheduled."""
+        said = [r.get("reply", "Done, sir.")]
+        later = []
+        for st in r.get("steps", []):
+            if st.get("speak") and not st.get("after_min"):
+                try: said.append(self._routine_step(st))
+                except Exception as e: print("[routine] %s step %s failed: %s" % (name, st.get("do"), e), flush=True)
+            else:
+                later.append(st)
+        def _bg():
+            for st in later:
+                if st.get("after_min"):
+                    threading.Timer(float(st["after_min"]) * 60, lambda st=st: self._safe_step(name, st)).start()
+                else:
+                    self._safe_step(name, st)
+        threading.Thread(target=_bg, daemon=True).start()
+        print("[routine] %s: %d steps" % (name, len(r.get("steps", []))), flush=True)
+        return " ".join(x for x in said if x)
+
+    def _safe_step(self, name, st):
+        try:
+            print("[routine] %s -> %s(%r): %s" % (name, st.get("do"), st.get("arg"), self._routine_step(st)[:80]), flush=True)
+        except Exception as e:
+            print("[routine] %s step %s failed: %s" % (name, st.get("do"), e), flush=True)
+
+    # ---- AUTOMATIONS: timed routines ("at" in routines.json) + sensor rules (automations.json) ----
+    AUTOMATIONS = os.path.expanduser("~/anish-ai/automations.json")
+    _ASLEEP_F = os.path.expanduser("~/anish-ai/.asleep")   # HUB ONLY: exists = good night is on; survives restarts
+    _hub_asleep = False                                     # Mac: mirror of the hub's state (retained MQTT "home/sleep")
+
+    @property
+    def _auto_on(self):
+        return not os.path.exists(self._ASLEEP_F) if nova.IS_HUB else not self._hub_asleep
+
+    @_auto_on.setter
+    def _auto_on(self, on):
+        if not nova.IS_HUB:
+            self._hub_asleep = not on; return              # caller also sends the hub "automations" job
+        try:
+            if on: os.remove(self._ASLEEP_F)
+            else: open(self._ASLEEP_F, "w").write(time.strftime("%Y-%m-%d %H:%M"))
+        except FileNotFoundError:
+            pass
+        self._pub_sleep()
+
+    def _pub_sleep(self):
+        try:
+            import paho.mqtt.client as mqtt
+            try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+            except Exception: c = mqtt.Client()
+            c.connect(nova._IOT_BROKER, 1883, 5); c.loop_start()
+            c.publish("home/sleep", "0" if self._auto_on else "1", qos=1, retain=True).wait_for_publish(3)
+            c.disconnect(); c.loop_stop()
+        except Exception as e:
+            print("[sleep] publish failed:", e, flush=True)
+    _auto_state = {}       # rule name -> {"last": fire ts, "armed": bool}
+    _ran_today = {}        # timed routine name -> date it last ran
+    _motion_end_ts = 0.0   # when the PIR last went quiet (set by _iot_listener)
+
+    @staticmethod
+    def _days_ok(days, now):
+        wd = now.weekday()
+        if not days or days == "daily": return True
+        if days == "weekdays": return wd < 5
+        if days == "weekends": return wd >= 5
+        return ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][wd] in [x[:3].lower() for x in days]
+
+    @staticmethod
+    def _in_window(win, now):
+        if not win: return True
+        a, b, t = win[0], win[1], now.strftime("%H:%M")
+        return a <= t < b if a <= b else (t >= a or t < b)      # "22:00"-"06:00" wraps midnight
+
+    def _automation_loop(self):
+        import datetime
+        while True:
+            time.sleep(20)
+            try: self._automation_tick(datetime.datetime.now())
+            except Exception as e: print("[auto] tick failed:", e, flush=True)
+
+    def _automation_tick(self, now):
+        hm, today, t = now.strftime("%H:%M"), now.date(), time.time()
+        try: rs = json.load(open(self.ROUTINES))
+        except Exception: rs = {}
+        for name, r in rs.items():                                   # 1) timed routines
+            if name.startswith("_") or not r.get("at"): continue
+            if r["at"] == hm and self._ran_today.get(name) != today and self._days_ok(r.get("days"), now):
+                self._ran_today[name] = today
+                print("[auto] timed routine:", name, flush=True)
+                self._proactive(nova.speakable(self._run_routine(name, r)))
+        asleep = not self._auto_on
+        try: rules = json.load(open(self.AUTOMATIONS)).get("rules", [])
+        except Exception: return
+        d = self._iot_data
+        if not d.get("online") or t - d.get("ts", 0) > 120: return  # node offline/stale -> never act on old data
+        moving = bool(d.get("motion"))
+        try: cam_seen = os.path.getmtime("/tmp/nova_cam_seen")    # hub webcam saw movement (cam_presence.py)
+        except OSError: cam_seen = 0
+        last_move = t if moving else max(self._last_motion_ts, self._motion_end_ts, cam_seen)
+        for i, ru in enumerate(rules):                               # 2) sensor rules
+            if not ru.get("enabled", True) or not self._in_window(ru.get("between"), now): continue
+            if asleep and not ru.get("even_asleep"): continue           # sleep mode pauses all but even_asleep rules
+            key = ru.get("name", str(i))
+            st = self._auto_state.setdefault(key, {"last": 0, "armed": True})
+            w = ru.get("when", {})
+            if any(d.get(dev) != want for dev, want in ru.get("if", {}).items()): continue   # e.g. {"light": "off"}
+            if "present_min" in ru and not asleep and t - last_move > ru["present_min"] * 60: continue   # asleep = you're in bed      # only while you're around
+            if t - st["last"] < ru.get("cooldown_min", 0) * 60: continue
+            if "motion" in w:
+                fire = moving
+            elif "no_motion_min" in w:
+                if last_move > st["last"]: st["armed"] = True        # you came back -> can fire again
+                fire = st["armed"] and not moving and t - last_move > w["no_motion_min"] * 60
+            elif "temp_above" in w:
+                tc = d.get("temp")
+                if tc is None: continue
+                if tc < w.get("reset_below", w["temp_above"] - 2): st["armed"] = True
+                fire = st["armed"] and tc >= w["temp_above"]
+            else:
+                continue
+            if fire:
+                st["last"], st["armed"] = t, False
+                print("[auto] rule fired:", key, flush=True)
+                said = self._run_routine(key, {"reply": ru.get("say", ""), "steps": ru.get("steps", [])})
+                if said: self._proactive(said)
+
+    def set_camera(self, on):
+        """HUD WEBCAM button: on = gesture watcher owns the camera; off = camera released (light goes out)."""
+        self._cam_on = bool(on)
+        print("[cam]", nova.gesture_control("start" if self._cam_on else "stop"), flush=True)
+        return self._cam_on
 
     def set_voice(self, on):
         self.voice = bool(on)
@@ -251,7 +590,7 @@ class Api:
 
     def listen(self):
         """Record from the mic (auto-stops on silence) and transcribe locally with whisper."""
-        wav = "/tmp/jarvis_listen.wav"
+        wav = "/tmp/nova_listen.wav"
         try:
             os.remove(wav)
         except OSError:
@@ -282,6 +621,8 @@ class Api:
         """Toggle always-listening wake-word mode. Say 'Nova, <command>'."""
         on = bool(on)
         if on and not self._hf:
+            if self._hf_thread and self._hf_thread.is_alive():
+                self._hf_thread.join(2.0)            # quick mute->unmute: let the old listener exit (no 2 loops on the mic)
             self._hf = True                      # mic selection now happens inside the loop (so a stalled
             self._hf_thread = threading.Thread(target=self._handsfree_loop, daemon=True)   # audio subprocess
             self._hf_thread.start()              # can't block the listener from ever starting)
@@ -290,7 +631,7 @@ class Api:
         return self._hf
 
     def attach_file(self):
-        """Open a native file picker; load the file into context so Jarvis can read/edit/discuss it."""
+        """Open a native file picker; load the file into context so Nova can read/edit/discuss it."""
         try:
             paths = webview.windows[0].create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False)
         except Exception as e:
@@ -362,7 +703,7 @@ class Api:
     def _handsfree_loop(self):
         """Always-listening, Whisper-based wake. Energy-VAD detects an utterance, Whisper transcribes
         it (Whisper handles the user's accent; openWakeWord did not), and if the transcript contains
-        'Jarvis' (fuzzy, WAKE_RE) the rest becomes the command. Jarvis's own speech is filtered by
+        'Nova' (fuzzy, WAKE_RE) the rest becomes the command. Nova's own speech is filtered by
         an echo check, so it doesn't answer itself."""
         import numpy as np
         print("[hf] loop entered", flush=True)
@@ -381,7 +722,7 @@ class Api:
             import pyaudio
         except Exception as e:
             self._hf = False
-            self._js("window.jarvisMicReset && window.jarvisMicReset();")
+            self._js("window.novaMicReset && window.novaMicReset();")
             self._placeholder("Listener unavailable: " + str(e)[:40])
             print("[hf] import fail:", repr(e), flush=True)
             return
@@ -403,7 +744,7 @@ class Api:
                              input=True, input_device_index=dev_idx, frames_per_buffer=FRAME)
         except Exception as e:
             self._hf = False
-            self._js("window.jarvisMicReset && window.jarvisMicReset();")
+            self._js("window.novaMicReset && window.novaMicReset();")
             self._placeholder("Mic open failed: " + str(e)[:50])
             print("[hf] MIC FAIL:", repr(e), flush=True)
             return
@@ -417,12 +758,11 @@ class Api:
             except Exception:
                 return np.zeros(FRAME, dtype=np.int16)
 
-        def rms_of(f):
+        def rms_of(f):   # plain RMS: a 300-3400 Hz voice-band meter was tried 2026-11-08 and HALVED voice SNR (voice energy sits <300 Hz too)
             return float(np.sqrt(np.mean(f.astype(np.float32) ** 2))) if f.size else 0.0
 
         def transcribe(pcm):
-            gk = self._key("groq")
-            if not gk or pcm.size < RATE * 0.2:      # <0.2s -> nothing said
+            if pcm.size < RATE * 0.2:                # <0.2s -> nothing said
                 return ""
             p = pcm.astype(np.float32)
             try:                                     # spectral noise reduction: lifts the voice out of
@@ -433,41 +773,77 @@ class Api:
             r0 = float(np.sqrt(np.mean(p ** 2))) or 1.0   # then amplify to Whisper's sweet spot, no clip
             pk = float(np.abs(p).max()) or 1.0
             p = np.clip(p * min(2000.0 / r0, 30000.0 / pk), -32768, 32767).astype(np.int16)
-            import io, wave, requests
+            import io, os, wave, shutil, tempfile, subprocess, requests
             buf = io.BytesIO()
             with wave.open(buf, "wb") as w:
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE); w.writeframes(p.tobytes())
-            try:
-                r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions",
-                                  headers={"Authorization": "Bearer " + gk},
-                                  files={"file": ("speech.wav", buf.getvalue(), "audio/wav")},
-                                  data={"model": "whisper-large-v3-turbo", "language": "en", "temperature": "0"},
-                                  timeout=15)
-                if not r.ok:
-                    print("[hf] whisper HTTP %s" % r.status_code, flush=True)
-                    return ""
-                txt = (r.json().get("text") or "").strip()
-            except Exception as e:
-                print("[hf] whisper err:", str(e)[:60], flush=True)
-                return ""
-            if txt.lower().strip(" .,!?") in _HALLUC:
+            wav_bytes = buf.getvalue()
+
+            txt = ""
+            # 1) LOCAL whisper.cpp first — no rate limits, no network (fixes the Groq 429s)
+            cli   = shutil.which("whisper-cli") or "/opt/homebrew/bin/whisper-cli"
+            model = os.path.expanduser("~/anish-ai/models/ggml-base.en.bin")
+            if os.path.exists(cli) and os.path.exists(model):
+                tf = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                try:
+                    tf.write(wav_bytes); tf.close()
+                    out = subprocess.run([cli, "-m", model, "-f", tf.name, "-nt", "-l", "en", "-t", "4"],
+                                         capture_output=True, text=True, timeout=20)
+                    txt = " ".join((out.stdout or "").split())
+                except Exception as e:
+                    print("[hf] local whisper err:", str(e)[:60], flush=True)
+                finally:
+                    try: os.unlink(tf.name)
+                    except Exception: pass
+
+            # 2) fall back to Groq only if local gave nothing
+            if not txt:
+                gk = self._key("groq")
+                if gk:
+                    try:
+                        r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions",
+                                          headers={"Authorization": "Bearer " + gk},
+                                          files={"file": ("speech.wav", wav_bytes, "audio/wav")},
+                                          data={"model": "whisper-large-v3-turbo", "language": "en", "temperature": "0"},
+                                          timeout=5)
+                        if r.ok:
+                            txt = (r.json().get("text") or "").strip()
+                        else:
+                            print("[hf] whisper HTTP %s" % r.status_code, flush=True)
+                    except Exception as e:
+                        print("[hf] whisper err:", str(e)[:60], flush=True)
+
+            # 3) Groq rate-limited/offline -> the Mac's local Whisper (base.en, ~0.6 s) over MQTT
+            if not txt and nova.IS_HUB and self._mac_online:
+                txt = self._mac_stt(wav_bytes)
+                if txt: print("[hf] mac-local stt: %r" % txt[:60], flush=True)
+
+            if not txt or txt.lower().strip(" .,!?") in _HALLUC:
                 return ""
             return self._vp_correct(txt)
 
-        def record_command(floor, seed=None, hang_ms=650, max_s=7.0, start_ms=2500):
+        def record_command(floor, seed=None, hang_ms=900, max_s=12.0, start_ms=2500):
             """After the wake word: wait up to start_ms for the command to start, then capture
             until ~hang_ms of trailing silence (or max_s). `seed` is the rolling pre-roll buffer
             (frames captured just before/during the wake) so a command spoken in the same breath
-            as 'Hey Jarvis' isn't truncated at the start. Threshold is RELATIVE to the room."""
-            speech = max(floor * 3.0, 45.0)      # low enough for a soft voice, still above room noise
+            as 'Hey Nova' isn't truncated at the start. Threshold is RELATIVE to the room."""
+            speech = max(floor * 1.8, 45.0)      # far-corner voice peaks ~450-800; 3x floor (836) dropped everything past 1m
             hang = int(hang_ms / 80); start_frames = int(start_ms / 80)
-            min_frames = int(600 / 80)           # need >=0.6s of speech before an endpoint can fire
-            frames = list(seed) if seed else []; spoke = False; silent = 0; n = 0; spoke_n = 0
+            min_frames = 2                       # 2 loud frames is enough: real speech rarely stays >3x floor for 0.6s
+            quiet = max(floor * 1.6, 60.0)       # below this = true silence (room ~270, soft speech ~450-700)
+            frames = list(seed) if seed else []; spoke = False; silent = 0; n = 0; spoke_n = 0; _trace = []
             while self._hf and n < int(max_s * 1000 / 80):
                 n += 1
                 f = read(); frames.append(f)
-                if rms_of(f) > speech:
+                _r = rms_of(f); _trace.append(int(_r))
+                self._lvl_i = (getattr(self, "_lvl_i", 0) + 1) % 2   # keep the HUD bars live WHILE you speak
+                if self._lvl_i == 0:
+                    self._js("window.novaLevel&&window.novaLevel(%.3f)"
+                             % max(0.0, min(1.0, (_r - floor) / max(1.0, speech * 2 - floor))))
+                if _r > speech:
                     spoke = True; silent = 0; spoke_n += 1
+                elif spoke and _r > quiet:
+                    silent = 0; spoke_n += 1         # still talking softly -> not the end of your turn
                 elif spoke:
                     silent += 1
                     if silent >= hang and spoke_n >= min_frames:
@@ -476,18 +852,26 @@ class Api:
                     break                            # nobody spoke after the beep -> bail
             pcm = np.concatenate(frames) if frames else np.array([], dtype=np.int16)
             print("[hf] recorded %.1fs (thr=%.0f spoke=%s)" % (pcm.size / 16000.0, speech, spoke), flush=True)
-            return pcm
+            if True:    # level trace (also for rejected tries -> tune far-field) (one value per 80ms) -> tune the end-of-turn threshold from real data
+                print("[hf] trace " + " ".join(map(str, _trace)), flush=True)
+            return pcm if spoke else pcm[:0]     # only noise -> skip STT (Whisper invents words from hiss, wastes quota)
 
         def run_cmd(cmd):
             self._vp_learn(cmd)               # just do the task — don't type the heard command into the box
             try:
                 _t = time.time()
+                if nova.IS_HUB:   # the hub is only ears: the Mac's Nova thinks + answers
+                    if self._mac_online:
+                        self._mac_busy, self._busy_ts = True, time.time(); nova._hub_send("heard", cmd); print("[hf] -> mac: %r" % cmd, flush=True)
+                        subprocess.Popen(["afplay", "-v", "0.35", EARCON], stderr=subprocess.DEVNULL)   # "got it" chime covers the think gap
+                    else: print("[hf] mac away — ignoring voice command %r" % cmd, flush=True)
+                    return
                 r = self.chat(cmd)
                 print("[hf] brain+speak=%.2fs reply=%r" % (time.time() - _t, (r.get("reply", "") if isinstance(r, dict) else str(r))[:80]), flush=True)
             except Exception as e:
                 print("[hf] chat error: %r" % e, flush=True)
 
-        # wait out the startup greeting so the floor isn't polluted by Jarvis's own voice
+        # wait out the startup greeting so the floor isn't polluted by Nova's own voice
         _tw = time.time()
         while self._hf and self._say and self._say.poll() is None and time.time() - _tw < 25:
             read()
@@ -499,9 +883,12 @@ class Api:
             calib = json.load(open(os.path.expanduser("~/anish-ai/voice_calib.json")))
         except Exception:
             pass
+        if calib.get("mic") and calib["mic"].lower() not in str(dev_name).lower():
+            calib = {}                           # calibrated on a different mic -> its levels don't apply here
         if calib.get("trigger"):
-            trigger = float(calib["trigger"])
-        hang_ms  = int(calib.get("hang_ms", 650))       # end-of-turn silence (calibrated to your pauses)
+            trigger = max(float(calib["trigger"]), floor * 1.15)   # never below the room's own noise
+        trigger = max(trigger, floor * 1.6)      # 1.15x floor fired on room noise -> endless empty 3s recordings
+        hang_ms  = int(calib.get("hang_ms", 700))       # end-of-turn silence: 900ms felt sluggish (2026-11-08 timing test)
         barge_rms = float(calib.get("barge_rms", 170))  # loudness that counts as you cutting in
         print("[hf] listening (floor=%.0f trigger=%.0f hang=%dms barge=%.0f%s) — say 'Nova ...'"
               % (floor, trigger, hang_ms, barge_rms, " CAL" if calib else ""), flush=True)
@@ -510,7 +897,7 @@ class Api:
         ring = collections.deque(maxlen=14)      # ~1.1s rolling pre-roll so no start clipping
 
         def is_echo(t):
-            """Did Jarvis just say (most of) this? Then the mic heard itself -> ignore."""
+            """Did Nova just say (most of) this? Then the mic heard itself -> ignore."""
             last = getattr(self, "_last_spoken", "")
             if not last or time.time() - getattr(self, "_spoken_at", 0) > 20:
                 return False
@@ -527,9 +914,15 @@ class Api:
                 if cooldown > 0:
                     cooldown -= 1
                     continue
-                if self._say and self._say.poll() is None:   # Jarvis is speaking (e.g. the boot greeting)
+                if self._say and self._say.poll() is None:   # Nova is speaking (e.g. the boot greeting)
                     continue                                 # -> don't record its own voice as a command
-                if rms_of(f) < trigger:              # wait for speech to clearly begin
+                _r = rms_of(f)
+                # live mic level -> HUD input bars (throttled to every 2nd frame)
+                self._lvl_i = (getattr(self, "_lvl_i", 0) + 1) % 2
+                if self._lvl_i == 0:
+                    _lv = max(0.0, min(1.0, (_r - floor) / max(1.0, trigger * 3 - floor)))
+                    self._js("window.novaLevel&&window.novaLevel(%.3f)" % _lv)
+                if _r < trigger:                    # wait for speech to clearly begin
                     continue
                 # speech detected -> capture the whole utterance (with pre-roll) and transcribe it
                 self._placeholder("Listening…")
@@ -540,29 +933,72 @@ class Api:
                 ring.clear()
                 if not text:
                     continue
-                if is_echo(text):                    # Jarvis heard its own voice
+                if is_echo(text):                    # Nova heard its own voice
                     print("[hf] echo ignored: %r" % text, flush=True)
                     continue
                 m = WAKE_RE.search(text)
-                print("[hf] heard=%r jarvis=%s" % (text, bool(m)), flush=True)
+                print("[hf] heard=%r nova=%s" % (text, bool(m)), flush=True)
                 if not m:
-                    continue                          # no 'Jarvis' -> background speech, ignore
+                    continue                          # no 'Nova' -> background speech, ignore
                 if self._say and self._say.poll() is None:
                     self.stop_speaking()             # barge-in: cut any current reply
-                cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", text)).strip(" ,.")
+                cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", text)).strip(" ,.?!")
                 print("[hf] cmd=%r" % cmd, flush=True)
+                if not cmd:   # just "Nova" + a pause: you're usually about to say more -> listen 1.5s before "Yes, sir?"
+                    more = transcribe(record_command(floor, hang_ms=hang_ms, start_ms=1500))
+                    if more and not is_echo(more):
+                        cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", more)).strip(" ,.?!")
+                        print("[hf] cmd (after pause)=%r" % cmd, flush=True)
                 if not cmd:
                     self.speak("Yes, sir?")
                 else:
                     run_cmd(cmd)
 
-                # CONVERSATION MODE: keep talking naturally — no need to repeat "Jarvis" — until you go quiet.
+                # CONVERSATION MODE: keep talking naturally — no need to repeat "Nova" — until you go quiet.
                 convo = True
                 while self._hf and convo:
+                    win, n_stt, barge_cmd, started = [], 0, None, False
+                    while self._hf and (self._mac_busy or self._hub_speaking) and time.time() - self._busy_ts < 180:
+                        f = read()                    # hub: Mac thinking / reply playing
+                        started = started or self._hub_speaking      # from the first chunk on, keep listening
+                        if not (nova.IS_HUB and started):            # across the gaps between reply chunks
+                            continue
+                        # INTERRUPT: no echo-cancel here, so listen for the NAME, not loudness. Transcribe 2s
+                        # windows of the reply (max 6/reply: Groq STT quota); "Nova ..." in one -> stop talking.
+                        win.append(f)
+                        if len(win) < 25:
+                            continue
+                        pcm, win = np.concatenate(win), win[-5:]
+                        if n_stt >= 6 or max(rms_of(x) for x in np.array_split(pcm, 25)) < trigger:
+                            continue                  # quota used, or silence (Mac still looking it up)
+                        n_stt += 1
+                        heard = transcribe(pcm) or ""
+                        print("[hf] over-reply heard %r" % heard[:80], flush=True)
+                        wm = WAKE_RE.search(heard)
+                        mine = set(re.findall(r"[a-z']+", getattr(self, "_last_spoken", "").lower()))
+                        sw = [w for w in re.findall(r"\b(stop|enough|quiet|shut|wait|hold)\b", heard.lower()) if w not in mine]
+                        if not (wm or sw):            # "Nova" blends into my voice ("No, I'll stop") -> a stop word
+                            continue                  # that I'M not saying also counts
+                        print("[hf] INTERRUPT: %r" % heard, flush=True)
+                        self._mute_until = time.time() + 4
+                        try:
+                            while not self._audio_q.empty(): self._audio_q.get_nowait()
+                        except Exception:
+                            pass
+                        self.stop_speaking(); self._hub_speaking = False
+                        nova._hub_send("heard", "__stop__")   # Mac: stop synthesizing the rest
+                        rest = heard[wm.end():].strip(" ,.?!").lower() if wm else ""
+                        if rest and not re.fullmatch(r"(stop|wait|enough|quiet|shut up|hold on|pause|ok(ay)?|that'?s enough|thanks?( you)?)[ .,!]*", rest):
+                            barge_cmd = rest
+                        break
+                    if barge_cmd:                     # "Nova, what about tomorrow?" -> answer that instead
+                        ring.clear(); run_cmd(barge_cmd); continue
                     barged = False; _bn = 0          # let you cut in by talking over the reply (barge-in)
                     while self._hf and self._say and self._say.poll() is None:
                         bf = read()
-                        if rms_of(bf) > barge_rms:    # calibrated to your voice; sustained = you, not a blip
+                        # hub: the speaker sits next to the mic, so Nova's own voice always "barged in" and cut
+                        # every reply off. No echo-cancel here -> no barge-in on the hub; just let it finish.
+                        if not nova.IS_HUB and rms_of(bf) > barge_rms:
                             _bn += 1
                             if _bn >= 3:              # ~0.24s of real speech over the reply
                                 print("[hf] BARGE — you cut in", flush=True)
@@ -576,17 +1012,20 @@ class Api:
                         except Exception:
                             pass
                         ring.clear()
-                    self._placeholder("Listening… — just talk, no need to say Jarvis")
-                    got = ""; waited = 0             # listen ~9s for a follow-up (no wake word needed)
-                    while self._hf and waited < int(9000 / 80):
-                        f2 = read(); ring.append(f2); waited += 1
+                    self._placeholder("Listening… — just talk, no need to say Nova")
+                    got = ""; _end = time.time() + 20   # listen ~20s for a follow-up (no wake word needed)
+                    while self._hf and time.time() < _end:
+                        f2 = read(); ring.append(f2)
                         if rms_of(f2) >= trigger:
                             got = transcribe(record_command(floor, seed=list(ring), hang_ms=hang_ms))
-                            break
+                            ring.clear()
+                            if got and not is_echo(got):
+                                break
+                            got = ""             # noise / Nova's own echo -> keep the conversation open
                     ring.clear()
                     if not got or is_echo(got):
                         convo = False; break          # quiet (or heard itself) -> end the conversation
-                    follow = re.sub(r"\s+", " ", WAKE_RE.sub(" ", got)).strip(" ,.")
+                    follow = re.sub(r"\s+", " ", WAKE_RE.sub(" ", got)).strip(" ,.?!")
                     print("[hf] follow=%r" % follow, flush=True)
                     if not follow:
                         convo = False; break
@@ -618,11 +1057,19 @@ class Api:
     def _welcome_if_owner(self, away):
         """Motion after an absence -> hand the Lapcare from gesture control to the face-check
         (you're away, not gesturing), verify it's you, then resume gesture. Never uses the Mac cam."""
+        if not self._auto_on:                              # good night -> no "welcome back" at 3am
+            return
         import random
         sys.path.insert(0, os.path.expanduser("~/anish-ai"))
         owner_file = os.path.expanduser("~/anish-ai/owner_face.npy")
         who = None
         gesture_was_on = False
+        if not self._cam_on:                             # webcam switched off in the HUD -> don't open it, just greet
+            self.speak(random.choice(["Welcome back, sir.", "Welcome home, sir."])); return
+        import importlib.util
+        if not importlib.util.find_spec("insightface"):   # face-check can't run here -> don't steal the camera from gestures
+            print("[face] insightface not installed — skipping face check, gestures keep the camera", flush=True)
+            return
         try:
             gesture_was_on = nova.gesture_control("stop").startswith("Gesture control off")  # free the Lapcare
             time.sleep(1.2)                              # let the camera actually release
@@ -649,6 +1096,8 @@ class Api:
         print("[iot] welcome-back (away %.0fs, owner=%s)" % (away, who), flush=True)
 
     def _warm_face(self):
+        if not ON_SENSES:                                # face checks only run where the camera is (hub)
+            return
         try:
             sys.path.insert(0, os.path.expanduser("~/anish-ai"))
             import face_id; face_id._app()               # preload the model so the first check is fast
@@ -656,21 +1105,186 @@ class Api:
         except Exception as e:
             print("[face] warm-up failed: %s" % str(e)[:70], flush=True)
 
+    def drive(self, command):
+        """HUD drive control for the RC crawler — forward/back/stop/left/right/center, or 'speed <0-100>'."""
+        try:
+            cmd = (command or "").lower().strip()
+            if cmd.startswith("speed"):
+                import paho.mqtt.client as mqtt
+                try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+                except Exception: c = mqtt.Client()
+                c.connect(nova._IOT_BROKER, 1883, 5)
+                c.publish("home/car/speed", "".join(ch for ch in cmd if ch.isdigit()) or "100")
+                c.disconnect()
+                return "ok"
+            return nova.drive(cmd)
+        except Exception as e:
+            return "drive error: %s" % e
+
+    _mac_online = False
+    _mac_change_ts = time.time()       # startup counts as a change -> 60s grace before guarding
+
+    MAC_HOST = "Anishs-MacBook-Air.local"
+    _mac_busy, _busy_ts = False, 0.0      # hub: Mac is answering -> hold the follow-up window
+    _hub_speaking = False                 # hub: synthesizing a reply the Mac sent
+    _hub_link = False                     # Mac: connected to the hub's broker (= at home)
+    _private = False                      # "private mode": only the local MLX/ollama brains, nothing leaves the Mac
+    _mlx_proc = None
+    _kokoro_proc = None
+    _brain_cool = {}                      # brain name -> time it's usable again (after a 429)
+    _audio_q = None                       # hub: queue of Kokoro WAVs from the Mac
+    _hub_speak_lock = threading.Lock()    # Mac: serialize speak() -> hub so replies never overlap
+    _mute_until = 0.0                     # hub: after "Nova, stop" drop reply chunks still arriving from the Mac
+    _claude_mode = True                   # Mac: talk to Claude by default ("quick mode" -> local brain)   # awake on the Wi-Fi = you're home, even if Nova isn't open
+
+    def _home(self):
+        """You're home if the Mac's Nova is connected or the Mac answers a ping (checked at most every 20s)."""
+        if self._mac_online: return True
+        now = time.time()
+        if now - getattr(self, "_ping_ts", 0) > 20:
+            self._ping_ts = now
+            self._ping_ok = subprocess.run(["ping", "-c1", "-t2", self.MAC_HOST], capture_output=True).returncode == 0
+            if self._ping_ok: self._mac_change_ts = now      # seen just now -> restart the 60s grace
+        return self._ping_ok
+    # ponytail: the Mac asleep at home = "away" -> you may get a photo of yourself; add phone presence if that bites
+
+    def _guard_loop(self):
+        """Hub: while you're away (Mac gone), the webcam guards the room (photo to Telegram on motion)."""
+        sys.path.insert(0, os.path.expanduser("~/anish-ai"))
+        import guard
+        while True:
+            time.sleep(5)
+            if self._home() or time.time() - self._mac_change_ts < 60 or not os.path.exists(guard.CHAT_F):
+                continue
+            nova.gesture_control("stop"); time.sleep(1.5)     # free the webcam
+            try:
+                guard.watch(lambda: not self._home(), log=lambda m: print(m, flush=True))
+            except Exception as e:
+                print("[guard] error: %r" % e, flush=True); time.sleep(30)
+            if self._home(): nova.gesture_control("start")
+
     def _iot_listener(self):
         """Persistent MQTT subscriber -> keeps self._iot_data fresh for the HUD's live climate readout."""
         import paho.mqtt.client as mqtt, json as _json
         def on_connect(c, u, f, rc, *a):
             c.subscribe("home/room/#")
+            c.subscribe("home/car/#")           # RC crawler telemetry for the HUD
+            if nova.IS_HUB:
+                c.subscribe("home/hub/#")          # jobs the Mac's Nova hands to the hub
+                c.subscribe("home/mac/#")          # status (retained + last-will), busy, said
+                threading.Thread(target=self._pub_sleep, daemon=True).start()   # re-announce sleep state (broker restarts drop retained)
+                c.publish("home/hub/status", "online", retain=True)
+            else:
+                c.subscribe("home/hub/heard")      # what the hub's mic heard -> we think + answer
+                c.subscribe("home/mac/stt/#")      # hub's STT fallback -> local Whisper here
+                c.subscribe("home/sleep")          # hub owns sleep mode (good night); we mirror it
+                c.subscribe("home/hub/status")     # hub Nova app alive (retained + last-will)
+                if self._local_whisper is None:    # preload (~1 s) so the first fallback isn't slow
+                    threading.Thread(target=self._warm_stt, daemon=True).start()
+                self._hub_link = True
+                self._kokoro_up()                  # start/warm the local Daniel voice in the background
+                c.publish("home/mac/status", "online", retain=True)
         def on_msg(c, u, m):
-            d, key, val = self._iot_data, m.topic.split("/")[-1], m.payload.decode()
+            if m.topic == "home/hub/audio":
+                if nova.IS_HUB:
+                    if self._audio_q is None:
+                        import queue
+                        self._audio_q = queue.Queue()
+                        threading.Thread(target=self._hub_audio_player, daemon=True).start()
+                    self._audio_q.put(m.payload)
+                return
+            if m.topic == "home/hub/status":
+                self._hub_app_on = m.payload == b"online"; return
+            if m.topic == "home/sleep":
+                if not nova.IS_HUB: self._hub_asleep = m.payload == b"1"
+                return
+            if m.topic.startswith("home/mac/stt/") and not nova.IS_HUB:     # Mac: transcribe for the hub
+                def _do(rid=m.topic.rsplit("/", 1)[1], wav=m.payload):
+                    try: txt = self._local_stt(wav)
+                    except Exception as e: print("[stt] local failed:", e, flush=True); txt = ""
+                    c.publish("home/hub/stt/" + rid, txt, qos=1)
+                threading.Thread(target=_do, daemon=True).start(); return
+            if m.topic.startswith("home/hub/stt/"):
+                if nova.IS_HUB:
+                    w = self._stt_wait.get(m.topic.rsplit("/", 1)[1])
+                    if w: w[1] = m.payload.decode(); w[0].set()
+                return
+            key, val = m.topic.split("/")[-1], m.payload.decode()
+            if m.topic == "home/mac/status":
+                on = val == "online"
+                if on != self._mac_online: self._mac_change_ts = time.time(); print("[hub] mac", val, flush=True)
+                self._mac_online = on
+                if not on: self._mac_busy = False
+                return
+            if m.topic == "home/mac/busy":
+                self._mac_busy, self._busy_ts = val == "1", time.time(); return
+            if m.topic in ("home/mac/said", "home/hub/said"):   # what the Mac speaks -> hub's echo/interrupt filter
+                self._last_spoken, self._spoken_at = val, time.time(); return
+            if m.topic == "home/hub/heard" and not nova.IS_HUB:
+                if val == "__stop__":                  # you said "Nova ..." over the reply -> stop sending it
+                    self._speak_gen += 1; print("[hub] interrupted -> reply stopped", flush=True); return
+                def _answer(val=val, c=c):
+                    c.publish("home/mac/busy", "1")
+                    try:
+                        self._vp_learn(val); self.chat(val)
+                    finally:
+                        while self._say and self._say.poll() is None: time.sleep(0.2)
+                        c.publish("home/mac/said", getattr(self, "_last_spoken", ""))
+                        c.publish("home/mac/busy", "0")
+                threading.Thread(target=_answer, daemon=True).start(); return
+            if m.topic.startswith("home/hub/"):           # ---- hub jobs from the Mac ----
+                if key == "gestures":
+                    print("[hub] gestures", val, "->", nova.gesture_control(val), flush=True)
+                elif key == "say":
+                    def _say_here(val=val):
+                        self._hub_speaking = True     # covers the ~1s of synthesis before audio starts
+                        print("[hub] say %r" % val[:80], flush=True)
+                        try: self.speak(val)
+                        finally: self._hub_speaking = False
+                    threading.Thread(target=_say_here, daemon=True).start()
+                elif key == "lights":
+                    threading.Thread(target=lambda: print("[hub] lights", val, "->", nova.lights(val), flush=True), daemon=True).start()
+                elif key == "automations":
+                    self._auto_on = (val == "on"); print("[hub] automations", val, flush=True)
+                elif key == "stop":                       # Mac's stop button / interrupt
+                    self._mute_until = time.time() + 2    # drop WAV chunks still in flight
+                    while self._audio_q and not self._audio_q.empty(): self._audio_q.get_nowait()
+                    self.stop_speaking(); self._hub_speaking = False
+                    print("[hub] stop", flush=True)
+                elif key == "volume":
+                    print("[hub] volume", val, "->", nova.set_volume(val), flush=True)
+                return
+            if m.topic.startswith("home/car/"):          # ---- RC car ----
+                cd = self._car_data
+                try:
+                    if   key == "status":    cd["online"] = (val == "online")
+                    elif key == "throttle":  cd["throttle"] = val
+                    elif key == "steer":     cd["steer"] = val
+                    elif key == "telemetry":
+                        t = _json.loads(val)
+                        cd["throttle"] = t.get("throttle", cd["throttle"])
+                        cd["steer"] = t.get("steer", cd["steer"])
+                        cd["rssi"] = t.get("rssi", cd["rssi"])
+                        cd["online"] = True
+                    cd["ts"] = time.time()
+                except Exception:
+                    pass
+                return
+            d = self._iot_data
             try:
-                if   key == "temp":      d["temp"] = float(val)
+                if   key in ("light", "fan", "plug"):
+                    d[key] = val                          # real relay state "on"/"off" (retained) -> HUD switches
+                elif key == "temp":      d["temp"] = float(val)
                 elif key == "humidity":  d["humidity"] = int(float(val))
                 elif key == "motion":
                     now_m = val not in ("0", "", "False")
-                    self._maybe_welcome(now_m)
+                    if ON_SENSES and self._mac_online: self._maybe_welcome(now_m)
+                    if d.get("motion") and not now_m: self._motion_end_ts = time.time()   # for no-motion rules
                     d["motion"] = now_m
+                    if now_m:
+                        self._js("window.novaMotion&&window.novaMotion()")  # flash the HUD instantly
                 elif key == "status":    d["online"] = (val == "online")
+                elif key == "ac":        d["ac"] = (val.split() or [""])[0]   # "on 24 cool auto lg m-1" -> "on" (rule if:{ac:on})
                 elif key == "telemetry":
                     t = _json.loads(val)
                     if "temp" in t:     d["temp"] = float(t["temp"])
@@ -684,10 +1298,66 @@ class Api:
                 try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
                 except Exception: c = mqtt.Client()
                 c.on_connect, c.on_message = on_connect, on_msg
-                c.connect("localhost", 1883, 30)
+                c.on_disconnect = lambda *a: setattr(self, "_hub_link", False)   # away -> speak on this Mac
+                if not nova.IS_HUB: c.will_set("home/mac/status", "offline", retain=True)   # broker says we left
+                else: c.will_set("home/hub/status", "offline", retain=True)
+                c.connect(nova._IOT_BROKER, 1883, 30)
                 c.loop_forever()             # blocks + auto-reconnects
             except Exception:
                 time.sleep(5)                # broker down -> retry
+
+    _hub_app_on = True
+    _health_st = {}
+
+    @staticmethod
+    def _gw_mac():
+        """Router's MAC = which network we're on (home vs away), no Location permission needed."""
+        try:
+            ip = re.search(r"gateway: (\S+)", subprocess.run(["route", "-n", "get", "default"],
+                           capture_output=True, text=True, timeout=3).stdout).group(1)
+            return re.search(r" at (\S+)", subprocess.run(["arp", "-n", ip], capture_output=True,
+                             text=True, timeout=3).stdout).group(1)
+        except Exception:
+            return None
+
+    def _health(self, key, down, label, after=180):
+        """Telegram once when `key` has been down `after` s, once more when it's back."""
+        st = self._health_st.setdefault(key, [None, False])     # [down since, alerted]
+        now = time.time()
+        if down:
+            st[0] = st[0] or now
+            if not st[1] and now - st[0] > after:
+                st[1] = True; self._tg_alert("⚠️ %s has been offline for %d min." % (label, (now - st[0]) // 60))
+        else:
+            if st[1]: self._tg_alert("✅ %s is back online." % label)
+            st[0], st[1] = None, False
+
+    @staticmethod
+    def _tg_alert(text):
+        try:
+            import guard
+            guard._tg("sendMessage", data={"chat_id": open(guard.CHAT_F).read().strip(), "text": text})
+        except Exception as e:
+            print("[health] telegram failed:", e, flush=True)
+
+    def _health_watch(self):
+        home_gw = None
+        time.sleep(120)                                          # startup grace
+        while True:
+            try:
+                if nova.IS_HUB:
+                    self._health("room", not self._iot_data.get("online"), "Room ESP32")
+                else:
+                    # ponytail: "at home" = same router as when we last reached the hub; a Mac restarted
+                    # while the hub is already down never learns it, so no alert until the hub is seen once.
+                    gw = self._gw_mac()
+                    if self._hub_link: home_gw = gw or home_gw
+                    home = home_gw is not None and gw == home_gw
+                    self._health("broker", home and not self._hub_link, "Nova hub (broker / old Mac)")
+                    self._health("hubapp", self._hub_link and not self._hub_app_on, "Nova hub app")
+            except Exception as e:
+                print("[health]", e, flush=True)
+            time.sleep(30)
 
     def _read_volume(self):
         try:
@@ -720,10 +1390,40 @@ class Api:
                 if rv is not None:
                     v, muted = rv, rm
             if v is not None and (v, muted) != last:
-                self._js("window.jarvisVolume && window.jarvisVolume(%d,%s);"
+                self._js("window.novaVolume && window.novaVolume(%d,%s);"
                          % (v, "true" if muted else "false"))
                 last = (v, muted)
             time.sleep(0.05)
+
+    def _mac_vitals(self, cpu, mem_pct, bat):
+        """Real Mac vitals for the DIAGNOSTICS panel — maps the original labels to live data:
+        CORE TEMP = battery temperature (°C), VOLTAGE = battery pack voltage (V) — both read via
+        ioreg (no sudo, cached a few sec since they drift slowly); INTEGRITY = live system-health %
+        (falls under CPU/memory/thermal load); STATUS = NOMINAL / ELEVATED / CRITICAL / CHARGING."""
+        now = time.time()
+        cache = getattr(self, "_vit_bat", None)
+        if not cache or now - cache[0] > 4:
+            temp = volt = None
+            try:
+                out = subprocess.check_output(["ioreg", "-rn", "AppleSmartBattery"],
+                                              text=True, timeout=2)
+                mt = re.search(r'"Temperature"\s*=\s*(\d+)', out)
+                mv = re.search(r'"Voltage"\s*=\s*(\d+)', out)
+                if mt: temp = int(mt.group(1)) / 100.0
+                if mv: volt = int(mv.group(1)) / 1000.0
+            except Exception:
+                pass
+            cache = (now, temp, volt)
+            self._vit_bat = cache
+        _, temp, volt = cache
+        integ = 100.0 - cpu * 0.45 - max(0, mem_pct - 55) * 0.6   # load eats "integrity"
+        if temp:
+            integ -= max(0, temp - 34) * 2.0                     # thermal penalty
+        integ = int(max(1, min(100, round(integ))))
+        status = ("CHARGING" if bat.get("plug") else
+                  "NOMINAL" if integ >= 85 else
+                  "ELEVATED" if integ >= 60 else "CRITICAL")
+        return {"integrity": integ, "temp": temp, "voltage": volt, "status": status}
 
     def stats(self):
         """Live system stats for the HUD, polled by the front-end."""
@@ -770,12 +1470,15 @@ class Api:
                 "mem": round(mem.percent), "mem_gb": round(mem.used / 1024**3, 1),
                 "mem_tot": round(mem.total / 1024**3),
                 "swap": round(psutil.swap_memory().percent),
+                "claude": nova.claude_usage(),   # HUD token bar
                 "disk": round(disk.percent), "disk_free": round(disk.free / 1024**3),
                 "disk_tot": round(disk.total / 1024**3),
                 "down": round(down), "up": round(up),
                 "bat": bat, "uptime": int(time.time() - psutil.boot_time()),
                 "procs": len(psutil.pids()), "load": load1, "top": top,
                 "wifi": self._wifi(),
+                "vitals": self._mac_vitals(cpu, mem.percent, bat),
+                "car": {**self._car_data, "fresh": (time.time() - self._car_data["ts"]) < 12},
                 "iot": {**self._iot_data, "fresh": (time.time() - self._iot_data["ts"]) < 12}}
 
     def _wifi(self):
@@ -809,7 +1512,7 @@ class Api:
         """One user turn. Deterministic intercepts first, then the tiered brain (Claude->Groq->Qwen)."""
         low = user.lower()
         wants_stop = re.search(r"\b(stop|pause|halt|silence|quiet|shut up|enough|turn it off)\b", low)
-        mpv_on = subprocess.run(["pgrep", "-x", "mpv"], capture_output=True).returncode == 0
+        mpv_on = nova.music_playing()                     # mpv here, afplay on the hub
         if wants_stop and (mpv_on or "music" in low or "song" in low or "playing" in low):
             nova.FUNCS["stop_music"]()
             reply = "Music stopped, sir."
@@ -817,6 +1520,39 @@ class Api:
                               {"role": "assistant", "content": reply}]
             self.speak(reply)
             return {"reply": reply, "activity": ["stop_music()"]}
+
+        # ROUTINES (~/anish-ai/routines.json): "good night", "I'm leaving", "movie time"... -> run a scene.
+        _rt = self._match_routine(low)
+        if _rt:
+            reply = self._run_routine(*_rt)
+            self.messages += [{"role": "user", "content": user}, {"role": "assistant", "content": reply}]
+            self.messages = self.messages[-20:]; self.speak(reply)
+            return {"reply": reply, "activity": ["routine:%s" % _rt[0]]}
+
+        # CLAUDE: "Claude, ..." / "ask Claude ..." -> straight to Claude Code (ongoing thread), bypass the local brain.
+        # STT often writes Claude as cloud/clod/clawed/claud.
+        _cm = re.match(r"^\W*(?:hey\s+|ok\s+|okay\s+|ask\s+|tell\s+)?(?:claude|claud|clod|cloud|clawed)\b[\s,:.!?-]*(.*)$",
+                       user, re.IGNORECASE | re.S)
+        if _cm:
+            q = _cm.group(1).strip()
+            if not q:
+                reply = "I'm listening, sir."
+            else:
+                new = bool(re.fullmatch(r"(start\s+)?(a\s+)?(new|fresh)\s+(chat|conversation|thread)|start over|reset", q.lower().strip(" .!?")))
+                if new:
+                    import os as _os
+                    try: _os.remove(_os.path.expanduser("~/anish-ai/nova_claude/.session"))
+                    except OSError: pass
+                    try:                                   # token bar: conversation size back to zero
+                        import json as _j; _u = nova.claude_usage(); _u["ctx"] = 0; _j.dump(_u, open(nova.CLAUDE_USAGE, "w"))
+                    except Exception: pass
+                    reply = "Fresh Claude conversation started, sir."
+                else:
+                    self.speak("One moment, sir.")
+                    reply = nova.FUNCS["claude"](q)   # full markdown reply -> shown in the HUD as-is
+            self.messages += [{"role": "user", "content": user}, {"role": "assistant", "content": reply}]
+            self.messages = self.messages[-20:]; self.speak(nova.speakable(reply))
+            return {"reply": reply, "activity": ["claude()"]}
 
         # INSTANT fast-paths: the most common simple commands skip the LLM entirely (no wait).
         def _instant(reply, act):
@@ -849,6 +1585,21 @@ class Api:
                     nova.FUNCS["ac"]("mode " + mode.group(1)); acmd = "on"
             if acmd:
                 return _instant(nova.FUNCS["ac"](acmd), "ac(%s)" % acmd)
+        # BED LIGHTS (Bluetooth LED strip) — MUST come before the room-relay light so 'bed lights',
+        # 'the strip', or any colour/effect routes to the strip, not the ESP ceiling light.
+        _col = re.search(r"\b(blue|red|green|white|warm|yellow|orange|purple|pink|cyan|magenta)\b", low)
+        _fx  = re.search(r"\b(party|strobe|fade|cycle)\b", low)
+        if re.search(r"\bbed\s*light|\bstrip\b|\bled\b", low) or ((_col or _fx) and re.search(r"\blights?\b", low)):
+            if re.search(r"\b(off|kill)\b|switch\s+off|turn\s+off", low):    _lc = "off"
+            elif _fx:                                                        _lc = _fx.group(1)
+            elif _col:                                                       _lc = _col.group(1)
+            elif re.search(r"brightness\s+(\d+)", low):                      _lc = "brightness " + re.search(r"brightness\s+(\d+)", low).group(1)
+            elif re.search(r"\bto\s+(\d+)", low):                            _lc = "brightness " + re.search(r"\bto\s+(\d+)", low).group(1)
+            elif re.search(r"\bdim\b", low):                                 _lc = "dim"
+            elif re.search(r"\bbright(en)?\b", low):                         _lc = "brighten"
+            else:                                                            _lc = "on"
+            return _instant(nova.FUNCS["lights"](_lc), "lights(%s)" % _lc)
+
         # light / fan / plug: fire the relay deterministically so the model can't skip the tool (and
         # handle natural phrasing — "light up the room", "kill the lights", "it's too dark").
         _dev = ("light" if re.search(r"\blights?\b|\blamp\b|\bbulb\b", low)
@@ -859,10 +1610,34 @@ class Api:
                     else "on" if re.search(r"\b(on|dark|bright(en)?)\b|switch\s+on|turn\s+on|light\s+up", low) else None)
             if _act:
                 return _instant(nova.FUNCS["iot_control"](_dev, _act), "iot_control(%s,%s)" % (_dev, _act))
-        m = re.match(r"^(?:hey\s+)?(?:jarvis[ ,]+)?(?:please\s+)?(?:open|launch|start up|start)\s+(?:the\s+|my\s+)?(.+)$", low)
+        m = re.match(r"^(?:hey\s+)?(?:nova[ ,]+)?(?:please\s+)?(?:open|launch|start up|start)\s+(?:the\s+|my\s+)?(.+)$", low)
         if m and len(words) <= 5 and not re.search(r"\b(and|then|door|file|up the|tell|what|why|how)\b", m.group(1)):
             app = m.group(1).strip(" .?!")
             return _instant(nova.FUNCS["open_app"](app), "open_app(%s)" % app)
+
+        # CLAUDE MODE (default): everything that isn't an instant command is a turn in the ongoing Claude session.
+        _ml = low.strip(" .!?")
+        if re.fullmatch(r"(?:switch to |go to |use )?(?:normal|quick|fast|local) mode", _ml):
+            self._claude_mode = False
+            return _instant("Quick mode, sir. Say Claude mode to switch back.", "mode(quick)")
+        if re.fullmatch(r"(?:switch to |go to |use |turn on |enable )?private mode(?: on)?", _ml):
+            self._private = True
+            threading.Thread(target=self._mlx_warm, daemon=True).start()   # load + cache the prompt while we talk
+            return _instant("Private mode, sir. Everything stays on this Mac now.", "mode(private)")
+        if re.fullmatch(r"(?:switch to |go to |use )?(?:online|cloud|public) mode|(?:turn off |disable )?private mode off|"
+                        r"(?:turn off|disable|exit|leave) private mode", _ml):
+            self._private = False
+            self._mlx_down()
+            return _instant("Back online, sir.", "mode(online)")
+        if re.fullmatch(r"(?:switch to |go to |use )?(?:claude|talk|build) mode", _ml):
+            self._claude_mode = True
+            return _instant("Claude mode, sir. Just talk to me.", "mode(claude)")
+        # Only real WORK goes to the Claude Code agent (~10s); chat/questions use the fast brain (~1-2s).
+        if self._claude_mode and not self._private and re.search(
+                r"\b(build|make|create|write|code|program|script|fix|debug|refactor|install|deploy|"
+                r"set ?up|edit|update|change|add|delete|rename|file|folder|project|repo|commit|"
+                r"research|look up|find out|search|plan|design|automate|run)\b", low):
+            return self.chat("Claude, " + user)   # reuses the Claude branch above
 
         # CODE: delegate coding tasks to the Claude Code agent (voice -> `claude -p`). Ack, then run.
         if (re.search(r"\b(write|build|make|create|code|fix|refactor|debug|generate)\b", low)
@@ -883,6 +1658,11 @@ class Api:
             self.speak("Let me think that through, sir.")
             return _instant(nova.FUNCS["think"](user), "think(...)")
 
+        # "Can you see me?" -> answer from the real webcam state (HUD WEBCAM switch = the hub's room camera).
+        if re.search(r"\b(can|do) (you|u) see me\b|\bare you (watching|looking at) me\b|\bis (the|your) (webcam|camera) on\b", low):
+            return _instant("Yes, sir. I can see you through the room camera." if self._cam_on
+                            else "No, sir. The room camera is switched off.", "camera-state")
+
         # SCREEN VISION: look at the SCREEN (never the webcam) and answer. Respects the no-camera rule.
         if re.search(r"\b(on (my|the) screen|read (this|the screen)|look at (my|the) screen|"
                      r"describe (this|the screen)|what('?s| is) (this|on (my|the) screen)|"
@@ -893,10 +1673,14 @@ class Api:
         self.messages.append({"role": "user", "content": user})
         self.messages = self.messages[-20:]              # cap history
         for name, fn in self._brains():
+            if time.time() < self._brain_cool.get(name, 0):
+                continue                                   # rate-limited a moment ago -> don't waste a round trip
             try:
                 reply, activity = fn()
             except Exception as e:
                 print("[brain] %s failed: %s" % (name, str(e)[:140]), flush=True)
+                if "429" in str(e) or "rate" in str(e).lower():
+                    self._brain_cool[name] = time.time() + 60   # free tiers refill per minute
                 continue
             reply = (reply or "").strip()
             if reply:
@@ -915,7 +1699,57 @@ class Api:
         except Exception:
             return ""
 
+    def _mlx_up(self):
+        """Start the local MLX server if it isn't answering (first load ~10s, then ~2-5s replies)."""
+        import urllib.request
+        try:
+            urllib.request.urlopen(MLX_URL + "/models", timeout=1); return True
+        except Exception:
+            pass
+        # GPU memory can't swap: loading with too little free RAM froze the whole Mac (2026-11-08).
+        if psutil.virtual_memory().available < 7 * 2**30:
+            print("[private] refusing to load MLX: only %.1f GB free" % (psutil.virtual_memory().available / 2**30), flush=True)
+            return False
+        if not (self._mlx_proc and self._mlx_proc.poll() is None):
+            self._mlx_proc = subprocess.Popen(
+                [os.path.expanduser("~/anish-ai/.mlx/bin/python"), "-m", "mlx_lm", "server", "--model", MLX_MODEL,
+                 "--host", "127.0.0.1", "--port", "8088"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(60):
+            try:
+                urllib.request.urlopen(MLX_URL + "/models", timeout=1); return True
+            except Exception:
+                time.sleep(1)
+        return False
+
+    def _mlx_warm(self):
+        """Free ollama's RAM (both models at once = swap = 90s+ replies), then pre-fill the
+        persona+tools prefix so MLX's prompt cache makes the first real reply ~4s instead of ~25s."""
+        subprocess.run(["ollama", "stop", "nova"], capture_output=True)
+        if not self._mlx_up():
+            return
+        try:
+            import requests
+            requests.post(MLX_URL + "/chat/completions", timeout=120, json={
+                "model": MLX_MODEL, "max_tokens": 1, "tools": nova.TOOLS,
+                "chat_template_kwargs": {"enable_thinking": False},
+                "messages": [{"role": "system", "content": self._persona()}, {"role": "user", "content": "hi"}]})
+            print("[private] mlx warm", flush=True)
+        except Exception as e:
+            print("[private] warm failed: %s" % e, flush=True)
+
+    def _mlx_down(self):
+        """Free the ~5GB the model holds when leaving private mode."""
+        if self._mlx_proc and self._mlx_proc.poll() is None:
+            self._mlx_proc.terminate()
+        self._mlx_proc = None
+
     def _brains(self):
+        if self._private:   # nothing leaves the Mac: local MLX first, ollama as backup
+            def _mlx():
+                if not self._mlx_up():
+                    raise RuntimeError("mlx server didn't start")
+                return self._brain_openai(MLX_URL, "local", MLX_MODEL, 90, 1)
+            return [("mlx", _mlx), ("qwen", self._brain_ollama)]
         out = []
         gk = self._key("groq")
         if gk:   # Groq PRIMARY + a 2nd Groq model — separate per-model rate limit, so a 429 stays fast
@@ -930,7 +1764,7 @@ class Api:
         # Only providers with a key join (local box needs none) — cross-provider fallback before slow local ollama.
         try:
             import router
-            mesh = [("cerebras", router.M["cerebras"]), ("gemini", router.M["gemini"]),
+            mesh = [  # cerebras dropped (402 payment), gemini dropped (tool calls need thought_signature)
                     ("mistral", router.M["mistral_code"]), ("openrouter", router.M["openrouter_gen"]),
                     ("sambanova", router.M["sambanova"]), ("lmstudio", router.M["lmstudio"])]
             for prov, model in mesh:
@@ -944,6 +1778,14 @@ class Api:
             print("[brain] router mesh unavailable: %s" % str(e)[:100], flush=True)
         out.append(("qwen", self._brain_ollama))   # local last resort (slow on 16GB, but never offline)
         return out
+
+    def _tools_for(self):
+        recent = " ".join(m["content"] for m in self.messages[-3:] if m.get("role") == "user").lower()
+        want = set(CORE_TOOLS)
+        for rx, extra in TOOL_HINTS:
+            if re.search(rx, recent):
+                want |= extra
+        return [t for t in nova.TOOLS if t["function"]["name"] in want]
 
     def _hist(self, n=None):
         msgs = self.messages if n is None else self.messages[-n:]
@@ -962,7 +1804,7 @@ class Api:
         msgs = [{"role": "system", "content": self._persona()}] + self._hist()
         activity = []
         for _ in range(6):
-            m = ollama.chat(model="jarvis", messages=msgs, tools=nova.TOOLS)["message"]
+            m = ollama.chat(model="nova", messages=msgs, tools=nova.TOOLS)["message"]
             calls = m.get("tool_calls") or []
             if not calls:
                 return m.get("content", "") or "", activity
@@ -980,9 +1822,10 @@ class Api:
         activity = []
 
         # gpt-oss is a REASONING model: without this it spends the whole token budget "thinking"
-        # and returns empty content -> Jarvis hears you but says nothing. 'low' makes it answer fast.
+        # and returns empty content -> Nova hears you but says nothing. 'low' makes it answer fast.
         extra = ({"reasoning_effort": "low"} if "gpt-oss" in model
                  else {"reasoning_effort": "none"} if "qwen" in model   # skip qwen3 thinking -> ~2x faster
+                 else {"chat_template_kwargs": {"enable_thinking": False}} if "mlx-community" in model   # local qwen3: no thinking
                  else {})
 
         def _create():
@@ -992,7 +1835,7 @@ class Api:
             for attempt in range(retries):
                 try:
                     return client.chat.completions.create(model=model, messages=msgs,
-                                                          tools=nova.TOOLS, temperature=0.6,
+                                                          tools=self._tools_for(), temperature=0.6,
                                                           extra_body=extra)
                 except Exception as e:
                     code = getattr(e, "status_code", None)
@@ -1013,6 +1856,8 @@ class Api:
                                          "function": {"name": tc.function.name,
                                                       "arguments": tc.function.arguments}}
                                         for tc in m.tool_calls]})
+            if not activity and {tc.function.name for tc in m.tool_calls} & {"get_weather", "search_web", "read_webpage", "find_device"}:
+                threading.Thread(target=self.speak, args=("One moment, sir.",), daemon=True).start()   # no 1-2s silence on lookups
             for tc in m.tool_calls:
                 fn = tc.function.name
                 try:
@@ -1062,7 +1907,7 @@ class Api:
     AUDIT_PATH = os.path.expanduser("~/anish-ai/audit.log")
 
     def _audit(self, fn, args, outcome):
-        """Append-only record of every action Jarvis takes (secrets redacted)."""
+        """Append-only record of every action Nova takes (secrets redacted)."""
         try:
             safe = {}
             for k, v in (args or {}).items():
@@ -1125,7 +1970,7 @@ class Api:
 
     # ---------- proactive presence ----------
     def status_brief(self):
-        """Spoken boot report, JARVIS-style."""
+        """Spoken boot report, NOVA-style."""
         h = time.localtime().tm_hour
         part = "morning" if h < 12 else "afternoon" if h < 18 else "evening"
         try:
@@ -1140,8 +1985,8 @@ class Api:
                  "Processor at %d percent, memory at %d percent%s." % (cpu, mem, ", " + bat if bat else ""),
                  "How may I be of service?"]
         brief = " ".join(parts)
-        self._js('window.jarvisSay && window.jarvisSay(' + json.dumps(brief) + ');')
-        self.speak(brief)
+        self._js('window.novaSay && window.novaSay(' + json.dumps(brief) + ');')   # full report stays on the HUD
+        self.speak(parts[0])                         # spoken: just the greeting (the full report was too long)
 
     def _select_input_mic(self):
         """Prefer a plugged-in USB mic (the lavalier adapter) for INPUT; fall back to the built-in mic.
@@ -1174,7 +2019,7 @@ class Api:
         subprocess.run(["osascript", "-e", "set volume input volume %d" % level], capture_output=True, timeout=5)
 
     def _duck_loop(self):
-        """While Jarvis is speaking, drop the mic gain so it barely hears itself; restore the instant
+        """While Nova is speaking, drop the mic gain so it barely hears itself; restore the instant
         it stops. Cuts self-echo/self-answering on a single-mic setup. Interrupt still works via
         Esc / click-orb / STOP button (mic-independent)."""
         while True:
@@ -1258,7 +2103,7 @@ class Api:
                 if b and b.power_plugged:
                     self._alerted["bat20"] = False
                 # (no memory-pressure nagging — macOS manages it, and it oscillated ~85-92% and kept re-firing)
-                # room climate — Jarvis notices the real sensor and speaks up (deduped, only when fresh)
+                # room climate — Nova notices the real sensor and speaks up (deduped, only when fresh)
                 io = self._iot_data
                 fresh = io.get("temp") is not None and (time.time() - io.get("ts", 0) < 30)
                 if fresh:
@@ -1277,7 +2122,9 @@ class Api:
                 pass
 
     def _proactive(self, text):
-        self._js('window.jarvisSay && window.jarvisSay(' + json.dumps(text) + ');')
+        if not self._auto_on:                              # asleep (good night paused automations): don't speak up unasked
+            print("[quiet] held: %s" % text[:60], flush=True); return
+        self._js('window.novaSay && window.novaSay(' + json.dumps(text) + ');')
         self.speak(text)
 
 
@@ -1289,19 +2136,25 @@ def main():
     try:
         fcntl.flock(_LOCK_FH, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        print("[jarvis] another instance is already running — exiting", flush=True)
+        print("[nova] another instance is already running — exiting", flush=True)
         return
     api = Api()
-    webview.create_window("Nova", url=HTML, js_api=api,
+    if not HEADLESS: webview.create_window("Nova", url=HTML, js_api=api,
                           width=1120, height=740, min_size=(900, 600),
                           background_color="#020608")
 
     def _autostart():          # always-on: begin listening a moment after the window loads
         time.sleep(2.0)
+        if WORKER:            # hub: devices + automations only; the Mac's Nova does the talking
+            threading.Thread(target=api._automation_loop, daemon=True).start()
+            return
         try:
-            api.set_handsfree(True)            # START LISTENING FIRST — never let a later step block it
+            if ON_SENSES: api.set_handsfree(True)   # START LISTENING FIRST — never let a later step block it
         except Exception:
             pass
+        if nova.IS_HUB:       # timed routines, sensor rules + room guard live on the hub only (else they'd fire twice)
+            threading.Thread(target=api._automation_loop, daemon=True).start()
+            threading.Thread(target=api._guard_loop, daemon=True).start()
         try:  # only un-strand a low output volume; never change the user's chosen audio device
             v = subprocess.run(["osascript", "-e", "output volume of (get volume settings)"],
                                capture_output=True, text=True, timeout=5).stdout.strip()   # timeout: never hang boot
@@ -1311,10 +2164,13 @@ def main():
             pass
         try:
             time.sleep(1.5)
-            api.status_brief()                 # JARVIS-style spoken boot report
+            if not nova.IS_HUB: api.status_brief()   # NOVA-style spoken boot report (the Mac talks, not the hub)
         except Exception:
             pass
         threading.Thread(target=api._monitor, daemon=True).start()   # proactive alerts
+    if HEADLESS:   # hub (broken screen): no window; UI calls fail soft, confirm dialogs auto-deny
+        _autostart()
+        threading.Event().wait()
     threading.Thread(target=_autostart, daemon=True).start()
     webview.start()
 

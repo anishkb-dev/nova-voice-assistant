@@ -8,7 +8,7 @@ any key, run `python3 router.py` to confirm it's live.
 ## Already working ✅
 - **Groq** — `.groq_key` (present). Fast chat, reasoning, code.
 - **LM Studio** — your box at `192.168.68.109:1234`, no key. Private fallback.
-- **Ollama** — local `jarvis:latest`, no key. Offline fallback.
+- **Ollama** — local `nova:latest`, no key. Offline fallback.
 
 ## Add these (≈10 min total)
 

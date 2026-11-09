@@ -43,7 +43,7 @@
   .pulse{animation:pl 1.5s infinite steps(2,end)}@keyframes pl{0%,100%{opacity:1}50%{opacity:.3}}
   #mic-eq .eqbar{width:3px;height:100%;background:#ffb454;transform-origin:bottom;transform:scaleY(.1);opacity:.5;border-radius:1px;transition:transform .06s linear,opacity .18s,background .2s}
   #mic-eq.on .eqbar{opacity:1}                 /* your voice detected */
-  #mic-eq.busy .eqbar{background:#ffb020}       /* Jarvis thinking/speaking */
+  #mic-eq.busy .eqbar{background:#ffb020}       /* Nova thinking/speaking */
   .lbl{font-family:"JetBrains Mono";font-size:11px;letter-spacing:.2em;font-weight:700}
   .num{font-family:"JetBrains Mono";font-variant-numeric:tabular-nums}
   .disp{font-family:"Space Grotesk";letter-spacing:.05em}
@@ -341,12 +341,12 @@
     })();
     window.setCoreState(state);
   })();
-  window.jarvisMicReset=function(){var e=$("mic-eq");if(e)e.classList.remove("on","busy");$("st-lbl").textContent="MIC OFFLINE";$("st-lbl").style.color="#849396";};
-  window.jarvisVolume=function(v,muted){var f=$("vol-fill"),p=$("vol-pct"),ic=$("vol-ico");if(!f)return;
+  window.novaMicReset=function(){var e=$("mic-eq");if(e)e.classList.remove("on","busy");$("st-lbl").textContent="MIC OFFLINE";$("st-lbl").style.color="#849396";};
+  window.novaVolume=function(v,muted){var f=$("vol-fill"),p=$("vol-pct"),ic=$("vol-ico");if(!f)return;
     f.style.width=(muted?0:Math.max(0,Math.min(100,v)))+"%";f.style.opacity=muted?.3:1;
     if(p)p.textContent=muted?"MUTE":v;
     if(ic)ic.textContent=muted?"volume_off":(v===0?"volume_mute":v<50?"volume_down":"volume_up");};
-  window.jarvisSay=function(t){addJv(t);window.setCoreState("speaking");setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
+  window.novaSay=function(t){addJv(t);window.setCoreState("speaking");setTimeout(function(){if(!busy)window.setCoreState("standby");},3200);};
   /* GUARANTEED interrupt — mic-independent: STOP button, click the orb, or press Esc */
   function stopSpeak(){try{window.pywebview.api.stop_speaking();}catch(e){}window.setCoreState("standby");}
   $("stop").addEventListener("click",stopSpeak);

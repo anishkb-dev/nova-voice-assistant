@@ -1,0 +1,13 @@
+{
+  "name": "Nova Crawler",
+  "short_name": "Crawler",
+  "start_url": "car_control.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0c0906",
+  "theme_color": "#0c0906",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

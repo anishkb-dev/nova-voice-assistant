@@ -187,10 +187,10 @@ tailwind.config = {
 </div>
 </header>
 <!-- ==================== MAIN SPACIOUS COMMAND DECK ==================== -->
-<main class="relative z-10 w-full px-6 md:px-10 py-8">
-<div class="max-w-[1720px] mx-auto">
+<main class="relative z-10 w-full px-3 py-4">
+<div class="max-w-full mx-auto">
 <!-- BALANCED 3-COLUMN LAYOUT WITH AMPLE BREATHING ROOM -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-start">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
 <!-- ==================== LEFT COLUMN: SYSTEM TELEMETRY & PERFORMANCE (3 COLS) ==================== -->
 <div class="lg:col-span-3 flex flex-col gap-5">
 <!-- SYSTEM DIAGNOSTICS / VITALS -->
@@ -343,6 +343,15 @@ tailwind.config = {
 <div class="bg-primary-fixed-dim h-full w-[15%]"></div>
 </div>
 </div>
+<div>
+<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1">
+<span class="text-on-surface-variant">CLAUDE TOKENS</span>
+<span class="text-primary font-bold">--</span>
+</div>
+<div class="w-full bg-surface-container-high h-2.5 rounded-sm overflow-hidden flex p-[1px]">
+<div class="bg-primary-container h-full w-[0%]"></div>
+</div>
+</div>
 </div>
 </div>
 <!-- NETWORK // PACKET STREAM -->
@@ -412,12 +421,12 @@ tailwind.config = {
 <text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="8" letter-spacing="1" text-anchor="middle" x="200" y="394">180°</text>
 <text fill="#ffd29a" font-family="'JetBrains Mono', monospace" font-size="8" letter-spacing="1" text-anchor="middle" x="14" y="203">270°</text>
 <!-- Outer Spinning Ring -->
-<g class="animate-[spin_40s_linear_infinite] origin-center">
+<g class="animate-[spin_13s_linear_infinite] origin-center">
 <circle cx="200" cy="200" fill="none" filter="url(#glow)" opacity="0.75" r="160" stroke="#ff9a42" stroke-dasharray="45 15 15 15" stroke-width="5"></circle>
 <circle cx="200" cy="200" fill="none" opacity="0.5" r="150" stroke="#ffb780" stroke-dasharray="8 6" stroke-width="1.5"></circle>
 </g>
 <!-- Orbiting Nodes Ring -->
-<g class="animate-[spin_25s_linear_infinite_reverse] origin-center">
+<g class="animate-[spin_8s_linear_infinite_reverse] origin-center">
 <circle cx="200" cy="200" fill="none" opacity="0.65" r="132" stroke="#ffd29a" stroke-dasharray="60 30 10 30" stroke-width="2.5"></circle>
 <circle cx="200" cy="68" fill="#ffffff" filter="url(#glow)" r="4"></circle>
 <circle cx="200" cy="332" fill="#ffffff" filter="url(#glow)" r="4"></circle>
@@ -425,12 +434,12 @@ tailwind.config = {
 <circle cx="332" cy="200" fill="#ff9a42" filter="url(#glow)" r="3.5"></circle>
 </g>
 <!-- Mid Concentric Ring -->
-<g class="animate-[spin_12s_linear_infinite] origin-center">
+<g class="animate-[spin_4s_linear_infinite] origin-center">
 <circle cx="200" cy="200" fill="none" filter="url(#glow)" r="105" stroke="#ff9a42" stroke-dasharray="25 8 5 8" stroke-width="4"></circle>
 <circle cx="200" cy="200" fill="none" opacity="0.7" r="95" stroke="#ffdcc4" stroke-dasharray="3 3" stroke-width="1"></circle>
 </g>
 <!-- Inner Reticle & Pointer Glyphs -->
-<g class="animate-[spin_18s_linear_infinite_reverse] origin-center" opacity="0.85">
+<g class="animate-[spin_6s_linear_infinite_reverse] origin-center" opacity="0.85">
 <path d="M 200,120 L 208,135 L 192,135 Z" fill="#ff9a42"></path>
 <path d="M 130,240 L 145,248 L 138,232 Z" fill="#ff9a42"></path>
 <path d="M 270,240 L 262,232 L 255,248 Z" fill="#ff9a42"></path>
@@ -690,6 +699,36 @@ tailwind.config = {
                 OFF [STBY]
               </button>
 </div>
+<!-- Strip Lights (Bluetooth RGB LED) -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base">gradient</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface tracking-wider">STRIP LIGHTS</span>
+</div>
+<button class="px-2.5 py-1 bg-surface-container-high text-outline font-label-caps text-[9px] rounded font-bold cursor-pointer border border-primary-container/20">
+                OFF
+              </button>
+</div>
+<!-- Mic (hands-free listening) -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base">mic</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface tracking-wider">MICROPHONE</span>
+</div>
+<button class="px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer">
+                ON
+              </button>
+</div>
+<!-- Webcam (gesture + face ID camera) -->
+<div class="flex items-center justify-between p-2 bg-surface-container-low/60 rounded border border-primary-container/20">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base">videocam</span>
+<span class="font-telemetry-micro text-telemetry-micro text-on-surface tracking-wider">WEBCAM</span>
+</div>
+<button class="px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer">
+                ON
+              </button>
+</div>
 </div>
 </div>
 <!-- AMBIENT ENVIRONMENT SENSORS (Only Temp & Humidity) -->
@@ -737,24 +776,39 @@ var busy=false;
 
 /* ---- ROOM CONTROLS (real hardware via api.chat) ---- */
 var roomBtn={};
-[["LIVING MAIN LIGHT","light"],["CEILING FAN","fan"],["LAB POWER BUS","plug"],["DUAL HVAC / AC","ac"]].forEach(function(p){
+[["LIVING MAIN LIGHT","light"],["CEILING FAN","fan"],["LAB POWER BUS","plug"],["DUAL HVAC / AC","ac"],["STRIP LIGHTS","strip"],["WEBCAM","cam"],["MICROPHONE","mic"]].forEach(function(p){
   var lbl=byText("span",p[0]);if(!lbl)return;var row=lbl.closest("div").parentElement;var btn=row&&row.querySelector("button");if(!btn)return;
   var dev=p[1],on=/\bON\b/i.test(btn.textContent);
   function paint(v){on=v;btn.textContent=on?"ON":"OFF";
     btn.className=on?"px-2.5 py-1 bg-primary-container text-on-primary-container font-label-caps text-[9px] rounded font-bold shadow-[0_0_8px_rgba(255,154,66,0.6)] cursor-pointer"
                     :"px-2.5 py-1 bg-surface-container-high text-outline font-label-caps text-[9px] rounded font-bold cursor-pointer border border-primary-container/20";}
   roomBtn[dev]={set:paint};
-  btn.addEventListener("click",function(){paint(!on);api("chat",dev+" "+(on?"on":"off"));});
+  btn.addEventListener("click",function(){paint(!on);
+    if(dev==="mic")api("set_handsfree",on);       // OFF = mute: Nova stops listening (typing still works)
+    else if(dev==="cam")api("set_camera",on);           // not a room device: toggles Nova's webcam directly
+    else api("chat",dev+" "+(on?"on":"off"));});
 });
 
 /* ---- panels to bind ---- */
 var envP=panelOf("ENVIRONMENT // HABITAT"),cpuP=panelOf("CPU // MULTI-THREAD"),memP=panelOf("MEMORY // VOLATILE");
+/* DIAGNOSTICS // Vitals panel (live Mac vitals) */
+var vitP=panelOf("DIAGNOSTICS // Vitals"),vInt=null,vTmp=null,vVlt=null,vSts=null;
+if(vitP){vInt=vitP.querySelector(".text-5xl");var _vv=vitP.querySelectorAll(".vt323-font.text-xl");vTmp=_vv[0];vVlt=_vv[1];vSts=_vv[2];}
 var tV,tB,hV,hB;
 if(envP){var er=envP.querySelectorAll(".space-y-3 > div");if(er[0]){tV=er[0].querySelector(".font-bold");tB=er[0].querySelector(".h-full");}if(er[1]){hV=er[1].querySelector(".font-bold");hB=er[1].querySelector(".h-full");}}
+/* inject a MOTION row into the ENVIRONMENT panel (no Stitch markup edits) */
+var motTxt=null,motBar=null,motAt=0,motRise=0;
+if(envP){var _sp=envP.querySelector(".space-y-3");if(_sp){var _mr=document.createElement("div");
+  _mr.innerHTML='<div class="flex justify-between font-telemetry-micro text-telemetry-micro mb-1"><span class="text-on-surface-variant">MOTION</span><span class="font-bold text-outline">— CLEAR</span></div><div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden"><div class="h-full bg-outline/40" style="width:8%;transition:width .25s,background-color .25s"></div></div>';
+  _sp.appendChild(_mr);motTxt=_mr.querySelector(".font-bold");motBar=_mr.querySelector(".h-full");}}
+function renderMotion(active,stuck){
+  if(motTxt){motTxt.textContent=stuck?"— NO SENSOR":active?"● DETECTED":"— CLEAR";motTxt.className="font-bold "+(active?"text-primary":"text-outline");}
+  if(motBar){motBar.style.width=active?"100%":"8%";motBar.className="h-full "+(active?"bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]":"bg-outline/40");}}
+window.novaMotion=function(){if(motRise===0)motRise=Date.now();};   /* start the sustain timer at the real rising edge */
 var coreV=cpuP?[].slice.call(cpuP.querySelectorAll(".text-primary.font-bold")):[];
 var coreB=cpuP?[].slice.call(cpuP.querySelectorAll(".flex.gap-1")):[];
-var ramV,ramB,swV,swB;
-if(memP){var mr=memP.querySelectorAll(".space-y-3 > div");if(mr[0]){ramV=mr[0].querySelector(".font-bold");ramB=mr[0].querySelector(".h-full");}if(mr[1]){swV=mr[1].querySelector(".font-bold");swB=mr[1].querySelector(".h-full");}}
+var ramV,ramB,swV,swB,clV,clB;
+if(memP){var mr=memP.querySelectorAll(".space-y-3 > div");if(mr[0]){ramV=mr[0].querySelector(".font-bold");ramB=mr[0].querySelector(".h-full");}if(mr[1]){swV=mr[1].querySelector(".font-bold");swB=mr[1].querySelector(".h-full");}if(mr[2]){clV=mr[2].querySelector(".font-bold");clB=mr[2].querySelector(".h-full");}}
 function fillSeg(bar,pct){var n=bar.children.length,f=Math.round(pct/100*n);for(var i=0;i<n;i++)bar.children[i].className="h-2 flex-1 "+(i<f?"bg-primary-container shadow-[0_0_6px_rgba(255,154,66,0.8)]":"bg-primary-container/20");}
 
 /* ---- voice status + command bar (injected) ---- */
@@ -763,7 +817,7 @@ function setState(s){var m={standby:"LISTENING…",thinking:"PROCESSING…",spea
 function stopSpeak(){api("stop_speaking");busy=false;setState("standby");}
 var log=document.createElement("div");
 log.style.cssText="position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:60;width:min(760px,92vw);max-height:190px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;font-family:'VT323',monospace;pointer-events:none;-webkit-mask-image:linear-gradient(180deg,transparent,#000 25%)";
-document.body.appendChild(log);
+/* response box removed — not shown on screen (addMsg is a no-op display) */
 function addMsg(cls,html){var m=document.createElement("div");
   m.style.cssText="font-size:16px;line-height:1.35;padding:5px 12px;max-width:82%;"+(cls==="me"?"align-self:flex-end;border:1px solid rgba(255,154,66,.3);color:#ffdcbb;background:rgba(255,154,66,.06)":"align-self:flex-start;border-left:2px solid #ff9a42;color:#c9a98f;background:rgba(255,154,66,.04)");
   m.innerHTML=html;log.appendChild(m);while(log.children.length>6)log.removeChild(log.firstChild);log.scrollTop=1e9;}
@@ -784,47 +838,211 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape")stopSpeak();
 
 /* ---- Python -> JS bridge ---- */
 window.setCoreState=function(s){setState(s);};
-window.jarvisSay=function(t){addMsg("nova",'<b style="color:#ff9a42">NOVA</b> '+esc(t));setState("speaking");setTimeout(function(){if(!busy)setState("standby");},3200);};
-window.jarvisVolume=function(v,muted){var e=document.getElementById("nv-vol");if(e)e.textContent=muted?"MUTE":"VOL "+Math.round(v);};
-window.jarvisMicReset=function(){if(voice)voice.textContent="MIC OFFLINE";};
+window.novaSay=function(t){addMsg("nova",'<b style="color:#ff9a42">NOVA</b> '+esc(t));setState("speaking");setTimeout(function(){if(!busy)setState("standby");},3200);};
+window.novaVolume=function(v,muted){var e=document.getElementById("nv-vol");if(e)e.textContent=muted?"MUTE":"VOL "+Math.round(v);};
+window.novaMicReset=function(){if(voice)voice.textContent="MIC OFFLINE";};
 
 /* ---- live stats poll ---- */
 function poll(){api("stats").then(function(s){if(!s)return;
   (s.cores||[]).forEach(function(c,i){if(coreV[i])coreV[i].textContent=c+"%";if(coreB[i])fillSeg(coreB[i],c);});
   if(ramV)ramV.textContent=(s.mem_gb!=null?s.mem_gb+" GB / "+s.mem_tot+".0 GB ("+s.mem+"%)":s.mem+"%");if(ramB)ramB.style.width=(s.mem||0)+"%";
   if(swV)swV.textContent=s.swap+"%";if(swB)swB.style.width=(s.swap||0)+"%";
+  // Nova->Claude usage: bar = current conversation size vs 200k (past that, say "Claude, new conversation")
+  var cl=s.claude||{},k=function(n){return n>=1e6?(n/1e6).toFixed(1)+"M":Math.round((n||0)/1e3)+"k";};
+  if(clV)clV.textContent="CHAT "+k(cl.ctx)+" · TODAY "+k(cl.today)+" ("+(cl.calls||0)+")";
+  if(clB){var cp=Math.min(100,(cl.ctx||0)/2000);clB.style.width=cp+"%";clB.style.background=cp>80?"#ff6b5a":"";}
   var io=s.iot||{};
   if(io.fresh&&io.temp!=null){if(tV)tV.textContent=(+io.temp).toFixed(1)+"°C";if(tB)tB.style.width=Math.min(100,io.temp/40*100)+"%";
     if(hV)hV.textContent=(io.humidity!=null?io.humidity:"--")+"%";if(hB)hB.style.width=(io.humidity||0)+"%";}
+  // motion indicator (also pushed instantly from Python; latched ~4s so a short pulse stays visible)
+  var mo=(io.motion===true||io.motion===1||io.motion==="1");
+  if(!mo)motRise=0; else if(motRise===0)motRise=Date.now();
+  var highFor=mo?(Date.now()-motRise):0;
+  var motStuck=highFor>15000;                                  // high >15s with no drop = removed/faulty pin
+  if(mo&&!motStuck&&highFor>=2500)motAt=Date.now();            // DEBOUNCE: need ~2.5s sustained -> brief false blips ignored
+  renderMotion((Date.now()-motAt)<4000&&!motStuck,motStuck);
+  // DIAGNOSTICS // Vitals — live Mac vitals
+  var vt=s.vitals||{};
+  if(vInt&&vt.integrity!=null)vInt.textContent=vt.integrity+"%";
+  if(vTmp&&vt.temp!=null)vTmp.textContent=(+vt.temp).toFixed(1)+"°C";
+  if(vVlt&&vt.voltage!=null)vVlt.textContent=(+vt.voltage).toFixed(1)+" V";
+  if(vSts&&vt.status){vSts.textContent=vt.status;
+    vSts.style.color=vt.status==="CRITICAL"?"#ff6b5a":vt.status==="ELEVATED"?"#ff9a42":"";}
   ["light","fan","plug"].forEach(function(d){if(io[d]!=null&&roomBtn[d])roomBtn[d].set(io[d]==="on"||io[d]===true||io[d]===1);});
 }).catch(function(){});}
 function start(){setState("standby");poll();setInterval(poll,1600);}
 if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);
 setTimeout(function(){if(!(window.pywebview&&window.pywebview.api))setState("standby");},2000);
 })();
-/* ===== rotating 3D wireframe rock-crawler (replaces the flat SVG) ===== */
+/* ===== rotating 3D wireframe rock-crawler (realistic build; same holo theme) ===== */
 (function(){var svg=document.querySelector(".holo-crawler-rotate");if(!svg)return;
-  var cv=document.createElement("canvas");cv.width=300;cv.height=200;cv.style.cssText="width:100%;height:100%;display:block";
+  var cv=document.createElement("canvas");cv.width=300;cv.height=200;cv.style.cssText="width:100%;height:100%;display:block;filter:drop-shadow(0 0 3px rgba(255,150,70,.5))";
   svg.parentNode.replaceChild(cv,svg);
-  var x=cv.getContext("2d"),CX=150,CY=112,SC=1.12,tilt=0.36,t=0;
+  var x=cv.getContext("2d"),CX=150,CY=118,SC=1.28,tilt=0.16,t=0,TAU=6.28318;
   function tf(p,ay){var X=p[0],Y=p[1],Z=p[2],cy=Math.cos(ay),sy=Math.sin(ay),x1=X*cy+Z*sy,z1=-X*sy+Z*cy,cx=Math.cos(tilt),sx=Math.sin(tilt),y1=Y*cx-z1*sx,z2=Y*sx+z1*cx;return [CX+x1*SC,CY-y1*SC,z2];}
-  function edge(a,b,ay,base){var p=tf(a,ay),q=tf(b,ay),zc=(p[2]+q[2])/2,al=(base||.7)*(0.4+0.6*(zc+95)/190);al=Math.max(.1,Math.min(1,al));x.strokeStyle="rgba(255,162,80,"+al+")";x.beginPath();x.moveTo(p[0],p[1]);x.lineTo(q[0],q[1]);x.stroke();}
+  function edge(a,b,ay,base){var p=tf(a,ay),q=tf(b,ay),zc=(p[2]+q[2])/2,al=(base||.7)*(0.36+0.64*(zc+95)/190);al=Math.max(.08,Math.min(1,al));x.strokeStyle="rgba(255,162,80,"+al+")";x.beginPath();x.moveTo(p[0],p[1]);x.lineTo(q[0],q[1]);x.stroke();}
   function box(x0,x1,y0,y1,z0,z1,ay,b){var v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){edge(v[e[0]],v[e[1]],ay,b);});}
-  function wheel(wx,wy,wz,R,ay){var N=16,w=7,i,a,prev;for(var s=0;s<2;s++){var zf=wz+(s?w:-w);prev=null;for(i=0;i<=N;i++){a=i/N*2*Math.PI;var pt=[wx+Math.cos(a)*R,wy+Math.sin(a)*R,zf];if(prev)edge(prev,pt,ay,.85);prev=pt;}}for(i=0;i<N;i+=2){a=i/N*2*Math.PI;edge([wx+Math.cos(a)*R,wy+Math.sin(a)*R,wz-w],[wx+Math.cos(a)*R,wy+Math.sin(a)*R,wz+w],ay,.5);}prev=null;for(i=0;i<=N;i++){a=i/N*2*Math.PI;var q=[wx+Math.cos(a)*R*.42,wy+Math.sin(a)*R*.42,wz+w];if(prev)edge(prev,q,ay,.7);prev=q;}}
-  function base(ay){for(var s=0;s<2;s++){var R=s?60:74,prev=null;for(var i=0;i<=48;i++){var a=i/48*2*Math.PI,pt=[Math.cos(a)*R,-30,Math.sin(a)*R];if(prev)edge(prev,pt,ay,.26);prev=pt;}}for(var j=0;j<24;j++){var aa=j/24*2*Math.PI;edge([Math.cos(aa)*62,-30,Math.sin(aa)*62],[Math.cos(aa)*74,-30,Math.sin(aa)*74],ay,.28);}}
-  (function d(){t+=.006;var ay=t;x.clearRect(0,0,300,200);x.save();x.lineWidth=1.15;x.shadowColor="rgba(255,150,70,.55)";x.shadowBlur=5;
-    base(ay*.5);box(-46,46,-8,8,-22,22,ay,.85);box(-40,40,-15,-9,-16,16,ay,.5);box(-20,26,8,30,-16,16,ay,.78);
-    edge([-20,30,-16],[26,30,16],ay,.4);edge([26,30,-16],[-20,30,16],ay,.4);edge([26,30,0],[26,55,0],ay,.85);
-    var ap=tf([26,55,0],ay);x.fillStyle="#ffd7a0";x.beginPath();x.arc(ap[0],ap[1],2.4,0,7);x.fill();
-    wheel(-30,-14,-24,17,ay);wheel(30,-14,-24,17,ay);wheel(-30,-14,24,17,ay);wheel(30,-14,24,17,ay);x.restore();requestAnimationFrame(d);})();
+  function ring(cx,cy,cz,R,ay){var pv=null;for(var i=0;i<=12;i++){var a=i/12*TAU,pt=[cx,cy+Math.cos(a)*R,cz+Math.sin(a)*R];if(pv)edge(pv,pt,ay,.5);pv=pt;}}
+  /* big knobby tire with 5-spoke star hub (matches the gold-rim wheels) */
+  function wheel(wx,wy,wz,R,ay){var N=13,w=6.5,i,a,f=(wx<0?-1:1),io=wx-w*f,oo=wx+w*f,cy,sz;
+    for(var s=0;s<2;s++){var xf=(s?oo:io),pv=null;for(i=0;i<=N;i++){a=i/N*TAU;var pt=[xf,wy+Math.cos(a)*R,wz+Math.sin(a)*R];if(pv)edge(pv,pt,ay,.84);pv=pt;}}
+    for(i=0;i<N;i++){a=i/N*TAU;cy=Math.cos(a);sz=Math.sin(a);
+      if(i%2===0)edge([io,wy+cy*R,wz+sz*R],[oo,wy+cy*R,wz+sz*R],ay,.32);
+      edge([wx,wy+cy*R,wz+sz*R],[wx,wy+cy*(R+2.6),wz+sz*(R+2.6)],ay,.5);}                              /* knobby lugs */
+    var hr=R*.5;ring(oo,wy,wz,hr,ay);                                                                   /* rim */
+    for(i=0;i<5;i++){a=i/5*TAU+.3;edge([oo,wy,wz],[oo,wy+Math.cos(a)*hr,wz+Math.sin(a)*hr],ay,.5);}     /* 5 spokes */
+  }
+  function axle(z,ay){var y=-11;edge([-31,y,z],[31,y,z],ay,.7);ring(-5,y,z,5,ay);ring(5,y,z,5,ay);edge([-5,y,z],[5,y,z],ay,.4);} /* solid axle + gearbox barrel */
+  /* coil-over shock: a real helix spring between chassis mount a and axle mount b */
+  function coil(a,b,turns,R,spt,ay){var dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2],L=Math.hypot(dx,dy,dz)||1,ux=dx/L,uy=dy/L,uz=dz/L;
+    var hx=Math.abs(uy)<.9?0:1,hy=Math.abs(uy)<.9?1:0;
+    var px=-uz*hy,py=uz*hx,pz=ux*hy-uy*hx,pl=Math.hypot(px,py,pz)||1;px/=pl;py/=pl;pz/=pl;
+    var qx=uy*pz-uz*py,qy=uz*px-ux*pz,qz=ux*py-uy*px,M=Math.round(turns*spt),pv=null;
+    for(var i=0;i<=M;i++){var tt=i/M,an=tt*turns*TAU,c=Math.cos(an),s=Math.sin(an);
+      var pt=[a[0]+dx*tt+(px*c+qx*s)*R,a[1]+dy*tt+(py*c+qy*s)*R,a[2]+dz*tt+(pz*c+qz*s)*R];
+      if(pv)edge(pv,pt,ay,.6);pv=pt;}}
+  function shock(sx,zc,ay){coil([sx*13,9,zc*.55],[sx*25,-11,zc],5,3.1,6,ay);edge([sx*12,-3,zc*.5],[sx*27,-11,zc],ay,.4);} /* spring + lower link */
+  function base(ay){var pv=null,i,a;for(i=0;i<=40;i++){a=i/40*TAU;var pt=[Math.cos(a)*76,-30,Math.sin(a)*76];if(pv)edge(pv,pt,ay,.16);pv=pt;}for(i=0;i<20;i++){a=i/20*TAU;edge([Math.cos(a)*64,-30,Math.sin(a)*64],[Math.cos(a)*76,-30,Math.sin(a)*76],ay,.18);}}
+  var _last=0;(function d(ts){requestAnimationFrame(d);if(ts-_last<32)return;_last=ts;t+=.012;var ay=t;x.clearRect(0,0,300,200);x.lineWidth=1.15;
+    base(ay*.5);
+    var xr=14,yb=-4,yt=1;                                            /* flat open chassis: 2 side rails + crossmembers */
+    edge([-xr,yb,-30],[-xr,yb,30],ay,.82);edge([xr,yb,-30],[xr,yb,30],ay,.82);
+    edge([-xr,yt,-28],[-xr,yt,28],ay,.5);edge([xr,yt,-28],[xr,yt,28],ay,.5);
+    [-28,-12,4,20,28].forEach(function(z){edge([-xr,yb,z],[xr,yb,z],ay,.44);edge([-xr,yb,z],[-xr,yt,z],ay,.3);edge([xr,yb,z],[xr,yt,z],ay,.3);});
+    edge([-xr,yb,30],[0,yb-3,37],ay,.5);edge([xr,yb,30],[0,yb-3,37],ay,.5);                          /* front skid taper */
+    edge([-xr,yb,-30],[0,yb-2,-36],ay,.45);edge([xr,yb,-30],[0,yb-2,-36],ay,.45);                    /* rear taper */
+    box(-11,11,yt,9,-13,13,ay,.6);[-8,-4,0,4,8].forEach(function(z){edge([-11,9,z],[11,9,z],ay,.28);}); /* battery box + ribs */
+    axle(26,ay);axle(-26,ay);
+    shock(-1,26,ay);shock(1,26,ay);shock(-1,-26,ay);shock(1,-26,ay);               /* 4 coil-over shocks */
+    edge([-3,9,2],[0,15,-3],ay,.5);edge([0,15,-3],[4,14,-7],ay,.5);edge([4,14,-7],[6,9,-9],ay,.45);   /* draped wires */
+    var ap=tf([6,15,-8],ay);x.fillStyle="#ffd7a0";x.beginPath();x.arc(ap[0],ap[1],1.8,0,TAU);x.fill();
+    wheel(-30,-11,26,17,ay);wheel(30,-11,26,17,ay);wheel(-30,-11,-26,17,ay);wheel(30,-11,-26,17,ay);
+  })(0);
 })();
-/* ===== fit everything to one screen (no scrolling) ===== */
+/* ===== live audio input bars (real height animation, state-driven) ===== */
+(function(){
+  var wrap=document.querySelector(".items-end.h-16")||document.querySelector("div.items-end.justify-between");
+  if(!wrap)return;
+  var bars=[].slice.call(wrap.children).filter(function(e){return e.tagName==="SPAN";});
+  if(!bars.length)return;
+  bars.forEach(function(b){b.classList.remove("animate-pulse");b.style.transition="none";b.style.willChange="height";b.style.height="14%";});
+  // status label element (RESPONDING / PROCESSING / LISTENING… / MIC OFFLINE)
+  var lbl=[].slice.call(document.querySelectorAll("span")).filter(function(s){return /LISTENING|PROCESSING|RESPONDING|OFFLINE|ONLINE/.test(s.textContent)&&/text-primary-fixed/.test(s.className);})[0]
+        ||[].slice.call(document.querySelectorAll("span")).filter(function(s){return /^LISTENING/.test(s.textContent.trim());})[0];
+  function stateAmp(){var t=lbl?lbl.textContent:"";
+    if(/RESPOND/.test(t))return .95; if(/PROCESS/.test(t))return .42;
+    if(/OFFLINE/.test(t))return .05; if(/LISTEN/.test(t))return .5; return .28;}
+  // Python can push a real input level: window.novaLevel(0..1 or 0..100)
+  window.novaLevel=function(v){if(typeof v!=="number")return;if(v>1)v=v/100;window.__nvLvl=Math.max(0,Math.min(1,v));window.__nvLvlT=Date.now();};
+  var cur=bars.map(function(){return 14;}),amp=.14,t=0,last=0,N=bars.length;
+  (function loop(ts){requestAnimationFrame(loop);if(ts-last<33)return;last=ts;t+=.09;
+    var fresh=(window.__nvLvlT&&Date.now()-window.__nvLvlT<400),
+        target=fresh?(.1+window.__nvLvl*.9):stateAmp();
+    amp+=(target-amp)*.14;
+    for(var i=0;i<N;i++){
+      var w=.5+.5*Math.sin(t*1.8+i*.55)*Math.cos(t*.9+i*.27)+ (Math.random()-.5)*.12,
+          h=12+amp*86*Math.max(0,Math.min(1,w));
+      cur[i]+=(h-cur[i])*.34;
+      bars[i].style.height=cur[i].toFixed(1)+"%";
+      bars[i].style.opacity=(.55+amp*.45).toFixed(2);
+    }
+  })(0);
+})();
+/* ===== fill the full width (bigger, no left/right gaps); scroll vertically ===== */
 (function(){var header=document.querySelector("header"),main=document.querySelector("main");if(!header||!main)return;
-  var sc=document.createElement("div");sc.id="nv-scaler";sc.style.cssText="transform-origin:top center;width:100%";
-  document.body.insertBefore(sc,header);sc.appendChild(header);sc.appendChild(main);
-  function fit(){sc.style.transform="none";var h=sc.scrollHeight,w=sc.scrollWidth,vh=window.innerHeight,vw=window.innerWidth;
-    var s=Math.min(1,(vh-4)/h,vw/w);sc.style.transform="scale("+s+")";
-    var d=document.documentElement,b=document.body;d.style.height=b.style.height="100vh";d.style.overflow=b.style.overflow="hidden";b.style.minHeight="0";}
-  fit();window.addEventListener("resize",fit);[150,500,1200,2500].forEach(function(t){setTimeout(fit,t);});})();
+  var outer=document.createElement("div");outer.id="nv-scaler";outer.style.cssText="width:100%;overflow:hidden";
+  var inner=document.createElement("div");inner.style.cssText="transform-origin:top center;width:100%";
+  document.body.insertBefore(outer,header);inner.appendChild(header);inner.appendChild(main);outer.appendChild(inner);
+  // compact the layout vertically so it fills a landscape screen with big text and NO scroll
+  var cs=document.createElement("style");
+  cs.textContent="main{gap:12px!important}"
+    +"main .corner-bracket,main .p-5{padding:12px 14px!important}"
+    +"main .my-2{margin:8px 0!important}main .mt-3,main .pt-4{margin-top:8px!important;padding-top:8px!important}"
+    +"main .pt-2\\.5{padding-top:8px!important}main .mb-3,main .mb-2{margin-bottom:6px!important}main .pb-2{padding-bottom:6px!important}"
+    +"main .space-y-3>*+*{margin-top:5px!important}main .space-y-1\\.5>*+*{margin-top:3px!important}"
+    +"main .h-36{height:104px!important}main .h-16{height:52px!important}"
+    +"main .py-4{padding-top:8px!important;padding-bottom:8px!important}"
+    +"main svg{max-height:300px!important}"                     // cap the reactor so wider center != taller
+    +"main .lg\\:col-span-3>div{flex:1 1 auto}";               // side panels grow to fill the full column height
+  document.head.appendChild(cs);
+  var raf=0;
+  function fit(){inner.style.transform="none";
+    var w=inner.scrollWidth,h=inner.scrollHeight,vw=window.innerWidth,vh=window.innerHeight;
+    if(!w||!vw||!vh)return;                              // layout not ready -> retry next tick
+    var s=Math.min(1.6,vw/w,(vh-2)/h);                   // fill width AND height -> no scroll
+    inner.style.transform="scale("+s+")";
+    outer.style.height=(h*s)+"px";
+    var d=document.documentElement,b=document.body;
+    d.style.overflow=b.style.overflow="hidden";d.style.height=b.style.height="100vh";b.style.minHeight="0";}
+  function refit(){cancelAnimationFrame(raf);raf=requestAnimationFrame(fit);}
+  fit();
+  window.addEventListener("resize",refit);
+  window.addEventListener("load",refit);
+  [80,200,450,900,1600,2600,4000].forEach(function(t){setTimeout(fit,t);});
+  if(window.ResizeObserver){try{new ResizeObserver(refit).observe(inner);}catch(e){}}
+})();
+/* ===== wire the RC CRAWLER // MK-IV panel: working buttons + live telemetry ===== */
+(function(){
+  function api(m,a){try{var A=window.pywebview&&window.pywebview.api;if(A&&A[m])return a!==undefined?A[m](a):A[m]();}catch(e){}return Promise.reject();}
+  function bt(txt){var e=document.querySelectorAll("span");for(var i=0;i<e.length;i++)if(e[i].textContent.trim()===txt)return e[i];return null;}
+  function rowVal(part){var e=document.querySelectorAll("span");for(var i=0;i<e.length;i++)if(e[i].textContent.indexOf(part)>=0){var sp=e[i].parentElement.querySelectorAll("span");return sp[sp.length-1];}return null;}
+  var title=bt("RC CRAWLER // MK-IV"), panel=title&&title.closest(".rounded");
+  if(!panel){window.addEventListener("pywebviewready",function(){});return;}
+
+  // --- live-telemetry element refs ---
+  var linked = bt("LINKED");
+  var rssiV  = rowVal("WIRELESS TELEM");
+  var steerV = rowVal("STEERING SERVO");
+  var thrLbl = bt("THROTTLE BIAS");
+  var thrRow = thrLbl && thrLbl.closest("div");
+  var thrV   = thrRow && thrRow.querySelectorAll("span")[1];
+  var thrBar = thrRow && thrRow.nextElementSibling && thrRow.nextElementSibling.querySelector("div");
+
+  // --- inject a drive D-pad above the mode buttons ---
+  var modeBtns=[].slice.call(panel.querySelectorAll("button"));   // CRAWL/LOW, SPORT/HIGH, AUTO WAYPOINT
+  var modeRow = modeBtns[0] && modeBtns[0].parentElement;
+  if(modeRow){
+    var dpad=document.createElement("div");
+    dpad.style.cssText="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:8px 0";
+    dpad.innerHTML='<span></span><button data-d="forward" class="nvd">FWD</button><span></span>'
+      +'<button data-d="left" class="nvd">LEFT</button><button data-d="stop" class="nvd" data-stop="1">STOP</button><button data-d="right" class="nvd">RIGHT</button>'
+      +'<span></span><button data-d="back" class="nvd">REV</button><button data-d="center" class="nvd">CTR</button>';
+    modeRow.parentElement.insertBefore(dpad, modeRow);
+    [].slice.call(dpad.querySelectorAll(".nvd")).forEach(function(b){
+      var stop=b.getAttribute("data-stop");
+      b.style.cssText="font-family:inherit;font-size:9px;font-weight:700;letter-spacing:.05em;padding:6px 0;cursor:pointer;border-radius:4px;border:1px solid "+(stop?"#ff6b5a":"rgba(255,154,66,.4)")+";background:"+(stop?"rgba(255,107,90,.14)":"rgba(255,154,66,.09)")+";color:"+(stop?"#ff6b5a":"#ffcfa0")+"";
+      b.addEventListener("click",function(){api("drive",b.getAttribute("data-d"));});
+    });
+  }
+
+  // --- wire the 3 mode buttons to speed presets ---
+  function setActive(sel){modeBtns.forEach(function(b){var on=(b===sel);
+    b.className="flex-1 py-1.5 font-label-caps text-[9px] rounded text-center transition-all "+(on?"bg-primary-container text-on-primary-container font-bold shadow-[0_0_8px_rgba(255,154,66,0.5)]":"bg-surface-container-high text-on-surface-variant border border-primary-container/20");});}
+  modeBtns.forEach(function(b){var t=b.textContent.trim();b.style.cursor="pointer";
+    b.addEventListener("click",function(){
+      if(/CRAWL/.test(t)){api("drive","speed 45");setActive(b);}
+      else if(/SPORT/.test(t)){api("drive","speed 100");setActive(b);}
+      /* AUTO WAYPOINT -> Phase C autonomy, not built yet */
+    });});
+
+  // --- WASD keys (ignore while typing in the command bar) ---
+  document.addEventListener("keydown",function(e){
+    if(document.activeElement&&document.activeElement.id==="nv-cmd")return;
+    var map={w:"forward",s:"back",a:"left",d:"right",x:"stop"," ":"stop",c:"center"},k=e.key.toLowerCase();
+    if(map[k]){api("drive",map[k]);e.preventDefault();}
+  });
+
+  // --- live feed ---
+  function cpoll(){api("stats").then(function(s){if(!s||!s.car)return;var c=s.car,live=c.online&&c.fresh;
+    if(linked){linked.textContent=live?"LINKED":"NO LINK";linked.style.color=live?"":"#ff6b5a";}
+    var sig=c.rssi!=null?Math.max(0,Math.min(100,Math.round((c.rssi+90)/50*100))):0;
+    if(rssiV)rssiV.textContent=(c.rssi!=null?c.rssi:"--")+" dBm RSSI ["+sig+"%]";
+    if(steerV)steerV.textContent=({left:"LEFT",right:"RIGHT",center:"0.0°"}[c.steer]||"0.0°")+" [ACTIVE]";
+    if(thrV)thrV.textContent=({forward:"FORWARD",back:"REVERSE",stop:"IDLE"}[c.throttle]||"IDLE");
+    if(thrBar)thrBar.style.width=(c.throttle==="stop"||!c.throttle?0:100)+"%";
+  }).catch(function(){});}
+  if(window.pywebview&&window.pywebview.api){cpoll();setInterval(cpoll,1200);}
+  else window.addEventListener("pywebviewready",function(){cpoll();setInterval(cpoll,1200);});
+})();
 </script>
 </body></html>

@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""Nova light control panel — a local web UI for the MELK/ELK-BLEDOM BLE strip.
+
+  python3 light_panel.py            # serves http://localhost:8099  (launch from Terminal.app for the mic)
+  open http://localhost:8099
+
+Reuses lights.py (same BLE device + command builders) but holds ONE persistent
+BLE connection in a background asyncio thread for snappy colour-wheel response.
+Features: on/off, colour wheel, brightness, effects + speed, a music-reactive
+'Listen' mode (mic), and an auto-off timer. Close the phone app first (one BLE link).
+"""
+import asyncio, threading, queue, time, sys, os, colorsys
+import http.server, socketserver, urllib.parse
+sys.path.insert(0, os.path.expanduser("~/anish-ai"))
+import lights  # ADDR, CHAR, ON, OFF, _rgb, _bri, _effect, _speed, EFFECTS
+
+PORT = 8099
+CMDQ = queue.Queue()
+STATE = {"connected": False, "on": False, "listen": False, "timer_at": None}
+_listen_thread = None
+_timer_thread = None
+
+def send(data):
+    CMDQ.put(data)
+
+# ---------- persistent BLE connection ----------
+async def _ble_loop():
+    from bleak import BleakClient
+    while True:
+        try:
+            async with BleakClient(lights.ADDR, timeout=20) as c:
+                STATE["connected"] = True
+                print("BLE connected")
+                while True:
+                    try:
+                        data = CMDQ.get_nowait()
+                        await c.write_gatt_char(lights.CHAR, data, response=False)
+                    except queue.Empty:
+                        await asyncio.sleep(0.03)
+        except Exception as e:
+            STATE["connected"] = False
+            print("BLE reconnect in 2s:", str(e)[:70])
+            await asyncio.sleep(2)
+
+def _start_ble():
+    asyncio.run(_ble_loop())
+
+# ---------- music-reactive listen mode ----------
+def _listen_loop():
+    try:
+        import pyaudio, numpy as np
+    except Exception as e:
+        print("listen needs pyaudio/numpy:", e); STATE["listen"] = False; return
+    pa = pyaudio.PyAudio()
+    try:
+        st = pa.open(rate=16000, channels=1, format=pyaudio.paInt16, input=True, frames_per_buffer=1024)
+    except Exception as e:
+        print("mic open failed:", e); STATE["listen"] = False; pa.terminate(); return
+    hue, ema = 0.0, 0.0
+    while STATE["listen"]:
+        try:
+            buf = np.frombuffer(st.read(1024, exception_on_overflow=False), dtype=np.int16).astype(np.float32)
+        except Exception:
+            break
+        rms = float(np.sqrt(np.mean(buf ** 2)))
+        level = min(1.0, rms / 2500.0)
+        ema = 0.6 * ema + 0.4 * level                      # smooth the loudness
+        hue = (hue + 0.006 + ema * 0.04) % 1.0             # hue drifts, faster when louder
+        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, max(0.08, ema))]
+        send(lights._rgb(r, g, b))
+        time.sleep(0.05)
+    try: st.close()
+    except Exception: pass
+    pa.terminate()
+    print("listen stopped")
+
+def _start_listen():
+    global _listen_thread
+    if STATE["listen"]:
+        return
+    STATE["listen"] = True
+    _listen_thread = threading.Thread(target=_listen_loop, daemon=True)
+    _listen_thread.start()
+
+def _stop_listen():
+    STATE["listen"] = False
+
+# ---------- auto-off timer ----------
+def _set_timer(minutes):
+    global _timer_thread
+    STATE["timer_at"] = time.time() + minutes * 60
+
+    def run(deadline):
+        while STATE["timer_at"] == deadline and time.time() < deadline:
+            time.sleep(1)
+        if STATE["timer_at"] == deadline:                  # not cancelled/replaced
+            _stop_listen(); send(lights.OFF); STATE["on"] = False; STATE["timer_at"] = None
+            print("timer -> lights off")
+    _timer_thread = threading.Thread(target=run, args=(STATE["timer_at"],), daemon=True)
+    _timer_thread.start()
+
+def _cancel_timer():
+    STATE["timer_at"] = None
+
+# ---------- HTTP ----------
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+
+    def _send(self, body, ctype="application/json"):
+        b = body.encode() if isinstance(body, str) else body
+        self.send_response(200); self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
+
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path)
+        q = urllib.parse.parse_qs(u.query)
+        g = lambda k, d=0: int(q.get(k, [d])[0])
+        path = u.path
+
+        if path in ("/", "/index.html"):
+            return self._send(PAGE, "text/html; charset=utf-8")
+        if path == "/on":
+            send(lights.ON); STATE["on"] = True
+        elif path == "/off":
+            _stop_listen(); send(lights.OFF); STATE["on"] = False
+        elif path == "/color":
+            _stop_listen(); send(lights.ON); send(lights._rgb(g("r"), g("g"), g("b"))); STATE["on"] = True
+        elif path == "/brightness":
+            send(lights.ON); send(lights._bri(g("v"))); STATE["on"] = True
+        elif path == "/effect":
+            name = q.get("name", ["party"])[0]
+            eid = lights.EFFECTS.get(name, 0x88)
+            _stop_listen(); send(lights.ON); send(lights._effect(eid)); STATE["on"] = True
+        elif path == "/speed":
+            send(lights._speed(g("v", 50)))
+        elif path == "/raw":                                   # voice/lights.py routes raw bytes through here
+            try: send(bytes.fromhex(q.get("hex", [""])[0]))
+            except Exception: pass
+        elif path == "/listen":
+            (_start_listen if g("on") else _stop_listen)()
+        elif path == "/timer":
+            m = g("min"); (_set_timer(m) if m > 0 else _cancel_timer())
+        elif path == "/state":
+            left = max(0, int(STATE["timer_at"] - time.time())) if STATE["timer_at"] else 0
+            return self._send('{"connected":%s,"on":%s,"listen":%s,"timer":%d}' % (
+                str(STATE["connected"]).lower(), str(STATE["on"]).lower(),
+                str(STATE["listen"]).lower(), left))
+        else:
+            self.send_response(404); self.end_headers(); return
+        return self._send('{"ok":true}')
+
+
+PAGE = r"""<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nova Lights</title>
+<style>
+  :root{--bg:#07090e;--panel:#111722;--line:#223047;--ink:#e8eefc;--dim:#7d8aa3;
+    --accent:#22d3ee;--accent2:#ff8a3c;--ok:#39e08f;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  body{margin:0;background:radial-gradient(900px 500px at 50% -10%,#101a2e,var(--bg));
+    color:var(--ink);font-family:ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+    min-height:100dvh;padding:18px;display:flex;flex-direction:column;align-items:center;gap:16px}
+  h1{font-size:18px;letter-spacing:3px;font-weight:700;margin:4px 0 0;color:#fff}
+  h1 small{display:block;font-size:11px;letter-spacing:4px;color:var(--accent);font-weight:600;margin-top:2px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:middle}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);
+    border-radius:18px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  /* colour wheel */
+  .wheelwrap{display:flex;justify-content:center;margin:4px 0 10px}
+  #wheel{position:relative;width:240px;height:240px;border-radius:50%;cursor:pointer;touch-action:none;
+    background:
+      radial-gradient(circle,#fff 0%,rgba(255,255,255,0) 70%),
+      conic-gradient(red,#ff0,lime,cyan,blue,magenta,red);
+    box-shadow:0 0 0 3px var(--line),inset 0 0 40px rgba(0,0,0,.25)}
+  #mk{position:absolute;width:22px;height:22px;border-radius:50%;border:3px solid #fff;
+    transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(0,0,0,.6);left:50%;top:50%;pointer-events:none}
+  .row{display:flex;gap:8px;margin-top:10px}
+  .row.wrap{flex-wrap:wrap}
+  button{flex:1;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:1px;color:var(--ink);
+    background:#192234;border:1px solid var(--line);border-radius:12px;padding:12px 8px;cursor:pointer;transition:.1s}
+  button:active{transform:translateY(1px)}
+  button.p{background:var(--accent);color:#06121a;border-color:transparent}
+  button.o{background:var(--accent2);color:#1a0d04;border-color:transparent}
+  button.live{outline:2px solid var(--ok)}
+  .lbl{font-size:11px;letter-spacing:2px;color:var(--dim);margin:14px 0 6px;text-transform:uppercase}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .swatch{width:34px;height:34px;border-radius:9px;border:2px solid var(--line);flex:none}
+  .fx{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .fx button{padding:11px 4px;font-size:12px}
+  .timer{display:flex;gap:8px;align-items:center}
+  .timer input{width:70px;background:#192234;border:1px solid var(--line);color:var(--ink);
+    border-radius:10px;padding:10px;font-family:inherit;font-size:15px;text-align:center}
+  .t{font-size:12px;color:var(--dim);min-height:16px}
+</style></head><body>
+  <h1><span class="dot" id="cdot"></span>NOVA LIGHTS<small>BLUETOOTH · LOCAL</small></h1>
+
+  <div class="card">
+    <div class="wheelwrap"><div id="wheel"><div id="mk"></div></div></div>
+    <div class="row">
+      <button class="p" onclick="go('/on')">⏻ ON</button>
+      <div class="swatch" id="sw"></div>
+      <button onclick="go('/off')">OFF</button>
+    </div>
+
+    <div class="lbl">Brightness</div>
+    <input type="range" id="bri" min="1" max="100" value="100" oninput="bri(this.value)">
+
+    <div class="lbl">Effects</div>
+    <div class="fx">
+      <button onclick="fx('party')">Party</button>
+      <button onclick="fx('fade')">Fade</button>
+      <button onclick="fx('cycle')">Cycle</button>
+      <button onclick="fx('strobe')">Strobe</button>
+    </div>
+    <div class="lbl">Effect speed</div>
+    <input type="range" id="spd" min="1" max="100" value="50" oninput="spd(this.value)">
+
+    <div class="lbl">Listen (music → colour)</div>
+    <div class="row"><button id="lbtn" class="o" onclick="toggleListen()">🎵 START LISTENING</button></div>
+
+    <div class="lbl">Auto-off timer</div>
+    <div class="timer">
+      <input type="number" id="min" placeholder="min" min="1" value="30">
+      <button onclick="timer()">Set</button>
+      <button onclick="go('/timer?min=0');msg('')">Cancel</button>
+    </div>
+    <div class="t" id="tmsg"></div>
+  </div>
+
+<script>
+const $=s=>document.querySelector(s);
+let listening=false;
+function go(p){return fetch(p).catch(()=>{});}
+function msg(t){$("#tmsg").textContent=t;}
+
+// colour wheel
+const wheel=$("#wheel"), mk=$("#mk"), sw=$("#sw");
+let dragging=false, lastSend=0;
+function hsv2rgb(h,s,v){let f=(n,k=(n+h*6)%6)=>v-v*s*Math.max(Math.min(k,4-k,1),0);
+  return [f(5),f(3),f(1)].map(x=>Math.round(x*255));}
+function pick(e){
+  const r=wheel.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, R=r.width/2;
+  let x=e.clientX-cx, y=e.clientY-cy; let d=Math.hypot(x,y);
+  if(d>R){x*=R/d; y*=R/d; d=R;}                              // clamp inside the wheel
+  const sat=Math.min(1,d/R);
+  let hue=((Math.atan2(x,-y)*180/Math.PI)+360)%360/360;      // clockwise from TOP = conic-gradient order (red@top)
+  mk.style.left=(50+x/R*50)+"%"; mk.style.top=(50+y/R*50)+"%";  // marker sits under the finger
+  const [rr,gg,bb]=hsv2rgb(hue,sat,1); sw.style.background=`rgb(${rr},${gg},${bb})`;
+  const now=Date.now(); if(now-lastSend>70){lastSend=now; go(`/color?r=${rr}&g=${gg}&b=${bb}`); setListen(false);}
+}
+wheel.addEventListener("pointerdown",e=>{dragging=true;wheel.setPointerCapture(e.pointerId);pick(e);});
+wheel.addEventListener("pointermove",e=>{if(dragging)pick(e);});
+wheel.addEventListener("pointerup",e=>{dragging=false;pick(e);});
+
+function bri(v){go(`/brightness?v=${v}`);}
+function spd(v){go(`/speed?v=${v}`);}
+function fx(n){go(`/effect?name=${n}`);setListen(false);}
+function timer(){const m=+$("#min").value||0; if(m>0){go(`/timer?min=${m}`);msg(`Off in ${m} min.`);}}
+function setListen(on){listening=on; $("#lbtn").classList.toggle("live",on);
+  $("#lbtn").textContent=on?"🎵 LISTENING… (tap to stop)":"🎵 START LISTENING";}
+function toggleListen(){setListen(!listening); go(`/listen?on=${listening?1:0}`);}
+
+// poll state (connection dot + timer countdown)
+setInterval(async()=>{try{const s=await (await fetch("/state")).json();
+  $("#cdot").classList.toggle("on",s.connected);
+  if(s.timer>0)msg(`Off in ${Math.ceil(s.timer/60)} min.`);
+  if(s.listen!==listening)setListen(s.listen);
+}catch(e){}},1500);
+</script>
+</body></html>"""
+
+
+def main():
+    threading.Thread(target=_start_ble, daemon=True).start()
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    srv = socketserver.ThreadingTCPServer(("0.0.0.0", PORT), H)
+    print("Nova Lights panel -> http://localhost:%d  (close the phone app first)" % PORT)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

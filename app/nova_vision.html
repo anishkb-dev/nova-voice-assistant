@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>NOVA · VISION</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05080d; --bg2:#0a0f18; --panel:#0b111c; --panel2:#0e1524;
+    --line:#16283b; --line2:#1e3348;
+    --cyan:#22d3ee; --cyan-dim:#0e7d92; --orange:#ff8a3c;
+    --txt:#cfe0f0; --dim:#5c6f84; --faint:#33455a;
+    --ok:#39e08f; --bad:#ff445e; --warn:#ffc24b;
+    --glow:0 0 18px rgba(34,211,238,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 700px at 50% -10%, #0c1626 0%, var(--bg) 60%);
+    color:var(--txt); font-family:"Rajdhani",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100dvh;
+    padding:16px; display:flex; flex-direction:column; gap:14px;
+  }
+  .mono{font-family:"Share Tech Mono",ui-monospace,monospace}
+  /* scanline overlay */
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.14) 2px 3px);
+    mix-blend-mode:overlay;opacity:.5}
+
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:12px 16px;border:1px solid var(--line);border-radius:12px;
+    background:linear-gradient(180deg,rgba(20,40,59,.35),rgba(11,17,28,.6));
+    position:relative;overflow:hidden}
+  header::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);box-shadow:var(--glow)}
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand b{font-size:26px;font-weight:700;letter-spacing:3px;color:#eaf6ff;text-shadow:0 0 14px rgba(34,211,238,.5)}
+  .brand .sub{font-size:13px;letter-spacing:6px;color:var(--cyan);font-weight:600}
+  .spacer{flex:1}
+  .stat{display:flex;align-items:center;gap:7px;font-size:13px;letter-spacing:1px;color:var(--dim)}
+  .stat b{color:var(--txt);font-weight:600}
+  .clock{font-size:15px;color:var(--cyan);letter-spacing:2px}
+
+  .grid{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;min-height:0}
+  @media (max-width:820px){.grid{grid-template-columns:1fr}}
+
+  .cam{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    background:#02040a;display:flex;flex-direction:column;min-height:260px}
+  .cam.live{border-color:#1c4a52;box-shadow:0 0 0 1px rgba(34,211,238,.15),inset 0 0 60px rgba(34,211,238,.05)}
+  /* HUD corner brackets */
+  .cam .br{position:absolute;width:22px;height:22px;border:2px solid var(--cyan);z-index:6;pointer-events:none;opacity:.8}
+  .br.tl{top:8px;left:8px;border-right:none;border-bottom:none}
+  .br.tr{top:8px;right:8px;border-left:none;border-bottom:none}
+  .br.bl{bottom:8px;left:8px;border-right:none;border-top:none}
+  .br.brr{bottom:8px;right:8px;border-left:none;border-top:none}
+
+  .cam .bar{display:flex;align-items:center;gap:10px;padding:9px 12px;z-index:7;
+    background:linear-gradient(180deg,rgba(6,12,22,.85),rgba(6,12,22,0));position:absolute;left:0;right:0;top:0}
+  .id{font-weight:700;letter-spacing:2px;font-size:15px;color:#dff2ff}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 8px var(--bad);flex:none}
+  .cam.live .dot{background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .tag{font-size:11px;letter-spacing:1px;color:var(--dim)} .tag b{color:var(--cyan)}
+  .barspace{flex:1}
+  .btn{cursor:pointer;border:1px solid var(--line2);background:rgba(14,21,36,.7);color:var(--txt);
+    border-radius:7px;padding:5px 9px;font-size:12px;letter-spacing:1px;font-family:inherit}
+  .btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+  .view{flex:1;position:relative;display:flex;align-items:center;justify-content:center;background:#01030a;min-height:0}
+  .view img{width:100%;height:100%;object-fit:cover;display:block}
+  .off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    color:var(--dim);text-align:center;padding:20px}
+  .off .big{font-size:16px;letter-spacing:4px;color:var(--warn)}
+  .off .small{font-size:12px;letter-spacing:1px}
+  .cam.live .off{display:none}
+
+  .footbar{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:12px;letter-spacing:1px;
+    color:var(--dim);border-top:1px solid var(--line);background:rgba(6,12,22,.5);z-index:7}
+  .footbar .k{color:var(--cyan)}
+
+  footer{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:12px;letter-spacing:1px;color:var(--dim);
+    padding:6px 4px}
+  footer .gear{cursor:pointer;color:var(--dim)} footer .gear:hover{color:var(--cyan)}
+  a{color:var(--cyan);text-decoration:none}
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand"><b>NOVA</b><span class="sub">VISION</span></div>
+    <div class="spacer"></div>
+    <div class="stat">FEEDS <b id="onlineCount">0/2</b></div>
+    <div class="stat">NET <b>192.168.68.x</b></div>
+    <div class="clock mono" id="clock">--:--:--</div>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    <span>NOVA crawler vision array · <span id="feedCount">2</span> feeds</span>
+    <span class="spacer" style="flex:1"></span>
+    <span class="gear mono" id="cfg">⚙ CONFIGURE FEEDS</span>
+  </footer>
+
+<script>
+(function(){
+  // --- camera config (editable via the gear, saved per-browser) ---
+  var DEFAULTS = [
+    {id:"CAM 01", ip:"192.168.68.114"},
+    {id:"CAM 02", ip:"192.168.68.118"}
+  ];
+  var KEY = "nova.cams.v4";            // v4: CAM 01 moved .115 -> .114 (DHCP drift); bump key to drop cached IPs
+  function loadCams(){
+    try{ var s=localStorage.getItem(KEY); if(s) return JSON.parse(s); }catch(e){}
+    return DEFAULTS.slice();
+  }
+  function saveCams(c){ try{ localStorage.setItem(KEY, JSON.stringify(c)); }catch(e){} }
+  var cams = loadCams();
+
+  var grid = document.getElementById("grid");
+  var online = cams.map(function(){ return false; });
+  var paused = cams.map(function(){ return false; });
+
+  function streamURL(ip){ return "http://"+ip+":81/stream"; }
+  function stillURL(ip){ return "http://"+ip+"/capture?_="+Date.now(); }
+
+  function build(){
+    var fc=document.getElementById("feedCount"); if(fc) fc.textContent=cams.length;
+    grid.innerHTML="";
+    cams.forEach(function(cam, i){
+      var el = document.createElement("div");
+      el.className="cam"; el.id="cam"+i;
+      el.innerHTML =
+        '<span class="br tl"></span><span class="br tr"></span><span class="br bl"></span><span class="br brr"></span>'+
+        '<div class="bar"><span class="dot"></span><span class="id">'+cam.id+'</span>'+
+          '<span class="tag mono">SRC <b>'+cam.ip+'</b></span><span class="barspace"></span>'+
+          '<span class="btn tog" data-act="toggle" data-i="'+i+'">◼ STOP</span>'+
+          '<span class="btn" data-act="snap" data-i="'+i+'">◉ SNAP</span>'+
+          '<span class="btn" data-act="full" data-i="'+i+'">⛶ FULL</span></div>'+
+        '<div class="view">'+
+          '<img id="img'+i+'" alt="">'+
+          '<div class="off"><div class="big">◌ NO SIGNAL</div>'+
+            '<div class="small mono">'+cam.ip+':81/stream</div>'+
+            '<div class="small">retrying…</div></div>'+
+        '</div>'+
+        '<div class="footbar"><span class="k">FEED '+(i+1)+'</span><span class="barspace" style="flex:1"></span>'+
+          '<span class="mono" id="stat'+i+'">— OFFLINE —</span></div>';
+      grid.appendChild(el);
+      connect(i);
+    });
+  }
+
+  function setMsg(i, big, small){
+    var el=document.getElementById("cam"+i); if(!el) return;
+    var b=el.querySelector(".off .big"), s=el.querySelector(".off .small:last-child");
+    if(b) b.textContent=big; if(s) s.textContent=small;
+  }
+  function connect(i){
+    var img = document.getElementById("img"+i);
+    if(!img) return;
+    setMsg(i, "◌ NO SIGNAL", "connecting…");
+    img.onload = function(){ setOnline(i,true); };
+    img.onerror = function(){ if(paused[i]) return; setOnline(i,false); setMsg(i,"◌ NO SIGNAL","retrying…"); setTimeout(function(){ retry(i); }, 3000); };
+    img.src = streamURL(cams[i].ip);
+  }
+  function retry(i){
+    if(paused[i]) return;
+    var img = document.getElementById("img"+i);
+    if(img) img.src = streamURL(cams[i].ip)+"&r="+Date.now();
+  }
+  function toggleFeed(i, btn){
+    paused[i] = !paused[i];
+    var img=document.getElementById("img"+i), el=document.getElementById("cam"+i);
+    if(paused[i]){
+      if(img) img.removeAttribute("src");           // closes the MJPEG stream, frees the camera
+      setOnline(i,false);
+      if(el) el.classList.add("paused");
+      if(btn) btn.textContent="▶ START";
+      var st=document.getElementById("stat"+i); if(st) st.textContent="❚❚ PAUSED";
+      setMsg(i, "❚❚ PAUSED", "feed stopped — tap START");
+    } else {
+      if(el) el.classList.remove("paused");
+      if(btn) btn.textContent="◼ STOP";
+      connect(i);
+    }
+  }
+  function setOnline(i, v){
+    online[i]=v;
+    var el=document.getElementById("cam"+i); if(el) el.classList.toggle("live",v);
+    var st=document.getElementById("stat"+i); if(st) st.textContent = v ? "◉ LIVE · MJPEG" : "— OFFLINE —";
+    var n=online.filter(Boolean).length;
+    document.getElementById("onlineCount").textContent = n+"/"+cams.length;
+  }
+
+  // snapshot + fullscreen
+  grid.addEventListener("click", function(e){
+    var b=e.target.closest(".btn"); if(!b) return;
+    var i=+b.dataset.i, act=b.dataset.act;
+    if(act==="toggle"){ toggleFeed(i,b); return; }
+    if(act==="snap"){ window.open(stillURL(cams[i].ip), "_blank"); }
+    if(act==="full"){ var v=document.getElementById("cam"+i);
+      if(v.requestFullscreen) v.requestFullscreen(); else if(v.webkitRequestFullscreen) v.webkitRequestFullscreen(); }
+  });
+
+  // config gear
+  document.getElementById("cfg").addEventListener("click", function(){
+    for(var i=0;i<cams.length;i++){
+      var v = prompt(cams[i].id+" IP address (blank to remove):", cams[i].ip);
+      if(v===null) return;                              // cancel leaves everything as it was
+      cams[i].ip = v.trim();
+    }
+    var add = prompt("Add another camera? IP address (blank to skip):", "");
+    if(add && add.trim()) cams.push({id:"CAM "+("0"+(cams.length+1)).slice(-2), ip:add.trim()});
+    cams = cams.filter(function(c){ return c.ip; });
+    cams.forEach(function(c,i){ c.id = "CAM "+("0"+(i+1)).slice(-2); });
+    saveCams(cams);
+    online = cams.map(function(){ return false; });
+    paused = cams.map(function(){ return false; });
+    build();
+  });
+
+  // clock
+  function tick(){
+    var d=new Date();
+    var p=function(n){return (n<10?"0":"")+n;};
+    document.getElementById("clock").textContent = p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+  }
+  setInterval(tick,1000); tick();
+
+  build();
+})();
+</script>
+</body>
+</html>

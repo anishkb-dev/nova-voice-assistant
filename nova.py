@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Jarvis v1 — text assistant on the local Qwen (anish-ai) with tool-calling 'hands'.
-Run:  python3 ~/anish-ai/jarvis.py      (needs Ollama running; it usually is)
+"""Nova v1 — text assistant on the local Qwen (anish-ai) with tool-calling 'hands'.
+Run:  python3 ~/anish-ai/nova.py      (needs Ollama running; it usually is)
 Quit: type 'exit' or Ctrl-C."""
-import subprocess, sys, datetime, os, glob, time, threading, re, ollama
+import subprocess, sys, json, datetime, os, glob, time, threading, re, shutil, ollama
 
-MODEL = "jarvis"
+MODEL = "nova"
 
 # ---------- the hands (tools) ----------
 def get_datetime() -> str:
@@ -24,7 +24,7 @@ def search_web(query: str) -> str:
 
 def run_command(command: str) -> str:
     # human-in-the-loop: never let the model run shell unattended
-    print(f"\n  \033[33m⚠  Jarvis wants to run:\033[0m  {command}")
+    print(f"\n  \033[33m⚠  Nova wants to run:\033[0m  {command}")
     if input("     Allow this command? [y/N] ").strip().lower() != "y":
         return "The user denied permission to run that command."
     try:
@@ -34,11 +34,12 @@ def run_command(command: str) -> str:
         return "Command timed out after 30s."
 
 _player = None            # the running mpv process, if any
-_TRACK = "/tmp/jarvis_track"
+_TRACK = "/tmp/nova_track"
 
 def _ytdlp() -> str:
     # prefer the pip 'nightly' build (keeps up with YouTube); fall back to brew, then PATH
-    for p in (os.path.expanduser("~/Library/Python/3.14/bin/yt-dlp"), "/opt/homebrew/bin/yt-dlp"):
+    for p in (os.path.expanduser("~/Library/Python/3.14/bin/yt-dlp"), "/opt/homebrew/bin/yt-dlp",
+              os.path.join(os.path.dirname(sys.executable), "yt-dlp")):   # last = venv (Intel hub, no brew)
         if os.path.exists(p):
             return p
     return "yt-dlp"
@@ -63,10 +64,16 @@ def play_music(query: str) -> str:
         err = (r.stderr or "").strip().splitlines()
         return f"Couldn't fetch '{query}'. {err[-1][:200] if err else 'No result.'}"
     title = ((r.stdout or "").strip().splitlines() or [query])[0]
-    # play a bit below full so the mic can still hear "Hey Jarvis" over the music
-    _player = subprocess.Popen(["mpv", "--no-video", "--really-quiet", "--volume=60", files[0]],
+    # play a bit below full so the mic can still hear "Hey Nova" over the music
+    cmd = (["mpv", "--no-video", "--really-quiet", "--volume=60", files[0]] if shutil.which("mpv")
+           else ["afplay", "-v", "0.6", files[0]])          # hub has no Homebrew -> built-in afplay
+    _player = subprocess.Popen(cmd,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return f"Now playing: {title}"
+
+def music_playing() -> bool:
+    return bool(_player and _player.poll() is None) or \
+        subprocess.run(["pgrep", "-x", "mpv"], capture_output=True).returncode == 0
 
 def stop_music() -> str:
     """Stop any music that is currently playing."""
@@ -100,19 +107,25 @@ def mute(action: str = "toggle") -> str:
 
 _gesture_proc = None
 def gesture_control(action: str = "start") -> str:
-    """Headless gesture volume: raise an open upright palm to activate, pinch thumb+index to set volume, fist to stop. action: start | stop."""
+    """Hub webcam presence watcher (cam_presence.py) on/off. Name kept from the old gesture-volume feature. action: start | stop."""
     global _gesture_proc
     import os
+    if not IS_HUB:                                    # the webcam is on the hub -> it runs gestures
+        try:
+            _hub_send("gestures", (action or "start").lower().strip())
+            return "Room camera %s, sir." % ("off" if "stop" in (action or "") else "on")
+        except Exception as e:
+            return "Couldn't reach the hub for gestures: %s" % str(e)[:60]
     if (action or "start").lower().strip() == "stop":
         if _gesture_proc and _gesture_proc.poll() is None:
             _gesture_proc.terminate(); _gesture_proc = None
-            return "Gesture control off."
+            return "Gesture control off."   # nova_app._welcome_if_owner matches this prefix
         return "Gesture control wasn't running."
     if _gesture_proc and _gesture_proc.poll() is None:
         return "Gesture control is already on."
-    script = os.path.join(os.path.dirname(__file__), "gesture_volume.py")
+    script = os.path.join(os.path.dirname(__file__), "cam_presence.py")
     _gesture_proc = subprocess.Popen([sys.executable, script])
-    return "Gesture watcher on — raise an open palm to take control, pinch to set volume, make a fist to release."
+    return "Room camera on (presence)."
 
 def get_weather(location: str = "") -> str:
     """Current weather for a place (or your location if blank). No API key."""
@@ -126,7 +139,7 @@ def get_weather(location: str = "") -> str:
 
 def take_screenshot() -> str:
     """Capture the screen to the Desktop."""
-    path = os.path.expanduser(f"~/Desktop/jarvis_shot_{datetime.datetime.now():%H%M%S}.png")
+    path = os.path.expanduser(f"~/Desktop/nova_shot_{datetime.datetime.now():%H%M%S}.png")
     r = subprocess.run(["screencapture", "-x", path], capture_output=True)
     return f"Screenshot saved to {path}." if r.returncode == 0 else "Screenshot failed."
 
@@ -137,6 +150,65 @@ def notify(title: str, message: str = "") -> str:
     subprocess.run(["osascript", "-e", f'display notification "{m}" with title "{t}"'], capture_output=True)
     return "Notification shown."
 
+SPEAK = None   # nova_app sets this to its speak() -> reminders talk as Daniel on the room speaker
+
+def _remind_line(msg):
+    """Say it like a butler who remembered ('Sir, it's time to drink some water.'), not read it back.
+    Fast Groq model; falls back to a fixed line if offline."""
+    try:
+        from openai import OpenAI
+        key = open(os.path.expanduser("~/anish-ai/.groq_key")).read().strip()
+        r = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=key, timeout=6, max_retries=0).chat.completions.create(
+            model="openai/gpt-oss-20b", extra_body={"reasoning_effort": "low"}, temperature=0.7, messages=[
+                {"role": "system", "content": "You are Nova, a warm, polite British butler. Address the user as 'sir'."},
+                {"role": "user", "content": "Earlier I asked you to remind me about: \"%s\". It's time now. Remind me in ONE short, "
+                 "natural spoken sentence, as if you remembered it yourself (e.g. 'drink water' -> 'Sir, it's time to drink some "
+                 "water.'). Only the sentence." % msg}])
+        line = (r.choices[0].message.content or "").strip().strip('"')
+        if 5 < len(line) < 200:
+            return line
+    except Exception:
+        pass
+    return "Pardon me, sir. A reminder: %s." % msg.rstrip(". ")
+
+def _speak_reminder(msg):
+    text = _remind_line(msg)
+    if SPEAK:
+        try: SPEAK(text); return
+        except Exception: pass
+    subprocess.run(["say", "-v", "Daniel", text], capture_output=True)   # no app running -> Mac voice
+
+_REM_F = os.path.expanduser("~/anish-ai/.reminders.json")   # pending timed reminders; survive restarts
+_REM_LOCK = threading.Lock()
+
+def _rem_edit(fn):
+    with _REM_LOCK:
+        try: rems = json.load(open(_REM_F))
+        except Exception: rems = []
+        rems = fn(rems)
+        json.dump(rems, open(_REM_F, "w"))
+        return rems
+
+def _schedule(due, msg, banner=True):
+    """Fire at epoch `due` (late ones fire right away), then drop it from the file."""
+    def _fire():
+        time.sleep(max(0, due - time.time()))
+        if banner:
+            subprocess.run(["osascript", "-e", f'display notification "{msg}" with title "Reminder"'], capture_output=True)
+        _speak_reminder(msg)
+        _rem_edit(lambda r: [x for x in r if (x["due"], x["msg"]) != (due, msg)])
+    threading.Thread(target=_fire, daemon=True).start()
+
+def _add_reminder(secs, msg, banner=True):
+    due = round(time.time() + secs, 1)
+    _rem_edit(lambda r: r + [{"due": due, "msg": msg, "banner": banner}])
+    _schedule(due, msg, banner)
+
+def resume_reminders():
+    """Called once at startup: re-arm reminders saved before a restart."""
+    for x in _rem_edit(lambda r: r):
+        _schedule(x["due"], x["msg"], x.get("banner", True))
+
 def set_reminder(minutes: float, text: str = "") -> str:
     """Remind you after N minutes (speaks + shows a notification)."""
     try:
@@ -144,11 +216,7 @@ def set_reminder(minutes: float, text: str = "") -> str:
     except (TypeError, ValueError):
         return "Please give the number of minutes."
     msg = text or "your reminder, sir"
-    def _fire():
-        time.sleep(secs)
-        subprocess.run(["osascript", "-e", f'display notification "{msg}" with title "Reminder"'], capture_output=True)
-        subprocess.run(["say", "-v", "Daniel", f"Reminder, sir: {msg}"], capture_output=True)
-    threading.Thread(target=_fire, daemon=True).start()
+    _add_reminder(secs, msg)
     return f"I'll remind you in {int(float(minutes))} minute(s): {msg}"
 
 def system_status() -> str:
@@ -175,6 +243,8 @@ def create_reminder(text: str, minutes: float = 0) -> str:
         script = f'tell application "Reminders" to make new reminder with properties {{name:"{t}"}}'
         due = ""
     r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    if minutes and float(minutes) > 0:              # the Reminders app only pings silently -> Nova says it too
+        _add_reminder(float(minutes) * 60, text or "your reminder", banner=False)
     return f"Reminder added: {text}{due}." if r.returncode == 0 else f"Couldn't add reminder: {r.stderr.strip()[:120]}"
 
 def create_calendar_event(title: str, minutes_from_now: float = 60, duration_min: float = 60) -> str:
@@ -255,7 +325,7 @@ def generate_image(prompt: str) -> str:
     q = urllib.parse.quote((prompt or "abstract art")[:400])
     seed = int(time.time()) % 100000
     url = f"https://image.pollinations.ai/prompt/{q}?width=1024&height=1024&nologo=true&seed={seed}"
-    path = os.path.expanduser(f"~/Desktop/jarvis_image_{datetime.datetime.now():%H%M%S}.jpg")
+    path = os.path.expanduser(f"~/Desktop/nova_image_{datetime.datetime.now():%H%M%S}.jpg")
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         data = urllib.request.urlopen(req, timeout=90).read()
@@ -299,7 +369,28 @@ def list_files(directory: str = "~") -> str:
         return f"Couldn't list {directory}: {e}"
 
 # ---------- IoT (smart room over MQTT) ----------
-_IOT_BROKER, _IOT_ROOM = "localhost", "room"
+import socket
+IS_HUB = socket.gethostname().split(".")[0] == "nova-hub"   # the always-on old Mac drives the room
+_IOT_BROKER = os.environ.get("NOVA_BROKER") or ("localhost" if IS_HUB else "nova-hub.local")
+_IOT_ROOM = "room"
+
+def _hub_send(what, payload):
+    """Ask the hub to do something only it can (BLE strip, pause automations). Fire-and-forget."""
+    import paho.mqtt.client as mqtt
+    try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except Exception: c = mqtt.Client()
+    _pub(c, [("home/hub/" + what, payload if isinstance(payload, bytes) else str(payload))])   # bytes = audio
+
+def _pub(c, msgs):
+    """Connect, publish each (topic, payload) with qos1 and wait for the broker's ack, then hang up.
+    Fire-and-hang-up without the network loop got silently dropped by amqtt on the hub."""
+    c.connect(_IOT_BROKER, 1883, 5)
+    c.loop_start()
+    try:
+        for t, p in msgs:
+            c.publish(t, p, qos=1).wait_for_publish(3)
+    finally:
+        c.disconnect(); c.loop_stop()
 _IOT_DEVICES = {"light", "fan", "plug"}
 
 def iot_control(device: str, action: str) -> str:
@@ -316,20 +407,135 @@ def iot_control(device: str, action: str) -> str:
     except Exception:
         c = mqtt.Client()
     try:
-        c.connect(_IOT_BROKER, 1883, 5)
-        for t in (sorted(_IOT_DEVICES) if dev == "all" else [dev]):
-            c.publish(f"home/{_IOT_ROOM}/{t}/set", act)
-        c.disconnect()
+        _pub(c, [(f"home/{_IOT_ROOM}/{t}/set", act) for t in (sorted(_IOT_DEVICES) if dev == "all" else [dev])])
     except Exception as e:
         return f"Couldn't reach the IoT broker (is Mosquitto running?): {e}"
     return ("Everything turned " + act if dev == "all" else dev.capitalize() + " turned " + act) + ", sir."
 
+# ---------- RC crawler (drive over MQTT: home/car/{throttle,steer}) ----------
+def drive(command: str) -> str:
+    """Drive the RC crawler: forward, back, stop, left, right, center."""
+    import paho.mqtt.client as mqtt
+    cmd = (command or "").lower().strip()
+    thr = {"forward": "forward", "ahead": "forward", "go": "forward", "front": "forward",
+           "back": "back", "backward": "back", "reverse": "back",
+           "stop": "stop", "halt": "stop", "brake": "stop"}
+    strn = {"left": "left", "right": "right",
+            "center": "center", "centre": "center", "straight": "center"}
+    msgs = []
+    if cmd in thr:
+        msgs.append(("throttle", thr[cmd]))
+        if thr[cmd] == "stop":
+            msgs.append(("steer", "center"))          # a full stop also centres the wheels
+    elif cmd in strn:
+        msgs.append(("steer", strn[cmd]))
+    else:
+        return "Say forward, back, stop, left, right, or center, sir."
+    try:
+        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except Exception:
+        c = mqtt.Client()
+    try:
+        c.connect(_IOT_BROKER, 1883, 5)
+        for t, v in msgs:
+            c.publish(f"home/car/{t}", v)
+        c.disconnect()
+    except Exception as e:
+        return f"Couldn't reach the crawler (is the broker up?): {e}"
+    return f"Crawler: {cmd}, sir."
+
+def _mqtt_peek(topics, wait=1.2):
+    """Read the retained values of some topics (e.g. the ESP32's last AC state)."""
+    import paho.mqtt.client as mqtt
+    got = {}
+    try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    except Exception: c = mqtt.Client()
+    c.on_message = lambda c, u, m: got.__setitem__(m.topic, m.payload.decode()) if m.topic in topics else None
+    try:
+        c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
+        for t in topics: c.subscribe(t)
+        end = time.time() + wait
+        while time.time() < end and len(got) < len(topics): time.sleep(0.05)
+    finally:
+        c.loop_stop(); c.disconnect()
+    return got
+
+
 def ac(command: str) -> str:
-    """Control the AC via the HomeMate/Tuya Smart-IR blaster. command e.g. 'on','off','temp 24','mode cool','fan high'."""
+    """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10); Tuya blaster if the ESP32 is offline.
+    command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
+    cmd = (command or "").lower().strip()
+    try:
+        st = _mqtt_peek(["home/room/status", "home/room/ac"])
+    except Exception:
+        st = {}
+    if st.get("home/room/status") != "online":
+        import os, sys
+        sys.path.insert(0, os.path.expanduser("~/anish-ai"))
+        from ac_control import ac as _ac
+        return _ac(command)
+    power, deg, mode, fan = ((st.get("home/room/ac") or "off 24 cool auto").split() + ["", "", "", ""])[:4]
+    deg = int(deg) if deg.isdigit() else 24
+    words = cmd.replace("degrees", "").split(); head = words[0] if words else ""
+    num = next((int(w) for w in words if w.isdigit()), None)
+    if head in ("status", "state", "what"):
+        return "AC is %s, %s mode, %d degrees, fan %s." % (power, mode, deg, fan)
+    if head in ("increase", "raise", "warmer", "up", "hotter"):
+        send, say = "temp %d" % min(30, deg + 1), "Up to %d degrees." % min(30, deg + 1)
+    elif head in ("decrease", "lower", "colder", "down", "reduce", "cooler"):
+        send, say = "temp %d" % max(16, deg - 1), "Down to %d degrees." % max(16, deg - 1)
+    elif num is not None:
+        if not 16 <= num <= 30: return "What temperature? 16 to 30."
+        send, say = "temp %d" % num, "Set to %d degrees." % num
+    elif head in ("on", "off"):
+        send, say = head, "AC %s." % head
+    else:
+        m = next((w for w in words if w in ("cool", "heat", "dry", "auto")), None)
+        f = next((w for w in words if w in ("low", "mid", "medium", "high")), None)
+        if m and head != "fan":
+            send, say = m, "%s mode." % m.title()
+        elif f or head == "fan":
+            f = {"medium": "mid"}.get(f, f or "auto")
+            send, say = "speed " + f, "Fan %s." % f
+        elif "fan" in words:
+            send, say = "fan", "Fan mode."
+        else:
+            return "AC controls: on, off, temp N, mode X, fan X, status."
+    _pub_set = [("home/room/ac/set", send)]
+    if send == "off":    # library "off" keeps the ESP32's state right; the learned raw frame is what the AC obeys
+        _pub_set.append(("home/room/ac/set", "rawoff"))
+    try:
+        import paho.mqtt.client as mqtt
+        try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        except Exception: c = mqtt.Client()
+        _pub(c, _pub_set)
+    except Exception as e:
+        return "The AC didn't respond: %s" % str(e)[:60]
+    return say
+
+def lights(command: str) -> str:
+    """Control the BLE LED strip (local Bluetooth). command e.g. 'on','off','blue','warm','brightness 60'."""
     import os, sys
     sys.path.insert(0, os.path.expanduser("~/anish-ai"))
-    from ac_control import ac as _ac
-    return _ac(command)
+    if not IS_HUB:   # the strip is Bluetooth -> only the hub (next to it) can reach it
+        try: _hub_send("lights", command)   # ponytail: no ack from the hub; add a reply topic if it matters
+        except Exception as e: return f"Couldn't reach the hub for the lights: {e}"
+        return f"Lights {command}, sir."
+    from lights import lights as _lights
+    return _lights(command)
+
+def light_panel() -> str:
+    """Open the LED light control panel (colour wheel, effects, music-listen, timer) in the browser."""
+    import subprocess, os, time, urllib.request
+    url = "http://localhost:8099"
+    try:
+        urllib.request.urlopen(url + "/state", timeout=1)          # already running?
+    except Exception:
+        subprocess.Popen(["python3", os.path.expanduser("~/anish-ai/light_panel.py")],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(3)
+    subprocess.run(["open", url])
+    return "Opening the light panel, sir."
 
 def iot_status() -> str:
     """Read the smart room's live sensors and device states over MQTT."""
@@ -406,6 +612,89 @@ def code(task: str) -> str:
     if not out:
         return "Done, sir — saved to the nova_code folder."
     return "Done, sir. " + (out[-450:] if len(out) > 450 else out)
+
+NOVA_VOICE = (   # persona only: tools, memory, CLAUDE.md and permissions stay exactly as in the terminal
+    "You are speaking as Nova, Anish's personal AI assistant, and your reply is read aloud in Nova's voice. "
+    "Never call yourself Claude or Claude Code; you are Nova. Character: a devoted butler, unflappable, quietly "
+    "brilliant, impeccably polite, with dry understated British wit. Address Anish as 'sir' now and then, not "
+    "every line. Talk like a real person on a call: warm, natural, brief, usually one to three sentences, with "
+    "contractions. No markdown, lists or code read aloud unless asked; for a big answer give the crux and offer "
+    "'Shall I elaborate, sir?'. Confirm actions briefly ('Done, sir.', 'Right away.'). Do the actual work fully "
+    "as you normally would; only the way you talk changes.")
+
+CLAUDE_USAGE = os.path.expanduser("~/anish-ai/nova_claude/usage.json")
+
+def _log_usage(u, new_session=False):
+    """Token bar data for the HUD: today's total tokens + current conversation size (context)."""
+    import json, datetime
+    ctx = sum(u.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+    used = ctx + u.get("output_tokens", 0)
+    today = datetime.date.today().isoformat()
+    try:
+        st = json.load(open(CLAUDE_USAGE))
+    except Exception:
+        st = {}
+    if st.get("date") != today:
+        st = {"date": today, "today": 0, "calls": 0}
+    st["today"] += used; st["calls"] += 1; st["ctx"] = ctx + u.get("output_tokens", 0)
+    json.dump(st, open(CLAUDE_USAGE, "w"))
+
+def claude_usage():
+    import json, datetime
+    try:
+        st = json.load(open(CLAUDE_USAGE))
+    except Exception:
+        st = {}
+    if st.get("date") != datetime.date.today().isoformat():
+        st = {"today": 0, "calls": 0, "ctx": st.get("ctx", 0)}
+    return st
+
+def claude(message: str, new: bool = False) -> str:
+    """Talk to Claude Code exactly as in the terminal: same home dir (~/CLAUDE.md + memory), same model,
+    auto permission mode (runs commands too), one ongoing session. new=True starts a fresh session.
+    Returns the full reply; full text also saved to ~/anish-ai/nova_claude/last_reply.md."""
+    import os, subprocess, shutil, uuid
+    if not shutil.which("claude"):
+        return "The Claude Code CLI isn't installed, sir."
+    ws = os.path.expanduser("~/anish-ai/nova_claude")
+    os.makedirs(ws, exist_ok=True)
+    sid_file = os.path.join(ws, ".session")
+    sid = None if new else (open(sid_file).read().strip() if os.path.exists(sid_file) else None)
+    cmd = ["claude", "-p", message, "--output-format", "json", "--permission-mode", "auto",
+           "--append-system-prompt", NOVA_VOICE]
+    cmd += ["--resume", sid] if sid else ["--session-id", str(uuid.uuid4())]
+    try:
+        r = subprocess.run(cmd, cwd=os.path.expanduser("~"), capture_output=True, text=True, timeout=900)
+    except subprocess.TimeoutExpired:
+        return "Claude took longer than fifteen minutes, so I stopped it, sir."
+    except Exception as e:
+        return "Couldn't reach Claude: %s" % str(e)[:120]
+    import json, datetime
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        d = {}
+    out = (d.get("result") or "").strip()
+    if r.returncode != 0 or d.get("is_error") or not out:
+        return "Claude didn't answer: %s" % ((r.stderr or out or r.stdout or "no output").strip()[:150])
+    _log_usage(d.get("usage") or {}, new_session=not sid)
+    if not sid:
+        open(sid_file, "w").write(cmd[cmd.index("--session-id") + 1])
+    try:
+        open(os.path.join(ws, "last_reply.md"), "w").write("# %s\n\n%s\n" % (message, out))
+    except OSError:
+        pass
+    return out
+
+def speakable(md: str) -> str:
+    """Markdown -> something sane to read aloud (code blocks skipped, symbols dropped)."""
+    import re
+    t = re.sub(r"```.*?```", " (code shown on screen) ", md, flags=re.S)
+    t = re.sub(r"`([^`]*)`", r"\1", t)
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)          # [text](url) -> text
+    t = re.sub(r"^\s*(#+|[-*•]|\d+\.|>)\s*", "", t, flags=re.M)   # headings, bullets, quotes
+    t = re.sub(r"[*_|~]+", "", t)
+    return re.sub(r"\s+", " ", t).strip()
 
 def look(question: str = "") -> str:
     """Look at what's on the SCREEN (a screenshot — NOT the webcam) and answer about it.
@@ -492,6 +781,41 @@ def design(prompt: str) -> str:
         pass
     return "Done, sir — I designed that and opened it in your browser. Saved to nova_designs, via %s." % r.get("provider", "?")
 
+def _osa(script, timeout=25):
+    try:
+        return subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=timeout).stdout.strip()
+    except Exception:
+        return ""
+
+
+def _wake_rest():
+    """Slow parts of the wake-up brief (Reminders ~5 s, Calendar ~11 s), fetched in parallel, spoken after."""
+    from concurrent.futures import ThreadPoolExecutor
+    cal = ('set d0 to current date\nset hours of d0 to 0\nset minutes of d0 to 0\nset d1 to d0 + 1 * days\n'
+           'set out to {}\ntell application "Calendar" to repeat with c in calendars\n'
+           'set out to out & (summary of (events of c whose start date \u2265 d0 and start date < d1))\nend repeat\n'
+           'set AppleScript\'s text item delimiters to "; "\nreturn out as text')
+    rem = ('tell application "Reminders" to set out to name of (reminders whose completed is false and '
+           'due date < ((current date) + 1 * days))\nset AppleScript\'s text item delimiters to "; "\nreturn out as text')
+    with ThreadPoolExecutor(3) as ex:
+        room, todo, events = ex.submit(iot_status), ex.submit(_osa, rem), ex.submit(_osa, cal)
+        room, todo, events = room.result(), todo.result(), events.result()
+    parts = []
+    m = re.search(r"([\d.]+) degrees", room or "")
+    if m: parts.append("The room's at %s degrees." % m.group(1))
+    parts.append(("On your list: %s." % todo) if todo else "Nothing on your reminders list.")
+    events = "; ".join(e for e in events.split("; ") if e and e not in todo.split("; "))   # reminders show in Calendar too
+    if events: parts.append("Today's calendar: %s." % events)
+    line = " ".join(parts)
+    (SPEAK or (lambda t: subprocess.run(["say", "-v", "Daniel", t])))(line)
+
+
+def wake_brief() -> str:
+    """Instant part (time) now; room temp, reminders and calendar follow a few seconds later."""
+    threading.Thread(target=_wake_rest, daemon=True).start()
+    return datetime.datetime.now().strftime("It's %-I:%M %p.")
+
+
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
          "play_music": play_music, "stop_music": stop_music, "run_command": run_command,
          "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
@@ -501,9 +825,9 @@ FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": searc
          "lock_screen": lock_screen, "set_appearance": set_appearance, "get_clipboard": get_clipboard,
          "send_whatsapp": send_whatsapp, "generate_image": generate_image, "read_file": read_file,
          "write_file": write_file, "list_files": list_files,
-         "iot_control": iot_control, "iot_status": iot_status,
-         "ac": ac, "gesture_control": gesture_control, "code": code, "design": design,
-         "think": think, "look": look}
+         "iot_control": iot_control, "iot_status": iot_status, "drive": drive,
+         "ac": ac, "lights": lights, "light_panel": light_panel, "claude": claude, "gesture_control": gesture_control, "code": code, "design": design,
+         "think": think, "look": look, "wake_brief": wake_brief, "find_device": lambda device="phone": __import__("findmy").find_device(device)}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -532,10 +856,6 @@ TOOLS = [
         "name": "mute", "description": "Mute or unmute ALL system audio at once (music, videos, everything). Use for 'mute', 'unmute', 'silence everything'.",
         "parameters": {"type": "object", "properties": {
             "action": {"type": "string", "enum": ["mute", "unmute", "toggle"], "description": "mute, unmute, or toggle (default toggle)"}}}}},
-    {"type": "function", "function": {
-        "name": "gesture_control", "description": "Turn on/off hands-free gesture volume control (webcam: pinch thumb and index finger to set volume). Use for 'gesture control', 'control volume with my hand'.",
-        "parameters": {"type": "object", "properties": {
-            "action": {"type": "string", "enum": ["start", "stop"], "description": "start or stop (default start)"}}}}},
     {"type": "function", "function": {
         "name": "get_weather", "description": "Get current weather. Pass a city, or leave blank for the user's location.",
         "parameters": {"type": "object", "properties": {
@@ -613,12 +933,23 @@ TOOLS = [
             "device": {"type": "string", "description": "light, fan, plug, or all"},
             "action": {"type": "string", "description": "on, off, or toggle"}}, "required": ["device", "action"]}}},
     {"type": "function", "function": {
-        "name": "ac", "description": "Control the air conditioner (AC) via the smart IR blaster. Use for 'turn on/off the AC', 'set AC to 24', 'AC cool mode', 'AC fan high'.",
+        "name": "ac", "description": "Control the air conditioner (AC) via the smart IR blaster. Use for 'turn on/off the AC', 'set AC to 24', 'AC cool mode', 'AC fan high'. For relative changes like 'make it warmer/colder' or 'increase/lower the temperature', send 'increase' or 'decrease' (it reads the current temp and steps 1 degree).",
         "parameters": {"type": "object", "properties": {
-            "command": {"type": "string", "description": "e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high'"}}, "required": ["command"]}}},
+            "command": {"type": "string", "description": "e.g. 'on', 'off', 'temp 24', 'increase', 'decrease', 'mode cool', 'fan high'"}}, "required": ["command"]}}},
+    {"type": "function", "function": {
+        "name": "lights", "description": "Control the BED LIGHTS — the Bluetooth RGB LED strip. Use for 'turn on/off the bed lights' (or just 'the lights'/'the strip'), 'make the bed lights blue/red/warm', 'dim the bed lights', and animations like 'party mode', 'fade', 'strobe', plus 'speed up/slow down the effect'. NOT the room/ceiling light (that's iot_control).",
+        "parameters": {"type": "object", "properties": {
+            "command": {"type": "string", "description": "e.g. 'on', 'off', 'blue', 'warm', 'red', 'brightness 60', 'color 255 120 0', 'party', 'fade', 'strobe', 'speed 80'"}}, "required": ["command"]}}},
+    {"type": "function", "function": {
+        "name": "light_panel", "description": "Open the visual LED light control panel in the browser (colour wheel, brightness, effects, music-reactive listen mode, auto-off timer). Use for 'open the light panel', 'show the light controls', 'open the colour wheel', 'light control panel'.",
+        "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
         "name": "iot_status", "description": "Read the smart room's live sensors (temperature, humidity, motion) and device states. Use for 'what's the room temperature', 'is anyone in the room', 'room status'.",
         "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "drive", "description": "Drive the RC crawler car. Use for 'forward', 'go back / reverse', 'stop', 'turn left', 'turn right', 'straighten / center'.",
+        "parameters": {"type": "object", "properties": {
+            "command": {"type": "string", "description": "one of: forward, back, stop, left, right, center"}}, "required": ["command"]}}},
     {"type": "function", "function": {
         "name": "remember", "description": "Store a durable fact about the user to recall in future sessions (name, preferences, ongoing projects, anything worth remembering). Use when the user shares something personal or says 'remember'.",
         "parameters": {"type": "object", "properties": {
@@ -643,9 +974,19 @@ TOOLS = [
         "name": "look", "description": "Look at what's currently on the SCREEN (a screenshot, not the webcam) and answer about it. Use for 'what's on my screen', 'read this', 'what does this error/chart say', 'describe this'.",
         "parameters": {"type": "object", "properties": {
             "question": {"type": "string", "description": "What to answer about the screen, e.g. 'what does this error mean' (leave empty to just describe the screen)"}}}}},
+    {"type": "function", "function": {
+        "name": "find_device", "description": "Find one of the user's Apple devices via Find My. If it's nearby it rings it; if it's elsewhere it sends its map location to the user's Telegram. Use for 'find my phone', 'where is my iPad/AirPods/watch', 'ring my phone'.",
+        "parameters": {"type": "object", "properties": {
+            "device": {"type": "string", "description": "Which device: 'phone', 'ipad', 'watch', 'airpods', 'mac', or its name"}}}}},
 ]
 
 # ---------- the loop ----------
+def _safe_warm():
+    try:
+        ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}], keep_alive="30m")
+    except Exception:
+        pass
+
 def main():
     C, DIM, R = "\033[38;5;44m", "\033[2m", "\033[0m"
     hour = datetime.datetime.now().hour
@@ -656,21 +997,24 @@ def main():
 {DIM}   local · offline · at your service   —   type 'exit' to power down{R}
 """)
     print(f"{C}J.A.R.V.I.S.:{R} Good {part}, sir. All systems online. How may I be of service?\n")
+    # pre-warm the local model in the background so the FIRST command isn't a ~8s cold load
+    import threading
+    threading.Thread(target=lambda: _safe_warm(), daemon=True).start()
     messages = []
     while True:
         try:
             user = input("\033[1mYou:\033[0m ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\nJarvis: Goodbye."); return
+            print("\nNova: Goodbye."); return
         if user.lower() in {"exit", "quit", "bye", "/bye"}:
-            print("Jarvis: Goodbye."); return
+            print("Nova: Goodbye."); return
         if not user:
             continue
         messages.append({"role": "user", "content": user})
 
         # inner loop: keep going until the model answers with no more tool calls
         while True:
-            resp = ollama.chat(model=MODEL, messages=messages, tools=TOOLS)
+            resp = ollama.chat(model=MODEL, messages=messages, tools=TOOLS, keep_alive="30m")
             msg = resp["message"]
             calls = msg.get("tool_calls") or []
             messages.append({"role": "assistant", "content": msg.get("content", ""),

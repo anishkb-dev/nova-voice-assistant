@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Owner face recognition for Jarvis — ArcFace embeddings via insightface (onnxruntime, no torch).
+"""Owner face recognition for Nova — ArcFace embeddings via insightface (onnxruntime, no torch).
 
   python3 face_id.py enroll   # sit in front of the camera to register YOUR face (do this once)
   python3 face_id.py check    # test whether it recognizes you right now
@@ -32,12 +32,12 @@ def _open_cam(idx=None):
     if idx is None:
         try:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-            from gesture_volume import pick_camera
+            from cam_presence import pick_camera
             idx = pick_camera()
         except Exception:
             idx = None
     if idx is None:
-        return None                      # no external webcam -> never use the Mac built-in
+        return None                      # camera lookup failed
     print("using camera index %d" % idx, flush=True)
     return cv2.VideoCapture(idx)
 
@@ -45,7 +45,7 @@ def enroll(n=25, show=True, idx=None):
     import cv2
     cap = _open_cam(idx)
     if cap is None:
-        print("No external webcam found — plug in the Lapcare and try again.", flush=True); return False
+        print("No camera found.", flush=True); return False
     embs = []
     print("Look at the camera... capturing %d samples (press q to finish/abort)" % n, flush=True)
     win = "Face Enrollment  -  face the camera, press q when done"

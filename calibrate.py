@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Voice calibration — measure how YOU actually talk, then tune JARVIS to it.
+"""Voice calibration — measure how YOU actually talk, then tune NOVA to it.
 
 Records ~20s of you speaking naturally, measures your speaking level, your
 pause lengths (so end-of-turn detection matches your rhythm — no clipping, no
 lag), and your speaking rate, then writes ~/anish-ai/voice_calib.json which the
 listener reads on startup. Run it from the Terminal (mic permission); stop
-JARVIS first so it isn't holding the mic.
+NOVA first so it isn't holding the mic.
 
     python3 ~/anish-ai/calibrate.py
 """
@@ -16,7 +16,7 @@ import pyaudio
 RATE, FRAME = 16000, 1280            # 80ms frames
 OUT = os.path.expanduser("~/anish-ai/voice_calib.json")
 SCRIPT = [
-    "Jarvis, what's the weather like today.",
+    "Nova, what's the weather like today.",
     "Turn on the air conditioner and set it to twenty two degrees.",
     "Actually, play me some music instead.",
     "Hmm, no — what's on my calendar tomorrow.",
@@ -118,7 +118,7 @@ def main():
           "hang_ms=silence that ends your turn · barge_rms=loud enough to cut in")
     if calib["voice"] < 90:
         print("\033[33m   ⚠ your level is low — move the lavalier closer to your mouth for best results\033[0m")
-    print("\nRestart JARVIS to apply.")
+    print("\nRestart NOVA to apply.")
 
 if __name__ == "__main__":
     main()
