@@ -372,13 +372,20 @@ def list_files(directory: str = "~") -> str:
 import socket
 IS_HUB = socket.gethostname().split(".")[0] == "nova-hub"   # the always-on old Mac drives the room
 _IOT_BROKER = os.environ.get("NOVA_BROKER") or ("localhost" if IS_HUB else "nova-hub.local")
+
+def mqtt_client(**kw):
+    """paho client signed in as "nova" (broker refuses hub/mac topics to anonymous clients)."""
+    import paho.mqtt.client as mqtt
+    try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, **kw)
+    except AttributeError: c = mqtt.Client(**kw)
+    c.username_pw_set("nova", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".mqtt_key")).read().strip())
+    return c
 _IOT_ROOM = "room"
 
 def _hub_send(what, payload):
     """Ask the hub to do something only it can (BLE strip, pause automations). Fire-and-forget."""
     import paho.mqtt.client as mqtt
-    try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    except Exception: c = mqtt.Client()
+    c = mqtt_client()
     _pub(c, [("home/hub/" + what, payload if isinstance(payload, bytes) else str(payload))])   # bytes = audio
 
 def _pub(c, msgs):
@@ -402,10 +409,7 @@ def iot_control(device: str, action: str) -> str:
     act = {"enable": "on", "start": "on", "disable": "off", "stop": "off"}.get(act, act)
     if dev not in _IOT_DEVICES | {"all"} or act not in {"on", "off", "toggle"}:
         return "I can switch the light, fan, or plug on or off, sir."
-    try:
-        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    except Exception:
-        c = mqtt.Client()
+    c = mqtt_client()
     try:
         _pub(c, [(f"home/{_IOT_ROOM}/{t}/set", act) for t in (sorted(_IOT_DEVICES) if dev == "all" else [dev])])
     except Exception as e:
@@ -431,10 +435,7 @@ def drive(command: str) -> str:
         msgs.append(("steer", strn[cmd]))
     else:
         return "Say forward, back, stop, left, right, or center, sir."
-    try:
-        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    except Exception:
-        c = mqtt.Client()
+    c = mqtt_client()
     try:
         c.connect(_IOT_BROKER, 1883, 5)
         for t, v in msgs:
@@ -448,8 +449,7 @@ def _mqtt_peek(topics, wait=1.2):
     """Read the retained values of some topics (e.g. the ESP32's last AC state)."""
     import paho.mqtt.client as mqtt
     got = {}
-    try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    except Exception: c = mqtt.Client()
+    c = mqtt_client()
     c.on_message = lambda c, u, m: got.__setitem__(m.topic, m.payload.decode()) if m.topic in topics else None
     try:
         c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
@@ -506,8 +506,7 @@ def ac(command: str) -> str:
         _pub_set.append(("home/room/ac/set", "rawoff"))
     try:
         import paho.mqtt.client as mqtt
-        try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        except Exception: c = mqtt.Client()
+        c = mqtt_client()
         _pub(c, _pub_set)
     except Exception as e:
         return "The AC didn't respond: %s" % str(e)[:60]
@@ -549,10 +548,7 @@ def iot_status() -> str:
             except Exception: pass
         elif val != "":                              # real ESP32 sends per-topic values
             data[key] = val
-    try:
-        c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-    except Exception:
-        c = mqtt.Client()
+    c = mqtt_client()
     c.on_message = on_msg
     try:
         c.connect(_IOT_BROKER, 1883, 5)
@@ -788,6 +784,39 @@ def _osa(script, timeout=25):
         return ""
 
 
+def night_summary():
+    """Good-night recap to Telegram (runs in the background; Calendar is slow): room temps + AC time
+    from the hub, what Nova did today (audit.log), and what's due in the next 24 h."""
+    def _send():
+        import guard, collections
+        try: s = json.loads(_mqtt_peek(["home/hub/daystats"], 2).get("home/hub/daystats") or "{}")
+        except Exception: s = {}
+        day0 = time.strftime("%Y-%m-%d", time.localtime(time.time() - 6 * 3600)) + " 06:00"   # day starts 06:00
+        try:
+            acts = collections.Counter(l.split(" | ")[1] for l in open(os.path.expanduser("~/anish-ai/audit.log"))
+                                       if l[:16] >= day0 and " | " in l)
+        except Exception:
+            acts = collections.Counter()
+        rem = _osa('tell application "Reminders" to set out to name of (reminders whose completed is false and '
+                   'due date < ((current date) + 1 * days))\nset AppleScript\'s text item delimiters to "; "\nreturn out as text')
+        cal = _osa('set d0 to current date\nset d1 to d0 + 1 * days\nset out to {}\ntell application "Calendar" to '
+                   'repeat with c in calendars\nset out to out & (summary of (events of c whose start date \u2265 d0 and '
+                   'start date < d1))\nend repeat\nset AppleScript\'s text item delimiters to "; "\nreturn out as text')
+        L = ["\U0001F319 Day recap"]
+        if s.get("tmin") is not None:
+            L.append("\U0001F321 Room %.1f\u2013%.1f\u00b0C" % (s["tmin"], s["tmax"]))
+        if "ac_min" in s:
+            m = int(s["ac_min"]); L.append("\u2744\ufe0f AC on %dh %02dm" % (m // 60, m % 60))
+        if s.get("alerts"):
+            L.append("\u26a0\ufe0f %d offline alert(s)" % s["alerts"])
+        if acts:
+            L.append("\U0001F916 Nova did: " + ", ".join("%s \u00d7%d" % kv for kv in acts.most_common(5)))
+        L.append("\U0001F4CB Next 24 h: " + ("; ".join(x for x in (cal, rem) if x) or "nothing scheduled"))
+        try: guard.send_text("\n".join(L))
+        except Exception as e: print("[night] telegram failed:", e, flush=True)
+    threading.Thread(target=_send, daemon=True).start()
+    return "recap going to Telegram"
+
 def _wake_rest():
     """Slow parts of the wake-up brief (Reminders ~5 s, Calendar ~11 s), fetched in parallel, spoken after."""
     from concurrent.futures import ThreadPoolExecutor
@@ -827,7 +856,7 @@ FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": searc
          "write_file": write_file, "list_files": list_files,
          "iot_control": iot_control, "iot_status": iot_status, "drive": drive,
          "ac": ac, "lights": lights, "light_panel": light_panel, "claude": claude, "gesture_control": gesture_control, "code": code, "design": design,
-         "think": think, "look": look, "wake_brief": wake_brief, "find_device": lambda device="phone": __import__("findmy").find_device(device)}
+         "think": think, "look": look, "wake_brief": wake_brief, "night_summary": night_summary, "find_device": lambda device="phone": __import__("findmy").find_device(device)}
 
 TOOLS = [
     {"type": "function", "function": {

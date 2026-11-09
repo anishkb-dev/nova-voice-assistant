@@ -337,8 +337,7 @@ class Api:
         rid = uuid.uuid4().hex[:8]; ev = threading.Event(); self._stt_wait[rid] = [ev, ""]
         try:
             import paho.mqtt.client as mqtt
-            try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-            except Exception: c = mqtt.Client()
+            c = nova.mqtt_client()
             nova._pub(c, [("home/mac/stt/" + rid, wav_bytes)])
             ev.wait(timeout)
             return self._stt_wait[rid][1]
@@ -496,15 +495,37 @@ class Api:
         self._pub_sleep()
 
     def _pub_sleep(self):
+        self._pub_retained("home/sleep", "0" if self._auto_on else "1")
+
+    @staticmethod
+    def _pub_retained(topic, payload):
         try:
-            import paho.mqtt.client as mqtt
-            try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-            except Exception: c = mqtt.Client()
+            c = nova.mqtt_client()
             c.connect(nova._IOT_BROKER, 1883, 5); c.loop_start()
-            c.publish("home/sleep", "0" if self._auto_on else "1", qos=1, retain=True).wait_for_publish(3)
+            c.publish(topic, payload, qos=1, retain=True).wait_for_publish(3)
             c.disconnect(); c.loop_stop()
         except Exception as e:
-            print("[sleep] publish failed:", e, flush=True)
+            print("[mqtt] publish %s failed:" % topic, e, flush=True)
+
+    # HUB: today's room stats for the good-night recap (nova.night_summary). A "day" starts 06:00,
+    # so a 3 AM bedtime still reports the day you just had. Retained on home/hub/daystats.
+    _day, _day_pub = {}, 0.0
+
+    def _day_stats(self, d, t):
+        day = time.strftime("%Y-%m-%d", time.localtime(t - 6 * 3600))
+        if self._day.get("date") != day:
+            self._day = {"date": day, "tmin": None, "tmax": None, "ac_min": 0.0, "alerts": 0, "_t": t}
+        s = self._day
+        dt, s["_t"] = min(t - s["_t"], 60), t                 # cap gaps (hub asleep / node offline)
+        tc = d.get("temp")
+        if tc is not None:
+            s["tmin"] = tc if s["tmin"] is None else min(s["tmin"], tc)
+            s["tmax"] = tc if s["tmax"] is None else max(s["tmax"], tc)
+        if d.get("ac") == "on": s["ac_min"] += dt / 60
+        if t - self._day_pub > 300:
+            self._day_pub = t
+            threading.Thread(target=self._pub_retained, args=("home/hub/daystats",
+                             json.dumps({k: v for k, v in s.items() if k != "_t"})), daemon=True).start()
     _auto_state = {}       # rule name -> {"last": fire ts, "armed": bool}
     _ran_today = {}        # timed routine name -> date it last ran
     _motion_end_ts = 0.0   # when the PIR last went quiet (set by _iot_listener)
@@ -545,6 +566,7 @@ class Api:
         except Exception: return
         d = self._iot_data
         if not d.get("online") or t - d.get("ts", 0) > 120: return  # node offline/stale -> never act on old data
+        self._day_stats(d, t)
         moving = bool(d.get("motion"))
         try: cam_seen = os.path.getmtime("/tmp/nova_cam_seen")    # hub webcam saw movement (cam_presence.py)
         except OSError: cam_seen = 0
@@ -1111,8 +1133,7 @@ class Api:
             cmd = (command or "").lower().strip()
             if cmd.startswith("speed"):
                 import paho.mqtt.client as mqtt
-                try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-                except Exception: c = mqtt.Client()
+                c = nova.mqtt_client()
                 c.connect(nova._IOT_BROKER, 1883, 5)
                 c.publish("home/car/speed", "".join(ch for ch in cmd if ch.isdigit()) or "100")
                 c.disconnect()
@@ -1295,8 +1316,7 @@ class Api:
             d["ts"] = time.time()
         while True:
             try:
-                try: c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-                except Exception: c = mqtt.Client()
+                c = nova.mqtt_client()
                 c.on_connect, c.on_message = on_connect, on_msg
                 c.on_disconnect = lambda *a: setattr(self, "_hub_link", False)   # away -> speak on this Mac
                 if not nova.IS_HUB: c.will_set("home/mac/status", "offline", retain=True)   # broker says we left
@@ -1327,7 +1347,7 @@ class Api:
         if down:
             st[0] = st[0] or now
             if not st[1] and now - st[0] > after:
-                st[1] = True; self._tg_alert("⚠️ %s has been offline for %d min." % (label, (now - st[0]) // 60))
+                st[1] = True; self._day["alerts"] = self._day.get("alerts", 0) + 1; self._tg_alert("⚠️ %s has been offline for %d min." % (label, (now - st[0]) // 60))
         else:
             if st[1]: self._tg_alert("✅ %s is back online." % label)
             st[0], st[1] = None, False
@@ -1340,13 +1360,32 @@ class Api:
         except Exception as e:
             print("[health] telegram failed:", e, flush=True)
 
+    @staticmethod
+    def _mem_report():
+        """(trouble?, text): swap, free RAM, and the 3 biggest processes."""
+        vm, sw = psutil.virtual_memory(), psutil.swap_memory()
+        procs = sorted((p.info for p in psutil.process_iter(["name", "memory_info", "cmdline"]) if p.info["memory_info"]),
+                       key=lambda i: -i["memory_info"].rss)[:3]
+        def nm(i):
+            cl = i.get("cmdline") or []
+            return os.path.basename(next((a for a in cl[1:] if a.endswith(".py")), cl[0] if cl else i["name"] or "?"))
+        top = ", ".join("%s %d MB" % (nm(i), i["memory_info"].rss >> 20) for i in procs)
+        bad = sw.used > 2 << 30 or vm.available < 300 << 20
+        return bad, "Hub memory: %.1f GB free of %.0f, swap %.1f GB. Biggest: %s." % (
+            vm.available / 2**30, vm.total / 2**30, sw.used / 2**30, top)
+
     def _health_watch(self):
-        home_gw = None
+        home_gw, mem_day, mem_week = None, None, None
         time.sleep(120)                                          # startup grace
         while True:
             try:
                 if nova.IS_HUB:
                     self._health("room", not self._iot_data.get("online"), "Room ESP32")
+                    bad, rep = self._mem_report()
+                    if bad and mem_day != time.strftime("%F"):           # at most one alert a day
+                        mem_day = time.strftime("%F"); self._tg_alert("\U0001F9E0 " + rep)
+                    if time.strftime("%a %H") == "Sun 11" and mem_week != time.strftime("%F"):
+                        mem_week = time.strftime("%F"); self._tg_alert("\U0001F4CA Weekly. " + rep)
                 else:
                     # ponytail: "at home" = same router as when we last reached the hub; a Mac restarted
                     # while the hub is already down never learns it, so no alert until the hub is seen once.
@@ -1556,6 +1595,7 @@ class Api:
 
         # INSTANT fast-paths: the most common simple commands skip the LLM entirely (no wait).
         def _instant(reply, act):
+            self._audit(act.split("(")[0], {"call": act}, "ok: " + str(reply)[:120].replace("\n", " "))   # fast path logs too
             self.messages += [{"role": "user", "content": user}, {"role": "assistant", "content": reply}]
             self.messages = self.messages[-20:]; self.speak(reply)
             return {"reply": reply, "activity": [act]}
@@ -1904,6 +1944,17 @@ class Api:
         r"|wget[^|]*(--post|--body)|\|\s*(sh|bash|zsh)\b|curl[^|]*\|\s*(sh|bash))",      # pipe-to-shell
         re.IGNORECASE)
 
+    # Only these run without a click: read-only, single command, no shell syntax at all. Everything else asks
+    # (a denylist alone is bypassable: base64/python/obfuscation, or a prompt injected via a web page Nova read).
+    SAFE_CMD_RE = re.compile(r"^\s*(ls|pwd|date|cal|whoami|uptime|df|du|sw_vers|uname|hostname|pmset\s+-g|"
+                             r"system_profiler\s+SP\w+|top\s+-l\s*1|ps|vm_stat|ifconfig|which)\b[^;&|`$<>(){}\\\n]*$")
+
+    def _confirm(self, prompt):
+        try:
+            return bool(webview.windows[0].evaluate_js("window.confirm(" + json.dumps(prompt) + ")"))
+        except Exception:
+            return False                      # headless hub / no window -> deny
+
     AUDIT_PATH = os.path.expanduser("~/anish-ai/audit.log")
 
     def _audit(self, fn, args, outcome):
@@ -1936,16 +1987,16 @@ class Api:
     def _exec_tool(self, fn, args):
         if fn == "run_command":
             cmd = args.get("command", "")
-            if self.DANGER_RE.search(cmd):        # only confirm destructive/sensitive commands
-                prompt = "Nova wants to run a potentially dangerous command:\n\n" + cmd + "\n\nAllow?"
-                try:
-                    ok = webview.windows[0].evaluate_js("window.confirm(" + json.dumps(prompt) + ")")
-                except Exception:
-                    ok = False
-                if not ok:
+            if self.DANGER_RE.search(cmd) or not self.SAFE_CMD_RE.match(cmd):
+                warn = "a potentially DANGEROUS" if self.DANGER_RE.search(cmd) else "a"
+                if not self._confirm("Nova wants to run %s command:\n\n%s\n\nAllow?" % (warn, cmd)):
                     return "The user denied permission to run that command."
             r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
             return ((r.stdout + r.stderr).strip() or "(command ran, no output)")[:2000]
+        if fn == "write_file":   # could overwrite ~/.zshrc, a LaunchAgent, etc. -> always confirm
+            if not self._confirm("Nova wants to write %d characters to:\n\n%s\n\nAllow?"
+                                 % (len(args.get("content", "") or ""), args.get("path", "?"))):
+                return "The user denied permission to write that file."
         if fn == "remember":     # memory lives on the Api (persists across sessions)
             return self.remember(args.get("fact", ""))
         if fn in ("send_imessage", "send_whatsapp"):   # outbound message to a person -> always confirm

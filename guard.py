@@ -21,6 +21,10 @@ def _tg(method, **kw):
     return r.json()
 
 
+def send_text(text):
+    return _tg("sendMessage", data={"chat_id": open(CHAT_F).read().strip(), "text": text})
+
+
 def send_photo(jpg_bytes, caption):
     chat = open(CHAT_F).read().strip()
     return _tg("sendPhoto", data={"chat_id": chat, "caption": caption},
