@@ -536,7 +536,6 @@ def light_panel() -> str:
     subprocess.run(["open", url])
     return "Opening the light panel, sir."
 
-_PROJ_IR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "projector_ir.json")   # learned/decoded NEC codes
 _PROJ_ON = os.path.expanduser("~/anish-ai/.projector_on")                                   # exists = we think it's on
 
 def _tuya_ir(code):
@@ -559,19 +558,30 @@ def _tuya_ir(code):
         time.sleep(1)
     return False
 
+# NEC commands on address 0x07FD (2045), learned/swept 2026-11-10. 12-15 are laser mode/speed, not yet told apart.
+_PROJ_BTN = {"colour": (3, "Next colour"), "brighter": (1, "Brighter"), "dimmer": (5, "Dimmer"),
+             "faster": (4, "Spinning faster"), "slower": (2, "Spinning slower"), "timer": (11, "Timer set"),
+             "reset": (26, "Projector reset")}
+
+def _proj_code(n):
+    from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice as C
+    return C.pulses_to_base64(C.nec_to_pulses(2045, n))
+
 def projector(action: str = "toggle") -> str:
-    """Star projector via IR (Tuya blaster). action: on | off | toggle | colour."""
+    """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset."""
     a = (action or "toggle").lower().strip()
-    codes = json.load(open(_PROJ_IR))
-    if a.startswith("col"):
-        return "Next colour, sir." if _tuya_ir(codes["colour"]) else "I couldn't reach the IR blaster, sir."
+    a = {"color": "colour", "brightness up": "brighter", "brightness down": "dimmer", "speed up": "faster",
+         "speed down": "slower"}.get(a, a)
+    if a in _PROJ_BTN:
+        n, msg = _PROJ_BTN[a]
+        return msg + ", sir." if _tuya_ir(_proj_code(n)) else "I couldn't reach the IR blaster, sir."
     on = os.path.exists(_PROJ_ON)
     # ponytail: power is a single toggle with no feedback, so state is our best guess; if it's out of sync,
     # "projector toggle" (or the remote) fixes it.
     want = (not on) if a == "toggle" else (a == "on")
     if want == on and a != "toggle":
         return "The projector's already %s, sir." % a
-    if not _tuya_ir(codes["power"]):
+    if not _tuya_ir(_proj_code(10)):
         return "I couldn't reach the IR blaster, sir."
     if want: open(_PROJ_ON, "w").close()
     elif on: os.remove(_PROJ_ON)
@@ -1049,9 +1059,9 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {
             "device": {"type": "string", "description": "Which device: 'phone', 'ipad', 'watch', 'airpods', 'mac', or its name"}}}}},
     {"type": "function", "function": {
-        "name": "projector", "description": "The star/galaxy projector light in the room (IR). Use for 'projector on/off', 'star light', 'galaxy light', 'change the projector colour'.",
+        "name": "projector", "description": "The star/galaxy projector light in the room (IR). Use for 'projector on/off', 'star light', 'galaxy light', 'change the projector colour', 'make the stars dimmer', 'spin faster'.",
         "parameters": {"type": "object", "properties": {
-            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour"], "description": "on, off, toggle, or colour (next colour)"}}}}},
+            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour", "brighter", "dimmer", "faster", "slower", "timer", "reset"], "description": "on/off/toggle power, colour = next nebula colour, brighter/dimmer, faster/slower nebula spin, timer, reset"}}}}},
 ]
 
 # ---------- the loop ----------
