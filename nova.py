@@ -561,8 +561,8 @@ def _tuya_ir(code):
 # NEC commands on address 0x07FD (2045), learned/swept 2026-11-10. 
 _PROJ_BTN = {"colour": (3, "Next colour"), "brighter": (1, "Brighter"), "dimmer": (5, "Dimmer"),
              "faster": (4, "Spinning faster"), "slower": (2, "Spinning slower"), "timer": (11, "Timer set"),
-             "reset": (26, "Projector reset"), "laser": (15, "Laser toggled"), "laser mode": (12, "Next laser mode"),
-             "laser brighter": (13, "Laser brighter"), "laser dimmer": (14, "Laser dimmer")}
+             "reset": (26, "Projector reset"), "laser": (15, "Laser toggled"), "laser mode": (14, "Next laser mode"),
+             "laser brighter": (13, "Laser brighter"), "laser dimmer": (12, "Laser dimmer")}
 
 def _proj_code(n):
     from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice as C
