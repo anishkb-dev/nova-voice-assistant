@@ -562,7 +562,7 @@ def _tuya_ir(code):
 _PROJ_BTN = {"colour": (3, "Next colour"), "brighter": (1, "Brighter"), "dimmer": (5, "Dimmer"),
              "faster": (4, "Spinning faster"), "slower": (2, "Spinning slower"), "timer": (11, "Timer set"),
              "reset": (26, "Projector reset"), "laser": (15, "Laser toggled"), "laser mode": (12, "Next laser mode"),
-             "laser faster": (14, "Laser faster"), "laser slower": (13, "Laser slower")}
+             "laser brighter": (13, "Laser brighter"), "laser dimmer": (14, "Laser dimmer")}
 
 def _proj_code(n):
     from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice as C
@@ -572,7 +572,7 @@ def projector(action: str = "toggle") -> str:
     """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset."""
     a = (action or "toggle").lower().strip()
     a = {"color": "colour", "brightness up": "brighter", "brightness down": "dimmer", "speed up": "faster",
-         "speed down": "slower", "laser on": "laser", "laser off": "laser", "lasers": "laser"}.get(a, a)
+         "speed down": "slower", "laser on": "laser", "laser off": "laser", "lasers": "laser", "laser brightness up": "laser brighter", "laser brightness down": "laser dimmer"}.get(a, a)
     if a in _PROJ_BTN:
         n, msg = _PROJ_BTN[a]
         return msg + ", sir." if _tuya_ir(_proj_code(n)) else "I couldn't reach the IR blaster, sir."
@@ -1062,7 +1062,7 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "projector", "description": "The star/galaxy projector light in the room (IR). Use for 'projector on/off', 'star light', 'galaxy light', 'change the projector colour', 'make the stars dimmer', 'spin faster'.",
         "parameters": {"type": "object", "properties": {
-            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour", "brighter", "dimmer", "faster", "slower", "timer", "reset", "laser", "laser mode", "laser faster", "laser slower"], "description": "on/off/toggle power, colour = next nebula colour, brighter/dimmer, faster/slower nebula spin, timer, reset, laser = laser on/off toggle, laser mode, laser faster/slower"}}}}},
+            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour", "brighter", "dimmer", "faster", "slower", "timer", "reset", "laser", "laser mode", "laser brighter", "laser dimmer"], "description": "on/off/toggle power, colour = next nebula colour, brighter/dimmer, faster/slower nebula spin (projector ignores spin), timer, reset, laser = laser on/off toggle, laser mode, laser brighter/dimmer"}}}}},
 ]
 
 # ---------- the loop ----------
