@@ -536,6 +536,47 @@ def light_panel() -> str:
     subprocess.run(["open", url])
     return "Opening the light panel, sir."
 
+_PROJ_IR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "projector_ir.json")   # learned/decoded NEC codes
+_PROJ_ON = os.path.expanduser("~/anish-ai/.projector_on")                                   # exists = we think it's on
+
+def _tuya_ir(code):
+    """Fire one IR code from the Tuya Smart IR blaster (local LAN). Re-finds its IP if DHCP moved it."""
+    from tinytuya.Contrib import IRRemoteControlDevice as M
+    import tinytuya
+    f = os.path.expanduser("~/devices.json")
+    devs = json.load(open(f)); d = next(x for x in devs if x.get("category") == "wnykq")
+    for attempt in range(3):
+        try:
+            r = M(d["id"], d["ip"], d["key"], version=float(d.get("version") or 3.5),
+                                        control_type=1).send_button(code)
+            if not (isinstance(r, dict) and r.get("Error")): return True
+        except Exception:
+            pass
+        if attempt == 0:                                     # unreachable -> scan for its new IP, save it
+            ip = (tinytuya.find_device(d["id"]) or {}).get("ip")
+            if ip and ip != d["ip"]:
+                d["ip"] = ip; json.dump(devs, open(f, "w"), indent=4); os.chmod(f, 0o600)
+        time.sleep(1)
+    return False
+
+def projector(action: str = "toggle") -> str:
+    """Star projector via IR (Tuya blaster). action: on | off | toggle | colour."""
+    a = (action or "toggle").lower().strip()
+    codes = json.load(open(_PROJ_IR))
+    if a.startswith("col"):
+        return "Next colour, sir." if _tuya_ir(codes["colour"]) else "I couldn't reach the IR blaster, sir."
+    on = os.path.exists(_PROJ_ON)
+    # ponytail: power is a single toggle with no feedback, so state is our best guess; if it's out of sync,
+    # "projector toggle" (or the remote) fixes it.
+    want = (not on) if a == "toggle" else (a == "on")
+    if want == on and a != "toggle":
+        return "The projector's already %s, sir." % a
+    if not _tuya_ir(codes["power"]):
+        return "I couldn't reach the IR blaster, sir."
+    if want: open(_PROJ_ON, "w").close()
+    elif on: os.remove(_PROJ_ON)
+    return "Projector %s, sir." % ("on" if want else "off")
+
 def iot_status() -> str:
     """Read the smart room's live sensors and device states over MQTT."""
     import paho.mqtt.client as mqtt, json as _json, time as _time
@@ -856,7 +897,7 @@ FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": searc
          "write_file": write_file, "list_files": list_files,
          "iot_control": iot_control, "iot_status": iot_status, "drive": drive,
          "ac": ac, "lights": lights, "light_panel": light_panel, "claude": claude, "gesture_control": gesture_control, "code": code, "design": design,
-         "think": think, "look": look, "wake_brief": wake_brief, "night_summary": night_summary, "find_device": lambda device="phone": __import__("findmy").find_device(device)}
+         "think": think, "look": look, "wake_brief": wake_brief, "night_summary": night_summary, "projector": projector, "find_device": lambda device="phone": __import__("findmy").find_device(device)}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -1007,6 +1048,10 @@ TOOLS = [
         "name": "find_device", "description": "Find one of the user's Apple devices via Find My. If it's nearby it rings it; if it's elsewhere it sends its map location to the user's Telegram. Use for 'find my phone', 'where is my iPad/AirPods/watch', 'ring my phone'.",
         "parameters": {"type": "object", "properties": {
             "device": {"type": "string", "description": "Which device: 'phone', 'ipad', 'watch', 'airpods', 'mac', or its name"}}}}},
+    {"type": "function", "function": {
+        "name": "projector", "description": "The star/galaxy projector light in the room (IR). Use for 'projector on/off', 'star light', 'galaxy light', 'change the projector colour'.",
+        "parameters": {"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour"], "description": "on, off, toggle, or colour (next colour)"}}}}},
 ]
 
 # ---------- the loop ----------

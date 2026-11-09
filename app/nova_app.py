@@ -58,6 +58,7 @@ TOOL_HINTS = [   # (regex on the latest user turns, extra tools)
     (r"strip|led|colou?r|panel", {"light_panel"}),
     (r"mute|quiet|silence", {"mute"}),
     (r"find my|where.?s my|where is my|ring my|lost my|locate my", {"find_device"}),
+    (r"projector|galaxy|star ?light|night ?light", {"projector"}),
 ]
 GROQ_ALT2_MODEL = "openai/gpt-oss-20b"   # 3rd Groq model (yet another per-model budget) before dropping to local
 NVIDIA_MODEL = "moonshotai/kimi-k3"   # capable + reliably served on NVIDIA (GLM 5.2 was degraded)

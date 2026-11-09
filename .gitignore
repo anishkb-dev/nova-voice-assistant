@@ -69,3 +69,4 @@ iot/broker/nova-broker*
 *.map
 internship-handoff.md
 nova_claude/
+.projector_on
