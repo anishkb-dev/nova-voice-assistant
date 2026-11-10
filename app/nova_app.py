@@ -41,6 +41,12 @@ KOKORO_URL = "http://127.0.0.1:8089"   # local Daniel voice (tts_server.py)
 CORE_TOOLS = {"get_datetime", "search_web", "read_webpage", "get_weather", "iot_control", "ac", "lights",
               "iot_status", "remember", "run_command", "set_volume", "open_app", "system_status"}
 EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it hands a command to the Mac; swap for Pop/Glass/Purr
+# Whisper vocabulary hint: biases every STT path toward the words you actually use with Nova. Add words here.
+STT_PROMPT = ("Nova, projector, laser, nebula, stars, galaxy, rainbow, aqua, dimmer, brighter, AC, lights, fan, "
+              "LED strip, goodnight, good morning, reminder, Telegram, sir.")
+# Words Whisper keeps mishearing for this voice -> what was meant (lowercase, whole words).
+STT_FIXES = {"leaser": "laser", "lazer": "laser", "leasers": "lasers", "lazers": "lasers", "nebular": "nebula"}
+
 TOOL_HINTS = [   # (regex on the latest user turns, extra tools)
     (r"music|song|play|pause|spotify|track", {"play_music", "stop_music", "mute"}),
     (r"remind|calendar|meeting|schedule|event|appointment|timer|alarm|tomorrow|notify", {"set_reminder", "create_reminder", "create_calendar_event", "notify"}),
@@ -357,7 +363,7 @@ class Api:
             type(self)._local_whisper = WhisperModel("small.en", device="cpu", compute_type="int8", cpu_threads=8)
         w = wave.open(io.BytesIO(wav_bytes))
         a = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768
-        segs, _ = self._local_whisper.transcribe(a, language="en", beam_size=1)
+        segs, _ = self._local_whisper.transcribe(a, language="en", beam_size=1, initial_prompt=STT_PROMPT)
         return " ".join(x.text for x in segs).strip()
 
     def _warm_stt(self):
@@ -810,7 +816,7 @@ class Api:
                 tf = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
                 try:
                     tf.write(wav_bytes); tf.close()
-                    out = subprocess.run([cli, "-m", model, "-f", tf.name, "-nt", "-l", "en", "-t", "4"],
+                    out = subprocess.run([cli, "-m", model, "-f", tf.name, "-nt", "-l", "en", "-t", "4", "--prompt", STT_PROMPT],
                                          capture_output=True, text=True, timeout=20)
                     txt = " ".join((out.stdout or "").split())
                 except Exception as e:
@@ -827,7 +833,8 @@ class Api:
                         r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions",
                                           headers={"Authorization": "Bearer " + gk},
                                           files={"file": ("speech.wav", wav_bytes, "audio/wav")},
-                                          data={"model": "whisper-large-v3-turbo", "language": "en", "temperature": "0"},
+                                          data={"model": "whisper-large-v3-turbo", "language": "en", "temperature": "0",
+                                                "prompt": STT_PROMPT},
                                           timeout=5)
                         if r.ok:
                             txt = (r.json().get("text") or "").strip()
@@ -2126,7 +2133,8 @@ class Api:
         the words STT keeps mis-hearing for *your* voice (names, apps, jargon)."""
         import difflib
         vp = self.vprofile
-        text = " ".join(vp["corrections"].get(w.lower(), w) for w in text.split())   # explicit corrections
+        fixes = {**STT_FIXES, **vp["corrections"]}
+        text = " ".join(fixes.get(w.lower().strip(".,!?"), w) for w in text.split())   # explicit corrections
         common = [w for w, c in vp["vocab"].items() if c >= 3]
         if not common:
             return text
