@@ -785,8 +785,39 @@ class Api:
         dev_idx = usb if usb is not None else (builtin if builtin is not None else (cands[0][0] if cands else None))
         dev_name = pa.get_device_info_by_index(dev_idx)["name"] if dev_idx is not None else "default"
         print("[hf] input devices=%s -> using #%s '%s'" % (cands, dev_idx, dev_name), flush=True)
+        _nm = None
+        if nova.IS_HUB:                      # bedside ESP32 mic (iot/esp32_bedmic) wins when it's streaming
+            try:
+                from netmic import NetMic
+                _nm = NetMic()
+                _t0 = time.time()
+                while time.time() - _t0 < 3 and not _nm.alive():
+                    time.sleep(0.1)
+            except Exception as e:
+                print("[hf] netmic unavailable: %r" % e, flush=True); _nm = None
+            _use_net = bool(_nm and _nm.alive())
+
+            def _mic_watch():                # source changed -> exit; launchd relaunches and recalibrates the floor
+                seen = 0
+                while True:
+                    time.sleep(2)
+                    if _use_net and not _nm.alive(10):
+                        why = "bed mic went silent"
+                    elif not _use_net and _nm and _nm.alive(1):
+                        seen += 1
+                        if seen < 3: continue
+                        why = "bed mic came online"
+                    else:
+                        seen = 0; continue
+                    print("[hf] %s -> restarting to switch mics" % why, flush=True)
+                    subprocess.run(["pkill", "-f", "cam_presence.py"])   # it outlives us and holds the camera
+                    os._exit(3)
+            threading.Thread(target=_mic_watch, daemon=True).start()
+            if _use_net:
+                dev_name = "bedmic"
+                print("[hf] using bedside mic (UDP :5005)", flush=True)
         try:
-            stream = pa.open(rate=RATE, channels=1, format=pyaudio.paInt16,
+            stream = _nm if (_nm and _use_net) else pa.open(rate=RATE, channels=1, format=pyaudio.paInt16,
                              input=True, input_device_index=dev_idx, frames_per_buffer=FRAME)
         except Exception as e:
             self._hf = False
