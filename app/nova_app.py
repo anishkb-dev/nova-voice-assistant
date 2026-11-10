@@ -2109,7 +2109,8 @@ class Api:
         """Prefer a plugged-in USB mic (the lavalier adapter) for INPUT; fall back to the built-in mic.
         INPUT device only — never touches the user's output/speakers. Returns the device now selected."""
         sas = "/opt/homebrew/bin/SwitchAudioSource"      # abs path: app may launch with a minimal PATH
-        if not os.path.exists(sas):
+        if not os.path.exists(sas):                       # hub: no tool to pick the device, but still set the gain
+            if not self._ducked: self._set_input_gain(self._mic_gain)
             return None
         try:
             devs = subprocess.run([sas, "-a", "-t", "input"],
