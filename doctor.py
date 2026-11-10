@@ -117,19 +117,20 @@ except Exception as e:
 
 # ---------- smart room (MQTT + ESP32) ----------
 head("Smart room (MQTT + ESP32)")
-broker_up = subprocess.run(["pgrep", "-x", "mosquitto"], capture_output=True).returncode == 0
-line("ok" if broker_up else "bad", "mosquitto", "running" if broker_up else "NOT running")
+import socket
+import nova   # the broker lives on the hub (nova-hub.local) and needs the "nova" login
+try:
+    socket.create_connection((nova._IOT_BROKER, 1883), 3).close(); broker_up = True
+except OSError:
+    broker_up = False
+line("ok" if broker_up else "bad", "broker", "%s:1883 %s" % (nova._IOT_BROKER, "reachable" if broker_up else "NOT reachable"))
 if broker_up:
     try:
-        import paho.mqtt.client as mqtt
         got = {}
         def on_msg(cl, u, m): got[m.topic.split("/")[-1]] = m.payload.decode()
-        try:
-            cl = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        except Exception:
-            cl = mqtt.Client()
+        cl = nova.mqtt_client()
         cl.on_message = on_msg
-        cl.connect("localhost", 1883, 5); cl.subscribe("home/room/#"); cl.loop_start()
+        cl.connect(nova._IOT_BROKER, 1883, 5); cl.subscribe("home/room/#"); cl.loop_start()
         time.sleep(2.5); cl.loop_stop(); cl.disconnect()
         esp = got.get("status")
         line("ok" if esp == "online" else "bad", "ESP32", "online" if esp == "online" else "offline / not seen")
