@@ -510,6 +510,18 @@ def ac(command: str) -> str:
         _pub(c, _pub_set)
     except Exception as e:
         return "The AC didn't respond: %s" % str(e)[:60]
+    # ponytail: the ESP32's IR LED stopped reaching the AC (2026-11-10), so every command also goes via the Tuya
+    # blaster (cloud). LG frames are absolute state, so sending twice can't toggle anything back. The ESP32 publish
+    # stays for state tracking. Drop this once the ESP32 LED is re-aimed and confirmed working.
+    def _blaster():
+        try:
+            import os, sys; sys.path.insert(0, os.path.expanduser("~/anish-ai"))
+            from ac_control import ac as _ac
+            _ac({"fan": "mode fan"}.get(send, "fan " + send[6:] if send.startswith("speed ")
+                 else "mode " + send if send in ("cool", "heat", "dry", "auto") else send))
+        except Exception as e:
+            print("[ac] blaster failed:", str(e)[:80], flush=True)
+    threading.Thread(target=_blaster, daemon=True).start()
     return say
 
 def lights(command: str) -> str:
