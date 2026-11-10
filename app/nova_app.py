@@ -41,6 +41,17 @@ KOKORO_URL = "http://127.0.0.1:8089"   # local Daniel voice (tts_server.py)
 CORE_TOOLS = {"get_datetime", "search_web", "read_webpage", "get_weather", "iot_control", "ac", "lights",
               "iot_status", "remember", "run_command", "set_volume", "open_app", "system_status"}
 EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it hands a command to the Mac; swap for Pop/Glass/Purr
+# Short, unambiguous device commands work WITHOUT saying "Nova": must name a device AND an action, <= 8 words.
+# ponytail: keyword match, so a TV saying "turn off the lights" would also fire; tighten (or require Nova) if that happens.
+_DEV = r"\b(lights?|lamp|fan|ac|a\.c\.|air ?con\w*|projector|stars?|galaxy|nebula|l[ea]+s[ea]?rs?|strip|led|plug)\b"
+_ACT = (r"\b(on|off|dim\w*|bright\w*|colou?r|blue|red|green|pink|aqua|teal|rainbow|warm|white|purple|"
+        r"cool|heat|up|down|faster|slower|mode|reset|timer|\d+|degrees?)\b")
+_ROUTINE = r"^(good ?night|good morning|i'?m (leaving|home|back|up)|movie (time|mode|night)|bed ?time)\b"
+def DIRECT_CMD(text):
+    t = text.lower().strip(" .,!?")
+    if len(t.split()) > 8: return False
+    return bool(re.search(_ROUTINE, t) or (re.search(_DEV, t) and re.search(_ACT, t)))
+
 # Whisper vocabulary hint: biases every STT path toward the words you actually use with Nova. Add words here.
 STT_PROMPT = ("Nova, projector, laser, nebula, stars, galaxy, rainbow, aqua, dimmer, brighter, AC, lights, fan, "
               "LED strip, goodnight, good morning, reminder, Telegram, sir.")
@@ -968,8 +979,8 @@ class Api:
                     continue
                 m = WAKE_RE.search(text)
                 print("[hf] heard=%r nova=%s" % (text, bool(m)), flush=True)
-                if not m:
-                    continue                          # no 'Nova' -> background speech, ignore
+                if not m and not DIRECT_CMD(text):
+                    continue                          # no 'Nova' and not a clear device command -> background speech
                 if self._say and self._say.poll() is None:
                     self.stop_speaking()             # barge-in: cut any current reply
                 cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", text)).strip(" ,.?!")
