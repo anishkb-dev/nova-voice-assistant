@@ -45,7 +45,7 @@ EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it han
 STT_PROMPT = ("Nova, projector, laser, nebula, stars, galaxy, rainbow, aqua, dimmer, brighter, AC, lights, fan, "
               "LED strip, goodnight, good morning, reminder, Telegram, sir.")
 # Words Whisper keeps mishearing for this voice -> what was meant (lowercase, whole words).
-STT_FIXES = {"leaser": "laser", "lazer": "laser", "leasers": "lasers", "lazers": "lasers", "nebular": "nebula"}
+STT_FIXES = {"noa": "Nova", "noah": "Nova", "noali": "Nova", "nuaal": "Nova", "nava": "Nova", "leaser": "laser", "lazer": "laser", "leasers": "lasers", "lazers": "lasers", "nebular": "nebula"}
 
 TOOL_HINTS = [   # (regex on the latest user turns, extra tools)
     (r"music|song|play|pause|spotify|track", {"play_music", "stop_music", "mute"}),
@@ -147,7 +147,7 @@ class Api:
         threading.Thread(target=self._health_watch, daemon=True).start()   # Telegram when hub/ESP32 drop off
         if os.path.exists(os.path.expanduser("~/anish-ai/.icloud_user_key")):   # Mac only: pre-login Find My
             threading.Thread(target=__import__("findmy").warm, daemon=True).start()
-        self._mic_gain = 70                 # normal input gain for the current mic
+        self._mic_gain = 100 if nova.IS_HUB else 70   # hub: USB webcam mic, and no SwitchAudioSource there to set it
         self._close_mic = False             # lavalier/USB: close mic rejects the speaker -> no ducking needed
         self._ducked = False                # mic ducked while Nova speaks (reduces self-echo)
         threading.Thread(target=self._duck_loop, daemon=True).start()
@@ -833,7 +833,7 @@ class Api:
                         r = requests.post("https://api.groq.com/openai/v1/audio/transcriptions",
                                           headers={"Authorization": "Bearer " + gk},
                                           files={"file": ("speech.wav", wav_bytes, "audio/wav")},
-                                          data={"model": "whisper-large-v3-turbo", "language": "en", "temperature": "0",
+                                          data={"model": "whisper-large-v3", "language": "en", "temperature": "0",
                                                 "prompt": STT_PROMPT},
                                           timeout=5)
                         if r.ok:
