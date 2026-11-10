@@ -46,7 +46,7 @@ EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it han
 _DEV = r"\b(lights?|lamp|fan|ac|a\.c\.|air ?con\w*|projector|stars?|galaxy|nebula|l[ea]+s[ea]?rs?|strip|led|plug)\b"
 _ACT = (r"\b(on|off|dim\w*|bright\w*|colou?r|blue|red|green|pink|aqua|teal|rainbow|nebula|galaxy|warm|white|purple|"
         r"cool|heat|up|down|faster|slower|mode|reset|timer|\d+|degrees?)\b")
-_ROUTINE = r"^((learn|train) my voice|good ?night|good morning|i'?m (leaving|home|back|up)|movie (time|mode|night)|bed ?time)\b"
+_ROUTINE = r"^(learn|train) my voice\b"   # routines (good night, I'm leaving...) need "Nova": they come up in phone calls
 def DIRECT_CMD(text):
     t = text.lower().strip(" .,!?")
     if len(t.split()) > 8: return False
