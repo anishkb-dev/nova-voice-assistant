@@ -595,6 +595,9 @@ class Api:
         try: cam_seen = os.path.getmtime("/tmp/nova_cam_seen")    # hub webcam saw movement (cam_presence.py)
         except OSError: cam_seen = 0
         last_move = t if moving else max(self._last_motion_ts, self._motion_end_ts, cam_seen)
+        if any("light" in ru.get("if", {}) for ru in rules):         # the light is the WiZ bulb, not the dead relay K1
+            import wiz
+            d = dict(d, light=wiz.state())
         for i, ru in enumerate(rules):                               # 2) sensor rules
             if not ru.get("enabled", True) or not self._in_window(ru.get("between"), now): continue
             if asleep and not ru.get("even_asleep"): continue           # sleep mode pauses all but even_asleep rules

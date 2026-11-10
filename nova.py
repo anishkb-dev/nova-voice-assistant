@@ -398,7 +398,7 @@ def _pub(c, msgs):
             c.publish(t, p, qos=1).wait_for_publish(3)
     finally:
         c.disconnect(); c.loop_stop()
-_IOT_DEVICES = {"light", "fan", "plug"}
+_IOT_DEVICES = {"fan", "plug"}   # relays. "light" = the WiZ bulb (wiz.py); relay K1's old LED strip is dead (2026-11-10)
 
 def iot_control(device: str, action: str) -> str:
     """Turn a smart-room device on/off/toggle: light, fan, plug, or 'all'."""
@@ -407,8 +407,13 @@ def iot_control(device: str, action: str) -> str:
     act = (action or "").lower().strip()
     dev = {"lights": "light", "lamp": "light", "bulb": "light", "everything": "all"}.get(dev, dev)
     act = {"enable": "on", "start": "on", "disable": "off", "stop": "off"}.get(act, act)
-    if dev not in _IOT_DEVICES | {"all"} or act not in {"on", "off", "toggle"}:
+    if dev not in _IOT_DEVICES | {"all", "light"} or act not in {"on", "off", "toggle"}:
         return "I can switch the light, fan, or plug on or off, sir."
+    if dev in ("light", "all"):
+        import wiz
+        if act == "toggle": act = "off" if wiz.state() == "on" else "on"
+        said = wiz.bulb(act)
+        if dev == "light": return ("Light turned " + act + ", sir.") if said.startswith("Bulb") else said
     c = mqtt_client()
     try:
         _pub(c, [(f"home/{_IOT_ROOM}/{t}/set", act) for t in (sorted(_IOT_DEVICES) if dev == "all" else [dev])])
@@ -665,6 +670,8 @@ def iot_status() -> str:
     m = data.get("motion")
     if m is not None:                    parts.append("with motion detected" if str(m) not in ("0", "False") else "no motion")
     report = ("The room is " + ", ".join(parts) + ".") if parts else "No sensor readings yet, sir."
+    import wiz
+    data = dict(data, light=wiz.state())   # the light is the WiZ bulb now, not the relay
     devs = [f"{d} is {data[d]}" for d in ("light", "fan", "plug") if data.get(d) is not None]
     if devs:
         report += " " + "; ".join(devs).capitalize() + "."
@@ -956,7 +963,7 @@ FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": searc
          "write_file": write_file, "list_files": list_files,
          "iot_control": iot_control, "iot_status": iot_status, "drive": drive,
          "ac": ac, "lights": lights, "light_panel": light_panel, "claude": claude, "gesture_control": gesture_control, "code": code, "design": design,
-         "think": think, "look": look, "wake_brief": wake_brief, "night_summary": night_summary, "projector": projector, "find_device": lambda device="phone": __import__("findmy").find_device(device)}
+         "think": think, "look": look, "wake_brief": wake_brief, "night_summary": night_summary, "projector": projector, "bulb": lambda command: __import__("wiz").bulb(command), "find_device": lambda device="phone": __import__("findmy").find_device(device)}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -1056,6 +1063,10 @@ TOOLS = [
         "name": "list_files", "description": "List files in a directory.",
         "parameters": {"type": "object", "properties": {
             "directory": {"type": "string", "description": "Directory path, default home"}}}}},
+    {"type": "function", "function": {
+        "name": "bulb", "description": "Dim or colour the ROOM LIGHT (Philips WiZ bulb): 'dim the light', 'light 40 percent', 'light warm/cool/white', 'make the light blue', 'night light'. Plain light on/off can use iot_control. NOT the bed LED strip (that is lights).",
+        "parameters": {"type": "object", "properties": {
+            "command": {"type": "string", "description": "on, off, dim, brighter, brightness 40, warm, cool, white, a colour name, or night"}}, "required": ["command"]}}},
     {"type": "function", "function": {
         "name": "iot_control", "description": "Control a smart-room IoT device. Use for 'turn on/off the light/fan/plug', or 'turn everything off'.",
         "parameters": {"type": "object", "properties": {
