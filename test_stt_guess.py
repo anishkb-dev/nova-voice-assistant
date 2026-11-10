@@ -22,3 +22,9 @@ print("ok", asked, s.vprofile["phrases"])
 for p in ["izzerov","lights of","fan of","stars timmer","good knight","projected on","laser of","a c off",
           "hello there","thanks nova","i'm tired","nice work","that's cool","never mind","stop","shut up"]:
     asked.clear(); r = G(p, "no"); print("%-14s -> %s" % (p, asked[0] if asked else "(no question)"))
+# follow-up gate: device commands pass, chatter to other people doesn't
+D = g["DIRECT_CMD"]
+for p, want in [("set projector to nebula", 1), ("Now a reset projector", 1), ("goodnight", 1),
+                ("See you", 0), ("Did he hit him", 0), ("What if I build a mic?", 0)]:
+    assert bool(D(p)) == bool(want), p
+print("follow-up gate ok")

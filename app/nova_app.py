@@ -44,7 +44,7 @@ EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it han
 # Short, unambiguous device commands work WITHOUT saying "Nova": must name a device AND an action, <= 8 words.
 # ponytail: keyword match, so a TV saying "turn off the lights" would also fire; tighten (or require Nova) if that happens.
 _DEV = r"\b(lights?|lamp|fan|ac|a\.c\.|air ?con\w*|projector|stars?|galaxy|nebula|l[ea]+s[ea]?rs?|strip|led|plug)\b"
-_ACT = (r"\b(on|off|dim\w*|bright\w*|colou?r|blue|red|green|pink|aqua|teal|rainbow|warm|white|purple|"
+_ACT = (r"\b(on|off|dim\w*|bright\w*|colou?r|blue|red|green|pink|aqua|teal|rainbow|nebula|galaxy|warm|white|purple|"
         r"cool|heat|up|down|faster|slower|mode|reset|timer|\d+|degrees?)\b")
 _ROUTINE = r"^((learn|train) my voice|good ?night|good morning|i'?m (leaving|home|back|up)|movie (time|mode|night)|bed ?time)\b"
 def DIRECT_CMD(text):
@@ -1122,6 +1122,10 @@ class Api:
                     follow = re.sub(r"\s+", " ", WAKE_RE.sub(" ", got)).strip(" ,.?!")
                     print("[hf] follow=%r" % follow, flush=True)
                     if not follow:
+                        convo = False; break
+                    asked_q = getattr(self, "_last_spoken", "").rstrip().endswith("?")
+                    if not (DIRECT_CMD(follow) or asked_q or WAKE_RE.search(got)):   # chatter to someone else
+                        print("[hf] follow ignored (not a command, I didn't ask)", flush=True)
                         convo = False; break
                     run_cmd(follow)
                 ring.clear(); cooldown = 4
