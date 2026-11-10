@@ -52,6 +52,12 @@ def DIRECT_CMD(text):
     if len(t.split()) > 8: return False
     return bool(re.search(_ROUTINE, t) or (re.search(_DEV, t) and re.search(_ACT, t)))
 
+_QUESTION_RE = re.compile(r"^(what|who|when|where|why|how|which|is|are|do|does|did|can|could|will|would|tell|play|"
+                          r"remind|search|open|call|send|text|message|find|show|read|say)\b")
+_SEED_CMDS = ["laser off", "laser on", "stars dimmer", "stars brighter", "projector on", "projector off",
+              "lights on", "lights off", "fan on", "fan off", "ac on", "ac off", "good night", "good morning",
+              "stop the music", "volume up", "volume down", "change colour", "laser mode"]
+
 # Whisper vocabulary hint: biases every STT path toward the words you actually use with Nova. Add words here.
 STT_PROMPT = ("Nova, projector, laser, nebula, stars, galaxy, rainbow, aqua, dimmer, brighter, AC, lights, fan, "
               "LED strip, goodnight, good morning, reminder, Telegram, sir.")
@@ -897,7 +903,22 @@ class Api:
                 print("[hf] trace " + " ".join(map(str, _trace)), flush=True)
             return pcm if spoke else pcm[:0]     # only noise -> skip STT (Whisper invents words from hiss, wastes quota)
 
+        def ask(question):
+            """Speak a question, wait for it to finish, return what you answer ("" if nothing)."""
+            self.speak(question)
+            _t = time.time()
+            while self._say and self._say.poll() is None and time.time() - _t < 8:
+                read()
+            try:
+                while stream.get_read_available() >= FRAME: stream.read(FRAME, exception_on_overflow=False)
+            except Exception:
+                pass
+            ans = transcribe(record_command(floor, hang_ms=hang_ms, start_ms=4000)) or ""
+            print("[hf] answer=%r" % ans, flush=True)
+            return ans
+
         def run_cmd(cmd):
+            cmd = self._vp_guess(cmd, ask)    # learned fix, or "Did you mean ...?" for a garbled short command
             self._vp_learn(cmd)               # just do the task — don't type the heard command into the box
             try:
                 _t = time.time()
@@ -2197,6 +2218,40 @@ class Api:
         self._last_cmd_at = now
         if vp["n"] % 5 == 0:
             self._save_vprofile()
+
+    def _vp_guess(self, cmd, ask):
+        """Learn from your corrections. Known-good commands = every clear device command you've given (+ a seed
+        list). A short command that isn't one -> closest known one -> "Did you mean X?" -> yes = run X and
+        remember the mishearing, so next time it's fixed silently. Questions/long sentences pass through as heard."""
+        import difflib
+        vp = self.vprofile
+        ph, good = vp.setdefault("phrases", {}), vp.setdefault("good", {})
+        low = cmd.lower().strip(" .,!?")
+        if low in ph:
+            print("[hf] learned fix: %r -> %r" % (low, ph[low]), flush=True)
+            return ph[low]
+        if DIRECT_CMD(low):
+            good[low] = good.get(low, 0) + 1
+            return cmd
+        if len(low.split()) > 5 or _QUESTION_RE.match(low):
+            return cmd
+        def score(c):   # same word count -> word-by-word ("lazy off" ~ "laser off", not "ac off"); else whole string
+            w1, w2 = low.split(), c.split()
+            if len(w1) == len(w2):
+                return sum(difflib.SequenceMatcher(None, x, y).ratio() for x, y in zip(w1, w2)) / len(w1)
+            return 0.9 * difflib.SequenceMatcher(None, low, c).ratio()
+        # ponytail: spelling similarity only; a phonetic match would catch more, add it if guesses miss often
+        best = max(set(good) | set(_SEED_CMDS), key=score)
+        if score(best) < 0.65:
+            return cmd
+        m = [best]
+        ans = ask("Did you mean %s?" % m[0]).lower()
+        if re.search(r"\b(yes|yeah|yep|yup|correct|right|sure|haan|ha|do it|ok(ay)?)\b", ans):
+            ph[low] = m[0]; good[m[0]] = good.get(m[0], 0) + 1
+            self._save_vprofile()
+            print("[hf] learned: %r means %r" % (low, m[0]), flush=True)
+            return m[0]
+        return cmd                                    # no / silence -> send what was heard
 
     def _vp_correct(self, text):
         """Fuzzy-snap near-miss words to your frequent vocabulary + apply learned corrections. Fixes
