@@ -46,7 +46,7 @@ EARCON = "/System/Library/Sounds/Tink.aiff"   # hub plays this the moment it han
 _DEV = r"\b(lights?|lamp|fan|ac|a\.c\.|air ?con\w*|projector|stars?|galaxy|nebula|l[ea]+s[ea]?rs?|strip|led|plug)\b"
 _ACT = (r"\b(on|off|dim\w*|bright\w*|colou?r|blue|red|green|pink|aqua|teal|rainbow|warm|white|purple|"
         r"cool|heat|up|down|faster|slower|mode|reset|timer|\d+|degrees?)\b")
-_ROUTINE = r"^(good ?night|good morning|i'?m (leaving|home|back|up)|movie (time|mode|night)|bed ?time)\b"
+_ROUTINE = r"^((learn|train) my voice|good ?night|good morning|i'?m (leaving|home|back|up)|movie (time|mode|night)|bed ?time)\b"
 def DIRECT_CMD(text):
     t = text.lower().strip(" .,!?")
     if len(t.split()) > 8: return False
@@ -824,6 +824,12 @@ class Api:
             with wave.open(buf, "wb") as w:
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE); w.writeframes(p.tobytes())
             wav_bytes = buf.getvalue()
+            try:                                     # keep the last 20 clips -> test STT fixes on real audio
+                os.makedirs("/tmp/nova_stt", exist_ok=True)
+                open("/tmp/nova_stt/%d.wav" % int(time.time() * 1000), "wb").write(wav_bytes)
+                for old in sorted(os.listdir("/tmp/nova_stt"))[:-20]: os.unlink("/tmp/nova_stt/" + old)
+            except Exception:
+                pass
 
             txt = ""
             # 1) LOCAL whisper.cpp first — no rate limits, no network (fixes the Groq 429s)
@@ -917,7 +923,31 @@ class Api:
             print("[hf] answer=%r" % ans, flush=True)
             return ans
 
+        def train_voice():
+            """'learn my voice': Nova reads each command, you repeat it; whatever Whisper hears is stored as
+            a fix for that command (phrases), and a misheard "Nova" becomes a wake-word correction."""
+            vp = self.vprofile; ph = vp.setdefault("phrases", {}); cor = vp["corrections"]
+            self.speak("Voice training, sir. Repeat after me. Say skip to skip one, or stop to finish.")
+            for want in ["Nova"] + _SEED_CMDS:
+                for _try in (1, 2):
+                    got = ask(want + ".").lower().strip(" .,!?")
+                    if got: break
+                if got in ("stop", "finish", "done", "enough", "stop training"): break
+                print("[train] %r heard as %r" % (want, got), flush=True)
+                if not got or got == want.lower() or "skip" in got: continue
+                if want == "Nova":
+                    for w in got.split():   # misheard wake word -> fix that word (not real words like 'no')
+                        if w not in ("nova", "no", "now", "know", "oh", "yo", "the", "a", "not", "go") and len(w) > 2:
+                            cor[w] = "Nova"
+                else:
+                    ph[got] = want.lower()
+            self._save_vprofile()
+            self.speak("Done, sir. I've learned your voice.")
+            print("[train] phrases=%d corrections=%d" % (len(ph), len(cor)), flush=True)
+
         def run_cmd(cmd):
+            if nova.IS_HUB and re.search(r"\b(learn|train)\b.*\bvoice\b", cmd.lower()):
+                return train_voice()
             cmd = self._vp_guess(cmd, ask)    # learned fix, or "Did you mean ...?" for a garbled short command
             self._vp_learn(cmd)               # just do the task — don't type the heard command into the box
             try:
