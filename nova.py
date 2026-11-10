@@ -564,6 +564,9 @@ _PROJ_BTN = {"colour": (3, "Next colour"), "brighter": (1, "Brighter"), "dimmer"
              "reset": (26, "Projector reset"), "laser": (15, "Laser toggled"), "laser mode": (14, "Next laser mode"),
              "laser brighter": (13, "Laser brighter"), "laser dimmer": (12, "Laser dimmer")}
 
+_PROJ_COLOURS = ["green", "nebula", "red", "blue", "green two", "pink", "aqua", "rainbow"]   # colour button cycle; reset -> green
+_PROJ_COL = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".projector_colour")
+
 def _proj_code(n):
     from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice as C
     return C.pulses_to_base64(C.nec_to_pulses(2045, n))
@@ -572,10 +575,23 @@ def projector(action: str = "toggle") -> str:
     """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset."""
     a = (action or "toggle").lower().strip()
     a = {"color": "colour", "brightness up": "brighter", "brightness down": "dimmer", "speed up": "faster",
-         "speed down": "slower", "laser on": "laser", "laser off": "laser", "lasers": "laser", "laser brightness up": "laser brighter", "laser brightness down": "laser dimmer"}.get(a, a)
+         "speed down": "slower", "laser on": "laser", "laser off": "laser", "lasers": "laser", "galaxy": "nebula", "purple": "nebula", "natural": "nebula", "real": "nebula", "pink and blue": "pink", "pink blue": "pink", "green and blue": "aqua", "green blue": "aqua", "teal": "aqua", "cyan": "aqua", "multicolour": "rainbow", "multicolor": "rainbow", "mixed": "rainbow", "green yellow red": "rainbow", "second green": "green two", "laser brightness up": "laser brighter", "laser brightness down": "laser dimmer"}.get(a, a)
+    if a in _PROJ_COLOURS:                         # named colour = press colour until we get there
+        try: cur = int(open(_PROJ_COL).read())
+        except Exception: cur = 0
+        for _ in range((_PROJ_COLOURS.index(a) - cur) % len(_PROJ_COLOURS)):
+            if not _tuya_ir(_proj_code(3)): return "I couldn't reach the IR blaster, sir."
+            cur = (cur + 1) % len(_PROJ_COLOURS); open(_PROJ_COL, "w").write(str(cur)); time.sleep(0.6)
+        return "Nebula %s, sir." % a
     if a in _PROJ_BTN:
         n, msg = _PROJ_BTN[a]
-        return msg + ", sir." if _tuya_ir(_proj_code(n)) else "I couldn't reach the IR blaster, sir."
+        if not _tuya_ir(_proj_code(n)): return "I couldn't reach the IR blaster, sir."
+        # ponytail: colour position is tracked, not read back; a missed IR send or the remote desyncs it, "reset" re-syncs to green
+        if a in ("colour", "reset"):
+            try: cur = int(open(_PROJ_COL).read())
+            except Exception: cur = 0
+            open(_PROJ_COL, "w").write(str(0 if a == "reset" else (cur + 1) % len(_PROJ_COLOURS)))
+        return msg + ", sir."
     on = os.path.exists(_PROJ_ON)
     # ponytail: power is a single toggle with no feedback, so state is our best guess; if it's out of sync,
     # "projector toggle" (or the remote) fixes it.
@@ -1062,7 +1078,7 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "projector", "description": "The star/galaxy projector light in the room (IR). Use for 'projector on/off', 'star light', 'galaxy light', 'change the projector colour', 'make the stars dimmer', 'spin faster'.",
         "parameters": {"type": "object", "properties": {
-            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour", "brighter", "dimmer", "faster", "slower", "timer", "reset", "laser", "laser mode", "laser brighter", "laser dimmer"], "description": "on/off/toggle power, colour = next nebula colour, brighter/dimmer, faster/slower nebula spin (projector ignores spin), timer, reset, laser = laser on/off toggle, laser mode, laser brighter/dimmer"}}}}},
+            "action": {"type": "string", "enum": ["on", "off", "toggle", "colour", "brighter", "dimmer", "faster", "slower", "timer", "reset", "laser", "laser mode", "laser brighter", "laser dimmer", "green", "nebula", "red", "blue", "green two", "pink", "aqua", "rainbow"], "description": "on/off/toggle power, colour = next nebula colour, brighter/dimmer, faster/slower nebula spin (projector ignores spin), timer, reset, laser = laser on/off toggle, laser mode, laser brighter/dimmer, or a nebula colour: green, nebula (realistic galaxy look), red, blue, green two, pink (pink+blue), aqua (green+blue), rainbow (green+yellow+red)"}}}}},
 ]
 
 # ---------- the loop ----------
