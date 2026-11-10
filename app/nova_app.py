@@ -915,7 +915,8 @@ class Api:
             _t = time.time()
             while self._say and self._say.poll() is None and time.time() - _t < 8:
                 read()
-            try:
+            subprocess.run(["afplay", "-v", "0.5", EARCON], stderr=subprocess.DEVNULL)   # beep = your turn
+            try:                                       # drop Nova's voice + the beep from the buffer
                 while stream.get_read_available() >= FRAME: stream.read(FRAME, exception_on_overflow=False)
             except Exception:
                 pass
@@ -927,15 +928,16 @@ class Api:
             """'learn my voice': Nova reads each command, you repeat it; whatever Whisper hears is stored as
             a fix for that command (phrases), and a misheard "Nova" becomes a wake-word correction."""
             vp = self.vprofile; ph = vp.setdefault("phrases", {}); cor = vp["corrections"]
-            self.speak("Voice training, sir. Repeat after me. Say skip to skip one, or stop to finish.")
+            self.speak("Voice training, sir: repeat each command after the beep, or say stop to finish")   # one sentence: ask() waits for the first chunk only
             for want in ["Nova"] + _SEED_CMDS:
                 for _try in (1, 2):
                     got = ask(want + ".").lower().strip(" .,!?")
                     if got: break
                 if got in ("stop", "finish", "done", "enough", "stop training"): break
                 print("[train] %r heard as %r" % (want, got), flush=True)
-                if not got or got == want.lower() or "skip" in got: continue
+                if len(got) < 3 or got == want.lower() or "skip" in got: continue   # "oh" = clipped, not a mishearing
                 if want == "Nova":
+                    if len(got.split()) > 2: continue   # a sentence, not the name
                     for w in got.split():   # misheard wake word -> fix that word (not real words like 'no')
                         if w not in ("nova", "no", "now", "know", "oh", "yo", "the", "a", "not", "go") and len(w) > 2:
                             cor[w] = "Nova"
