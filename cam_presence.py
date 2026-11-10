@@ -80,10 +80,19 @@ def run():
         try: open("/tmp/nova_cam_pcts", "w").write(" ".join(map(str, pcts)))
         except Exception: pass
     signal.signal(signal.SIGUSR1, _dump)
+    snap = []                                    # kill -USR2 <pid> -> full-res photo at /tmp/nova_snap.jpg
+    signal.signal(signal.SIGUSR2, lambda *_: snap.append(1))
     print("camera presence running", flush=True)
     while os.getppid() != 1:                     # parent Nova died -> exit, free the camera
         if cap is None or not cap.isOpened():
             time.sleep(8); cap = open_cam(); continue
+        if snap and cap is not None:
+            snap.clear()
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280); cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            for _ in range(8): cap.read()        # let exposure settle at the new size
+            ok, big = cap.read()
+            if ok: cv2.imwrite("/tmp/nova_snap.jpg", big)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320); cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240); prev = None
         cap.grab(); ok, frame = cap.read()       # grab() drops a buffered frame so we diff "now"
         if not ok or frame is None or frame.mean() < 1:   # sleep/wake leaves a dead capture -> reopen
             bad += 1
