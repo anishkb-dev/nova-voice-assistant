@@ -546,8 +546,11 @@ def _tuya_ir(code):
     devs = json.load(open(f)); d = next(x for x in devs if x.get("category") == "wnykq")
     for attempt in range(3):
         try:
-            r = M(d["id"], d["ip"], d["key"], version=float(d.get("version") or 3.5),
-                                        control_type=1).send_button(code)
+            ir = M(d["id"], d["ip"], d["key"], version=float(d.get("version") or 3.5), control_type=1)
+            ir.set_socketTimeout(1)                          # the blaster never replies; 1s just holds the socket open
+            # send_button() is fire-and-forget (nowait) and the socket can close before the blaster acts on it
+            # -> occasional silent misses. Same DPS 201 payload, but hold the socket open briefly.
+            r = ir.set_value(201, json.dumps({"control": "send_ir", "head": "", "key1": "1" + code, "type": 0}))
             if not (isinstance(r, dict) and r.get("Error")): return True
         except Exception:
             pass
@@ -582,7 +585,7 @@ def projector(action: str = "toggle") -> str:
         for _ in range((_PROJ_COLOURS.index(a) - cur) % len(_PROJ_COLOURS)):
             if not _tuya_ir(_proj_code(3)): return "I couldn't reach the IR blaster, sir."
             cur = (cur + 1) % len(_PROJ_COLOURS); open(_PROJ_COL, "w").write(str(cur)); time.sleep(0.6)
-        return "Nebula %s, sir." % a
+        return ("Galaxy look" if a == "nebula" else a.capitalize()) + ", sir."
     if a in _PROJ_BTN:
         n, msg = _PROJ_BTN[a]
         if not _tuya_ir(_proj_code(n)): return "I couldn't reach the IR blaster, sir."
