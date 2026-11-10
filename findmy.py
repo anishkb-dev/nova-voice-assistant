@@ -150,7 +150,7 @@ if __name__ == "__main__":
         devs = [D(name="Anish's iPhone", deviceDisplayName="iPhone 15"), D(name="AirPods", deviceDisplayName="AirPods Pro")]
         assert _pick(devs, "phone")["name"] == "Anish's iPhone" and _pick(devs, "airpods")["name"] == "AirPods"
         assert _pick(devs, "ipad") is None
-        fam = [D(name="Sweety\u2019s iphone", deviceDisplayName="iPhone"), D(name="Anish\u2019s iPhone", deviceDisplayName="iPhone")]
+        fam = [D(name="Sam\u2019s iphone", deviceDisplayName="iPhone"), D(name="Anish\u2019s iPhone", deviceDisplayName="iPhone")]
         assert _pick(fam, "phone", "anish")["name"].startswith("Anish")
-        assert _pick(fam, "sweety's iphone", "anish")["name"].startswith("Sweety")
+        assert _pick(fam, "sam's iphone", "anish")["name"].startswith("Sam")
         print("ok")
