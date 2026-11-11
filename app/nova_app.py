@@ -22,7 +22,12 @@ ON_SENSES = not WORKER and (socket.gethostname().split(".")[0] == "nova-hub" or 
 # Wake word — "Nova", broadened for common Whisper mishearings on a rough mic.
 WAKE_RE = re.compile(
     r"(?:hey\s+)?(?:nova|novah|noba|nofa|nowa|nava|navah|noma|novo|"
-    r"novea|nyova|knova|nowva|novo|nolva|noah|noaa|noa)\b",
+    r"novea|nyova|knova|nowva|novo|nolva|noah|noaa|noa)\b"
+    # 2026-11-12: the owner's "Nova" often transcribes as now / no / no law / you know. Count those ONLY at the
+    # very start AND followed by a question/command, so "now" mid-sentence (TV) never wakes Nova.
+    # ponytail: stopgap until the wake-word model is retrained on voice_samples/wake.
+    r"|^\W*(?:now|no(?:\s+law)?|you\s+know)\W+(?=(?:what|what's|whats|how|when|where|who|is|are|can|could|will|"
+    r"turn|switch|play|stop|set|open|tell|call|lights?|ac|remind)\b)",
     re.IGNORECASE)
 
 # barge-in / interrupt words — spoken over Nova to make it stop talking
