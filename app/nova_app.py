@@ -925,21 +925,15 @@ class Api:
                 pass
 
             txt = ""
-            # 1) LOCAL whisper.cpp first — no rate limits, no network (fixes the Groq 429s)
-            cli   = shutil.which("whisper-cli") or "/opt/homebrew/bin/whisper-cli"
-            model = os.path.expanduser("~/anish-ai/models/ggml-base.en.bin")
-            if os.path.exists(cli) and os.path.exists(model):
-                tf = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-                try:
-                    tf.write(wav_bytes); tf.close()
-                    out = subprocess.run([cli, "-m", model, "-f", tf.name, "-nt", "-l", "en", "-t", "4", "--prompt", STT_PROMPT],
-                                         capture_output=True, text=True, timeout=20)
-                    txt = " ".join((out.stdout or "").split())
-                except Exception as e:
-                    print("[hf] local whisper err:", str(e)[:60], flush=True)
-                finally:
-                    try: os.unlink(tf.name)
-                    except Exception: pass
+            # 1) LOCAL Whisper base.en (sherpa-onnx, ~1 s on the hub): no network, no quota, no limits
+            try:
+                sys.path.insert(0, os.path.expanduser("~/anish-ai")); import localstt
+                if localstt.available():
+                    t0 = time.time(); txt = localstt.transcribe(p, RATE)
+                    print("[hf] local stt %.2fs: %r" % (time.time() - t0, txt[:60]), flush=True)
+                    if not txt: return ""            # local heard no speech -> don't burn the cloud quota on noise
+            except Exception as e:
+                print("[hf] local stt err:", str(e)[:60], flush=True)
 
             # 2) fall back to Groq only if local gave nothing
             if not txt:
