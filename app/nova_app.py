@@ -394,7 +394,7 @@ class Api:
 
     _stt_wait = {}     # hub: request id -> [Event, text]
 
-    def _mac_stt(self, wav_bytes, timeout=4.0):
+    def _mac_stt(self, wav_bytes, timeout=10.0):   # 4 s dropped follow-ups: Mac STT ~2 s, more while it speaks
         """Hub side: send a WAV to the Mac's local Whisper, wait for the text ('' on timeout)."""
         import uuid
         rid = uuid.uuid4().hex[:8]; ev = threading.Event(); self._stt_wait[rid] = [ev, ""]
@@ -1428,9 +1428,9 @@ class Api:
                 return
             if m.topic.startswith("home/mac/stt/") and not nova.IS_HUB:     # Mac: transcribe for the hub
                 def _do(rid=m.topic.rsplit("/", 1)[1], wav=m.payload):
-                    # one at a time: the hub gives up after ~5 s, so a pile of parallel jobs (noise clips) made
-                    # EVERY job too slow and real commands timed out. Busy -> answer "" now, hub moves on.
-                    if not self._stt_lock.acquire(blocking=False):
+                    # one at a time: a pile of parallel jobs (noise clips) made EVERY job too slow and real commands
+                    # timed out. Queue briefly (hub waits 10 s); still busy after 6 s -> answer "" so it moves on.
+                    if not self._stt_lock.acquire(timeout=6):
                         c.publish("home/hub/stt/" + rid, "", qos=1); return
                     try: txt = self._local_stt(wav)
                     except Exception as e: print("[stt] local failed:", e, flush=True); txt = ""
