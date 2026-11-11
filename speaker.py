@@ -5,7 +5,8 @@ import os
 import numpy as np
 
 MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "spk_campp_en.onnx")
-SAME = 0.45          # cosine >= this = same person. Tune from "[spk]" lines in nova.log
+SAME = 0.50          # cosine >= this = same person. 2026-11-12 data: you 0.85, video/noise <= 0.48
+REF_MIN_S = 2.0      # a reference voice built from less than this ("Nova?" = 1.1 s) is too weak to reject on
 MIN_S = 0.8          # shorter clips give unreliable fingerprints -> "unknown" (None)
 _ext = None
 

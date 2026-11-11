@@ -1099,7 +1099,7 @@ class Api:
                 _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms)
                 _t = time.time()
                 text = transcribe(_pcm)
-                spk_ref = None                       # filled below once this turns out to be a real "Nova ..."
+                spk_ref, spk_s = None, 0.0           # filled below once this turns out to be a real "Nova ..."
                 print("[hf] stt=%.2fs" % (time.time() - _t), flush=True)
                 ring.clear()
                 if not text:
@@ -1114,11 +1114,15 @@ class Api:
                 if self._say and self._say.poll() is None:
                     self.stop_speaking()             # barge-in: cut any current reply
                 spk_ref = _spk(_pcm)                 # the voice that woke Nova = the only voice follow-ups accept
+                spk_s = _pcm.size / 16000.0          # seconds of speech behind spk_ref (short = weak, never rejects)
                 _keep(_pcm, "wake")
                 cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", text)).strip(" ,.?!")
                 print("[hf] cmd=%r" % cmd, flush=True)
                 if not cmd:   # just "Nova" + a pause: you're usually about to say more -> listen 1.5s before "Yes, sir?"
-                    more = transcribe(record_command(floor, hang_ms=hang_ms, start_ms=1500))
+                    _mp = record_command(floor, hang_ms=hang_ms, start_ms=1500)
+                    more = transcribe(_mp)
+                    if more and not is_echo(more) and _mp.size:   # "Nova?" alone is too short to know the voice
+                        spk_ref, spk_s = _spk(np.concatenate([_pcm, _mp])), (_pcm.size + _mp.size) / 16000.0
                     if more and not is_echo(more):
                         cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", more)).strip(" ,.?!")
                         print("[hf] cmd (after pause)=%r" % cmd, flush=True)
@@ -1200,8 +1204,8 @@ class Api:
                             _fp = record_command(floor, seed=list(ring), hang_ms=hang_ms)
                             ring.clear()
                             _e = _spk(_fp); _sc = speaker.score(spk_ref, _e) if speaker else None
-                            print("[spk] follow-up voice match %s" % ("%.2f" % _sc if _sc is not None else "n/a"), flush=True)
-                            if _sc is not None and _sc < speaker.SAME:
+                            print("[spk] follow-up voice match %s (ref %.1fs)" % ("%.2f" % _sc if _sc is not None else "n/a", spk_s), flush=True)
+                            if _sc is not None and _sc < speaker.SAME and spk_s >= speaker.REF_MIN_S:
                                 print("[spk] another voice (TV / someone else) -> ignored", flush=True)
                                 _keep(_fp, "other", _sc)
                                 continue             # keep the conversation open for the real speaker
@@ -1209,6 +1213,7 @@ class Api:
                             if got and not is_echo(got): _keep(_fp, "you", _sc)
                             if got and not is_echo(got) and _e is not None:   # learn the voice as we go
                                 spk_ref = _e if spk_ref is None else (spk_ref + _e) / np.linalg.norm(spk_ref + _e)
+                                spk_s += _fp.size / 16000.0
                             if got and not is_echo(got):
                                 break
                             got = ""             # noise / Nova's own echo -> keep the conversation open
