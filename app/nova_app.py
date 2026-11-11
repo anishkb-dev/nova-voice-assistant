@@ -123,6 +123,10 @@ PERSONA = (
 )
 
 sys.path.insert(0, os.path.expanduser("~/anish-ai"))
+try:
+    import speaker   # who's talking: only the voice that said "Nova" can follow up (TV / others ignored)
+except Exception:
+    speaker = None
 import echofp  # voice fingerprint: tell Nova's own voice (echo) from a person talking over it
 FP_ACTIVE = False   # False = only log "[fp]" scores (calibration); True = skip echo windows + let you talk over Nova
 import nova  # reuse MODEL, TOOLS, FUNCS (get_datetime, open_app, search_web, play_music, stop_music)
@@ -854,6 +858,13 @@ class Api:
         def rms_of(f):   # plain RMS: a 300-3400 Hz voice-band meter was tried 2026-11-08 and HALVED voice SNR (voice energy sits <300 Hz too)
             return float(np.sqrt(np.mean(f.astype(np.float32) ** 2))) if f.size else 0.0
 
+        def _spk(pcm):
+            """Voice fingerprint of a clip (speaker.py); None if unavailable - then nothing is filtered."""
+            if not speaker: return None
+            try: return speaker.embed(pcm)
+            except Exception as e:
+                print("[spk]", type(e).__name__, e, flush=True); return None
+
         def transcribe(pcm):
             if pcm.size < RATE * 0.2:                # <0.2s -> nothing said
                 return ""
@@ -1082,6 +1093,7 @@ class Api:
                 _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms)
                 _t = time.time()
                 text = transcribe(_pcm)
+                spk_ref = None                       # filled below once this turns out to be a real "Nova ..."
                 print("[hf] stt=%.2fs" % (time.time() - _t), flush=True)
                 ring.clear()
                 if not text:
@@ -1095,6 +1107,7 @@ class Api:
                     continue                          # no 'Nova' and not a clear device command -> background speech
                 if self._say and self._say.poll() is None:
                     self.stop_speaking()             # barge-in: cut any current reply
+                spk_ref = _spk(_pcm)                 # the voice that woke Nova = the only voice follow-ups accept
                 cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", text)).strip(" ,.?!")
                 print("[hf] cmd=%r" % cmd, flush=True)
                 if not cmd:   # just "Nova" + a pause: you're usually about to say more -> listen 1.5s before "Yes, sir?"
@@ -1177,8 +1190,16 @@ class Api:
                     while self._hf and time.time() < _end:
                         f2 = read(); ring.append(f2)
                         if rms_of(f2) >= trigger:
-                            got = transcribe(record_command(floor, seed=list(ring), hang_ms=hang_ms))
+                            _fp = record_command(floor, seed=list(ring), hang_ms=hang_ms)
                             ring.clear()
+                            _e = _spk(_fp); _sc = speaker.score(spk_ref, _e) if speaker else None
+                            print("[spk] follow-up voice match %s" % ("%.2f" % _sc if _sc is not None else "n/a"), flush=True)
+                            if _sc is not None and _sc < speaker.SAME:
+                                print("[spk] another voice (TV / someone else) -> ignored", flush=True)
+                                continue             # keep the conversation open for the real speaker
+                            got = transcribe(_fp)
+                            if got and not is_echo(got) and _e is not None:   # learn the voice as we go
+                                spk_ref = _e if spk_ref is None else (spk_ref + _e) / np.linalg.norm(spk_ref + _e)
                             if got and not is_echo(got):
                                 break
                             got = ""             # noise / Nova's own echo -> keep the conversation open
