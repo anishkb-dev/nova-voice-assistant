@@ -6,6 +6,8 @@ import numpy as np
 
 MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "spk_campp_en.onnx")
 SAME = 0.50          # cosine >= this = same person. 2026-11-12 data: you 0.85, video/noise <= 0.48
+ENFORCE = False      # 2026-11-12: soft voice at the bed mic scored 0.40-0.51 vs video 0.23-0.41 -> overlap, it blocked
+                    # the owner. Log + keep clips only; turn on when voice_samples/ shows a clean gap.
 REF_MIN_S = 2.0      # a reference voice built from less than this ("Nova?" = 1.1 s) is too weak to reject on
 MIN_S = 0.8          # shorter clips give unreliable fingerprints -> "unknown" (None)
 _ext = None
@@ -20,9 +22,19 @@ def _extractor():
     return _ext
 
 
-def embed(pcm, rate=16000):
-    """int16 mono PCM -> unit vector, or None if too short / no model."""
+def voiced(pcm, gate, rate=16000):
+    """Only the 80 ms frames louder than gate (the speech): silence/room noise would fingerprint the room."""
+    pcm = np.asarray(pcm, np.int16); n = int(rate * 0.08); k = pcm.size // n
+    if not k: return pcm[:0]
+    fr = pcm[:k * n].reshape(k, n)
+    return fr[np.sqrt((fr.astype(np.float32) ** 2).mean(1)) >= gate].reshape(-1)
+
+
+def embed(pcm, rate=16000, gate=None):
+    """int16 mono PCM -> unit vector, or None if too little speech / no model. gate: keep only frames this loud."""
     pcm = np.asarray(pcm)
+    if gate is not None:
+        pcm = voiced(pcm, gate, rate)
     if pcm.size < MIN_S * rate or not os.path.exists(MODEL):
         return None
     ext = _extractor()
@@ -76,6 +88,9 @@ if __name__ == "__main__":       # self-check / calibration: python speaker.py a
     x = (rng.standard_normal(32000) * 3000).astype(np.int16)
     e = embed(x); assert e is not None and abs(np.linalg.norm(e) - 1) < 1e-3
     assert score(e, e) > 0.99 and score(e, None) is None
+    quiet_then_loud = np.concatenate([np.full(48000, 50, np.int16), x])          # 3 s room + 2 s "speech"
+    assert abs(voiced(quiet_then_loud, 1000).size / 16000 - 2.0) < 0.1          # counts speech, not clip length
+    assert embed(np.full(48000, 50, np.int16), gate=1000) is None               # all room noise -> unknown
     import tempfile
     SAMPLES = tempfile.mkdtemp(); KEEP = 3
     for i in range(5):
