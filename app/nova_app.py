@@ -1062,7 +1062,8 @@ class Api:
         _tw = time.time()
         while self._hf and self._say and self._say.poll() is None and time.time() - _tw < 25:
             read()
-        floor = float(np.median([rms_of(read()) for _ in range(20)]) or 20.0)
+        _boot = [rms_of(read()) for _ in range(62)]   # ~5 s of the room; p80 like the rolling floor below
+        floor = float(np.percentile(_boot, 80) or 20.0)   # (median of 1.6 s set 121 in a ~300 room -> noise recorded nonstop)
         trigger = max(floor * 1.15, 52.0)        # sensitive: user's voice sits ~75-130, close to the room floor
         # calibration (from calibrate.py): tuned to how THIS user actually talks — level, pauses, speed
         calib = {}
@@ -1074,14 +1075,14 @@ class Api:
             calib = {}                           # calibrated on a different mic -> its levels don't apply here
         if calib.get("trigger"):
             trigger = max(float(calib["trigger"]), floor * 1.15)   # never below the room's own noise
-        trigger = max(trigger, floor * 1.6)      # 1.15x floor fired on room noise -> endless empty 3s recordings
+        trigger = max(trigger, floor * 2.2)      # same rule as the rolling floor (1.15x / 1.6x fired on room noise)
         hang_ms  = int(calib.get("hang_ms", 700))       # end-of-turn silence: 900ms felt sluggish (2026-11-08 timing test)
         barge_rms = float(calib.get("barge_rms", 170))  # loudness that counts as you cutting in
         print("[hf] listening (floor=%.0f trigger=%.0f hang=%dms barge=%.0f%s) — say 'Nova ...'"
               % (floor, trigger, hang_ms, barge_rms, " CAL" if calib else ""), flush=True)
         self._placeholder('Say "Nova ..."')
         import collections
-        idle = collections.deque(maxlen=375)     # ~30 s of idle mic levels -> rolling noise floor
+        idle = collections.deque(_boot, maxlen=375)   # ~30 s of idle mic levels -> rolling noise floor
         trig_min = max(52.0, float(calib.get("trigger", 0)))
         hot = 0                                  # consecutive frames above trigger
         ring = collections.deque(maxlen=14)      # ~1.1s rolling pre-roll so no start clipping
@@ -1108,7 +1109,7 @@ class Api:
                     continue                                 # -> don't record its own voice as a command
                 _r = rms_of(f)
                 idle.append(_r)                     # floor follows the room: startup can be noisy (bed mic at the pillow)
-                if len(idle) >= 125 and len(idle) % 25 == 0:
+                if len(idle) >= 60 and len(idle) % 25 == 0:
                     # ponytail: p80 not p20 - fan/AC noise comes in bursts; p20*1.6 sat under every burst and
                     # recorded 12 s of noise nonstop (763/763 clips). p80*2.2 + 2 frames: 101/763. Wake model = real fix.
                     floor = float(np.percentile(idle, 80)); trigger = max(trig_min, floor * 2.2)
