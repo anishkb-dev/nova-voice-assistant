@@ -1731,7 +1731,7 @@ class Api:
             pass
 
         return {"cpu": round(cpu), "cores": [round(c) for c in cores], "ncore": ncore,
-                "mem": round(mem.percent), "mem_gb": round(mem.used / 1024**3, 1),
+                "mem": round(mem.percent), "mem_gb": round((mem.total - mem.available) / 1024**3, 1),   # matches mem.percent (macOS "used" undercounts)
                 "mem_tot": round(mem.total / 1024**3),
                 "swap": round(psutil.swap_memory().percent),
                 "claude": nova.claude_usage(),   # HUD token bar
