@@ -52,6 +52,32 @@ def DIRECT_CMD(text):
     if len(t.split()) > 8: return False
     return bool(re.search(_ROUTINE, t) or (re.search(_DEV, t) and re.search(_ACT, t)))
 
+_END_RE = re.compile(r"^(that'?s (all|it)|that is all|never ?mind|nothing( else)?|no,? thanks?( you)?|thanks?( you)?,? nova|"
+                     r"i'?m (good|done)|we'?re done|okay,? (thanks|that'?s all))\b", re.I)
+
+
+def TO_NOVA(text, nova_said):
+    """Conversation follow-up with no "Nova": is he talking TO Nova, or to someone else (phone, a person, himself)?
+    Fast Groq call with the last thing Nova said as context; offline -> questions count, chatter doesn't."""
+    try:
+        from openai import OpenAI
+        key = open(os.path.expanduser("~/anish-ai/.groq_key")).read().strip()
+        r = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=key, timeout=4, max_retries=0).chat.completions.create(
+            model="openai/gpt-oss-20b", extra_body={"reasoning_effort": "low"}, temperature=0, max_tokens=60, messages=[
+                {"role": "system", "content": "A man is in a conversation with his voice assistant, Nova. Decide if his latest "
+                 "words are addressed to Nova (a reply, question, request, thanks, small talk with Nova) or to someone else "
+                 "(a phone call, another person in the room, talking to himself, reading or singing). Nova controls his room, so "
+                 "requests like 'make it warmer', 'a bit dimmer', 'louder' are for Nova. Phone-call talk like 'hello? can you "
+                 "hear me?', 'I'm on the train', 'call you back' is not. Answer only yes or no."},
+                {"role": "user", "content": "Nova just said: \"%s\"\nHe now says: \"%s\"\nAddressed to Nova?" % (nova_said[-300:], text)}])
+        a = (r.choices[0].message.content or "").strip().lower()
+        if a.startswith(("yes", "no")):
+            return a.startswith("yes")
+    except Exception as e:
+        print("[hf] to-nova check offline:", type(e).__name__, flush=True)
+    return bool(_QUESTION_RE.search(text.lower()))
+
+
 _QUESTION_RE = re.compile(r"^(what|who|when|where|why|how|which|is|are|do|does|did|can|could|will|would|tell|play|"
                           r"remind|search|open|call|send|text|message|find|show|read|say)\b")
 _SEED_CMDS = ["laser off", "laser on", "stars dimmer", "stars brighter", "projector on", "projector off",
@@ -1224,9 +1250,13 @@ class Api:
                     print("[hf] follow=%r" % follow, flush=True)
                     if not follow:
                         convo = False; break
+                    if _END_RE.search(follow):        # "that's all", "thanks Nova" -> close the conversation
+                        print("[hf] conversation ended by %r" % follow, flush=True)
+                        self.speak("Very good, sir."); convo = False; break
                     asked_q = getattr(self, "_last_spoken", "").rstrip().endswith("?")
-                    if not (DIRECT_CMD(follow) or asked_q or WAKE_RE.search(got)):   # chatter to someone else
-                        print("[hf] follow ignored (not a command, I didn't ask)", flush=True)
+                    if not (DIRECT_CMD(follow) or asked_q or WAKE_RE.search(got)) and \
+                            not TO_NOVA(follow, getattr(self, "_last_spoken", "")):
+                        print("[hf] follow ignored (talking to someone else)", flush=True)
                         convo = False; break
                     run_cmd(follow)
                 ring.clear(); cooldown = 4
