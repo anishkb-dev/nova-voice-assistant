@@ -165,6 +165,8 @@ class Api:
         if not nova.IS_HUB:
             threading.Thread(target=self._volume_mirror, daemon=True).start()
         threading.Thread(target=self._health_watch, daemon=True).start()   # Telegram when hub/ESP32 drop off
+        if not nova.IS_HUB:                     # scan every new download before it's opened (filecheck.py)
+            threading.Thread(target=self._downloads_watch, daemon=True).start()
         if nova.IS_HUB:                         # freelance mail: orders, buyer messages, scams (mailwatch.py)
             import mailwatch
             threading.Thread(target=mailwatch.run, args=(self.speak, self._tg_alert), daemon=True).start()
@@ -1561,6 +1563,39 @@ class Api:
         bad = sw.used > 2 << 30 or vm.available < 300 << 20
         return bad, "Hub memory: %.1f GB free of %.0f, swap %.1f GB. Biggest: %s." % (
             vm.available / 2**30, vm.total / 2**30, sw.used / 2**30, top)
+
+    def _downloads_watch(self):
+        """New file in ~/Downloads -> malware/scam check -> Nova says the verdict (danger also to Telegram).
+        Files already there at startup are left alone; nothing is opened or run."""
+        import filecheck
+        d = os.path.expanduser("~/Downloads")
+        DOCS = (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar", ".7z", ".rtf", ".txt", ".csv")
+        try: seen = set(os.listdir(d))
+        except Exception as e:
+            print("[files] can't read Downloads:", e, flush=True); return
+        sizes, fresh = {}, 0
+        while True:
+            time.sleep(4)
+            if time.time() - fresh > 86400 and os.path.exists("/opt/homebrew/bin/freshclam"):   # daily virus-signature update
+                fresh = time.time()
+                subprocess.Popen(["/opt/homebrew/bin/freshclam", "--quiet"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                for n in os.listdir(d):
+                    p = os.path.join(d, n)
+                    if n in seen or n.startswith(".") or n.endswith((".crdownload", ".download", ".part", ".tmp")) or not os.path.isfile(p):
+                        continue
+                    sz = os.path.getsize(p)
+                    if sizes.get(n) != sz:                     # still being written: wait for it to settle
+                        sizes[n] = sz; continue
+                    seen.add(n); sizes.pop(n, None)
+                    verdict, line, why = filecheck.spoken(p)
+                    print("[files]", verdict, n, flush=True)
+                    if verdict != "clean" or n.lower().endswith(DOCS):
+                        self.speak(line)
+                    if verdict == "danger":
+                        self._tg_alert("\u26d4 Don't open %s: %s" % (n, "; ".join(why[:3])))
+            except Exception as e:
+                print("[files]", type(e).__name__, e, flush=True)
 
     def _health_watch(self):
         home_gw, mem_day, mem_week = None, None, None
