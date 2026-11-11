@@ -77,9 +77,8 @@ def classify(frm, subject, text, order_buyers=()):
         return ("message", "New %s message from %s: %s" % (plat, who, first),
                 "\U0001F4AC %s message from %s:\n\"%s\"" % (plat, who, _no_links(_no_digits(body[:300]))))
     if ORDER_SUBJ.search(subject):
-        return ("order", "Sir, a new order on %s. %s. Download their files and I'll set up the project." % (plat, _no_digits(subject)),
-                "\U0001F4B0 NEW %s ORDER: %s\nSave the buyer's files, then on the Mac:\n"
-                "python3 ~/Developer/money/new_order.py <buyer> ~/Downloads/<their files>" % (plat.upper(), _no_digits(subject)))
+        return ("order", "Sir, a new order on %s. %s." % (plat, _no_digits(subject)),
+                "\U0001F4B0 NEW %s ORDER: %s" % (plat.upper(), _no_digits(subject)))   # never suggest downloading buyer files
     if SECURITY_SUBJ.search(subject):        # subject only: bodies hold codes
         return ("security", "Sir, a security notice from %s: %s. Please confirm that was you." % (plat, _no_digits(subject)),
                 "\U0001F510 %s security: %s. Was this you?" % (plat, _no_digits(subject)))
