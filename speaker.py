@@ -34,6 +34,23 @@ def embed(pcm, rate=16000):
     return v / (np.linalg.norm(v) + 1e-9)
 
 
+SAMPLES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_samples")   # git-ignored, stays on the hub
+KEEP = 60            # newest clips kept per folder
+
+
+def keep(pcm, kind, sc=None, rate=16000):
+    """Save a clip for tests/calibration: voice_samples/<kind>/<time>_<score>.wav; kind = wake | you | other."""
+    import time, wave
+    pcm = np.asarray(pcm, np.int16)
+    if pcm.size < 0.3 * rate:
+        return
+    d = os.path.join(SAMPLES, kind); os.makedirs(d, exist_ok=True)
+    w = wave.open(os.path.join(d, "%s_%s.wav" % (time.strftime("%Y%m%d-%H%M%S"), "na" if sc is None else "%.2f" % sc)), "wb")
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(pcm.tobytes()); w.close()
+    for old in sorted(os.listdir(d))[:-KEEP]:
+        os.remove(os.path.join(d, old))
+
+
 def score(a, b):
     """Cosine similarity of two embeddings; None if either is unknown."""
     return None if a is None or b is None else float(np.dot(a, b))
@@ -58,4 +75,10 @@ if __name__ == "__main__":       # self-check / calibration: python speaker.py a
     x = (rng.standard_normal(32000) * 3000).astype(np.int16)
     e = embed(x); assert e is not None and abs(np.linalg.norm(e) - 1) < 1e-3
     assert score(e, e) > 0.99 and score(e, None) is None
+    import tempfile
+    SAMPLES = tempfile.mkdtemp(); KEEP = 3
+    for i in range(5):
+        keep(x, "you", 0.5 + i / 100)
+    import time as _t; files = os.listdir(os.path.join(SAMPLES, "you"))
+    assert 1 <= len(files) <= 3, files                                  # rotation keeps the newest only
     print("speaker ok")

@@ -865,6 +865,12 @@ class Api:
             except Exception as e:
                 print("[spk]", type(e).__name__, e, flush=True); return None
 
+        def _keep(pcm, kind, sc=None):
+            """Record of the owner's voice (and rejected voices) for tests -> voice_samples/ (speaker.keep)."""
+            if speaker and nova.IS_HUB:
+                try: speaker.keep(pcm, kind, sc)
+                except Exception as e: print("[spk] keep:", e, flush=True)
+
         def transcribe(pcm):
             if pcm.size < RATE * 0.2:                # <0.2s -> nothing said
                 return ""
@@ -1108,6 +1114,7 @@ class Api:
                 if self._say and self._say.poll() is None:
                     self.stop_speaking()             # barge-in: cut any current reply
                 spk_ref = _spk(_pcm)                 # the voice that woke Nova = the only voice follow-ups accept
+                _keep(_pcm, "wake")
                 cmd = re.sub(r"\s+", " ", WAKE_RE.sub(" ", text)).strip(" ,.?!")
                 print("[hf] cmd=%r" % cmd, flush=True)
                 if not cmd:   # just "Nova" + a pause: you're usually about to say more -> listen 1.5s before "Yes, sir?"
@@ -1196,8 +1203,10 @@ class Api:
                             print("[spk] follow-up voice match %s" % ("%.2f" % _sc if _sc is not None else "n/a"), flush=True)
                             if _sc is not None and _sc < speaker.SAME:
                                 print("[spk] another voice (TV / someone else) -> ignored", flush=True)
+                                _keep(_fp, "other", _sc)
                                 continue             # keep the conversation open for the real speaker
                             got = transcribe(_fp)
+                            if got and not is_echo(got): _keep(_fp, "you", _sc)
                             if got and not is_echo(got) and _e is not None:   # learn the voice as we go
                                 spk_ref = _e if spk_ref is None else (spk_ref + _e) / np.linalg.norm(spk_ref + _e)
                             if got and not is_echo(got):
