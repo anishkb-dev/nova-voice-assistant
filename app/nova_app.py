@@ -165,6 +165,9 @@ class Api:
         if not nova.IS_HUB:
             threading.Thread(target=self._volume_mirror, daemon=True).start()
         threading.Thread(target=self._health_watch, daemon=True).start()   # Telegram when hub/ESP32 drop off
+        if nova.IS_HUB:                         # freelance mail: orders, buyer messages, scams (mailwatch.py)
+            import mailwatch
+            threading.Thread(target=mailwatch.run, args=(self.speak, self._tg_alert), daemon=True).start()
         if os.path.exists(os.path.expanduser("~/anish-ai/.icloud_user_key")):   # Mac only: pre-login Find My
             threading.Thread(target=__import__("findmy").warm, daemon=True).start()
         self._mic_gain = 100 if nova.IS_HUB else 70   # hub: USB webcam mic, and no SwitchAudioSource there to set it

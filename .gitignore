@@ -74,3 +74,4 @@ nova_claude/
 .projector_laser_off
 OUTREACH.md
 .icloud_session/
+.mailwatch_state.json
