@@ -123,6 +123,8 @@ PERSONA = (
 )
 
 sys.path.insert(0, os.path.expanduser("~/anish-ai"))
+import echofp  # voice fingerprint: tell Nova's own voice (echo) from a person talking over it
+FP_ACTIVE = False   # False = only log "[fp]" scores (calibration); True = skip echo windows + let you talk over Nova
 import nova  # reuse MODEL, TOOLS, FUNCS (get_datetime, open_app, search_web, play_music, stop_music)
 import ollama
 
@@ -147,6 +149,7 @@ class Api:
         self._rate = "-6%"                  # measured but not sluggish
         self._pitch = "-9Hz"                # gravitas without sounding robotic
         self._say = None
+        self._ref_segs = []                 # [(play start time, loudness envelope)] of Nova's recent replies
         self._speak_gen = 0                 # bumped on each speak()/stop() to abort stale streams
         self._hf = False                    # hands-free (wake-word) mode
         self._hf_thread = None
@@ -418,6 +421,10 @@ class Api:
                 with open(path, "wb") as f:
                     f.write(wav)
                 print("[hub] play %.1fs" % ((len(wav) - 44) / 48000.0), flush=True)   # timing: reply reached the speaker
+                try:                                 # voice fingerprint: remember what we play + when (echofp)
+                    self._ref_segs = (self._ref_segs + [(time.time(), echofp.wav_env(wav))])[-8:]
+                except Exception:
+                    pass
                 self._say = subprocess.Popen(["afplay", path], stderr=subprocess.DEVNULL)
                 self._say.wait()
             except Exception as e:
@@ -1022,6 +1029,8 @@ class Api:
               % (floor, trigger, hang_ms, barge_rms, " CAL" if calib else ""), flush=True)
         self._placeholder('Say "Nova ..."')
         import collections
+        idle = collections.deque(maxlen=375)     # ~30 s of idle mic levels -> rolling noise floor
+        trig_min = max(52.0, float(calib.get("trigger", 0)))
         ring = collections.deque(maxlen=14)      # ~1.1s rolling pre-roll so no start clipping
 
         def is_echo(t):
@@ -1045,6 +1054,9 @@ class Api:
                 if self._say and self._say.poll() is None:   # Nova is speaking (e.g. the boot greeting)
                     continue                                 # -> don't record its own voice as a command
                 _r = rms_of(f)
+                idle.append(_r)                     # floor follows the room: startup can be noisy (bed mic at the pillow)
+                if len(idle) >= 125 and len(idle) % 25 == 0:
+                    floor = float(np.percentile(idle, 20)); trigger = max(trig_min, floor * 1.6)
                 # live mic level -> HUD input bars (throttled to every 2nd frame)
                 self._lvl_i = (getattr(self, "_lvl_i", 0) + 1) % 2
                 if self._lvl_i == 0:
@@ -1085,7 +1097,7 @@ class Api:
                 # CONVERSATION MODE: keep talking naturally — no need to repeat "Nova" — until you go quiet.
                 convo = True
                 while self._hf and convo:
-                    win, n_stt, barge_cmd, started = [], 0, None, False
+                    win, win_t, n_stt, barge_cmd, started = [], [], 0, None, False
                     while self._hf and (self._mac_busy or self._hub_speaking) and time.time() - self._busy_ts < 180:
                         f = read()                    # hub: Mac thinking / reply playing
                         started = started or self._hub_speaking      # from the first chunk on, keep listening
@@ -1093,19 +1105,26 @@ class Api:
                             continue
                         # INTERRUPT: no echo-cancel here, so listen for the NAME, not loudness. Transcribe 2s
                         # windows of the reply (max 6/reply: Groq STT quota); "Nova ..." in one -> stop talking.
-                        win.append(f)
+                        win.append(f)                 # capture time = now minus what's still buffered behind this frame
+                        win_t.append(time.time() - stream.get_read_available() / float(RATE))
                         if len(win) < 25:
                             continue
-                        pcm, win = np.concatenate(win), win[-5:]
-                        if n_stt >= 6 or max(rms_of(x) for x in np.array_split(pcm, 25)) < trigger:
+                        env = [rms_of(x) for x in win]; t_first = win_t[0] - echofp.FRAME_S
+                        pcm, win, win_t = np.concatenate(win), win[-5:], win_t[-5:]
+                        if n_stt >= 6 or max(env) < trigger:
                             continue                  # quota used, or silence (Mac still looking it up)
+                        fp = echofp.echo_score(env, self._ref_segs, t_first)   # ~1 = Nova's own voice, low = a person
+                        if FP_ACTIVE and fp >= echofp.ECHO:
+                            print("[fp] %.2f nova's own voice -> skip" % fp, flush=True)
+                            continue
                         n_stt += 1
                         heard = transcribe(pcm) or ""
-                        print("[hf] over-reply heard %r" % heard[:80], flush=True)
+                        print("[hf] over-reply heard %r [fp] %.2f" % (heard[:80], fp), flush=True)
                         wm = WAKE_RE.search(heard)
                         mine = set(re.findall(r"[a-z']+", getattr(self, "_last_spoken", "").lower()))
                         sw = [w for w in re.findall(r"\b(stop|enough|quiet|shut|wait|hold)\b", heard.lower()) if w not in mine]
-                        if not (wm or sw):            # "Nova" blends into my voice ("No, I'll stop") -> a stop word
+                        you = FP_ACTIVE and len(heard.split()) >= 2 and not is_echo(heard)   # fingerprint: not Nova -> you
+                        if not (wm or sw or you):     # "Nova" blends into my voice ("No, I'll stop") -> a stop word
                             continue                  # that I'M not saying also counts
                         print("[hf] INTERRUPT: %r" % heard, flush=True)
                         self._mute_until = time.time() + 4
@@ -1115,7 +1134,7 @@ class Api:
                             pass
                         self.stop_speaking(); self._hub_speaking = False
                         nova._hub_send("heard", "__stop__")   # Mac: stop synthesizing the rest
-                        rest = heard[wm.end():].strip(" ,.?!").lower() if wm else ""
+                        rest = (heard[wm.end():] if wm else heard if you and not sw else "").strip(" ,.?!").lower()
                         if rest and not re.fullmatch(r"(stop|wait|enough|quiet|shut up|hold on|pause|ok(ay)?|that'?s enough|thanks?( you)?)[ .,!]*", rest):
                             barge_cmd = rest
                         break

@@ -8,6 +8,7 @@ import math, os, socket, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 USER_F = os.path.join(HERE, ".icloud_user_key")   # Apple ID only; password lives in the macOS keychain
+SESSION_D = os.path.join(HERE, ".icloud_session")   # trusted-session cookies; NOT $TMPDIR (macOS wipes it -> a new 2FA code)
 NEAR_M = 150      # "same place" radius; Find My fixes indoors drift ~50-100 m
 
 
@@ -19,7 +20,7 @@ def _dist_m(a, b):
 
 def _api():
     from pyicloud import PyiCloudService
-    api = PyiCloudService(open(USER_F).read().strip())   # password from keychain, session cookies cached
+    api = PyiCloudService(open(USER_F).read().strip(), cookie_directory=SESSION_D)   # password from keychain, session cookies cached
     if api.requires_2fa:
         raise RuntimeError("iCloud session expired — run: python3 ~/anish-ai/findmy.py login")
     return api
@@ -123,7 +124,8 @@ def login():
     from pyicloud.utils import store_password_in_keyring
     user = input("Apple ID: ").strip()
     pw = getpass.getpass("Apple ID password (not shown): ")
-    api = PyiCloudService(user, pw)
+    os.makedirs(SESSION_D, mode=0o700, exist_ok=True)
+    api = PyiCloudService(user, pw, cookie_directory=SESSION_D)
     if api.requires_2fa:
         if not api.validate_2fa_code(input("2FA code from your iPhone: ").strip()):
             sys.exit("Wrong code.")
