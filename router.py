@@ -14,7 +14,11 @@ Keys: put each in ~/anish-ai/.<name>_key  (same style as .groq_key), or set
 <NAME>_KEY in the env. Missing key = that provider is skipped, no error.
 Run `python3 router.py` to see which brains are live and ping them.
 """
-import os, json, time, urllib.request, urllib.error
+import os, json, time, ssl, urllib.request, urllib.error
+try:                     # python.org builds (the hub) ship without CA certs -> urllib fails SSL; use certifi's bundle
+    import certifi; _SSL = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -84,7 +88,7 @@ def _key(name):
 def _post(url, headers, body, timeout):
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with urllib.request.urlopen(req, timeout=timeout, context=_SSL) as r:
         return json.load(r)
 
 
