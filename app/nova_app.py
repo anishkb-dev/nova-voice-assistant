@@ -149,6 +149,7 @@ class Api:
         self._rate = "-6%"                  # measured but not sluggish
         self._pitch = "-9Hz"                # gravitas without sounding robotic
         self._say = None
+        self._stt_lock = threading.Lock()   # Mac: one fallback transcription at a time
         self._ref_segs = []                 # [(play start time, loudness envelope)] of Nova's recent replies
         self._speak_gen = 0                 # bumped on each speak()/stop() to abort stale streams
         self._hf = False                    # hands-free (wake-word) mode
@@ -1036,6 +1037,7 @@ class Api:
         import collections
         idle = collections.deque(maxlen=375)     # ~30 s of idle mic levels -> rolling noise floor
         trig_min = max(52.0, float(calib.get("trigger", 0)))
+        hot = 0                                  # consecutive frames above trigger
         ring = collections.deque(maxlen=14)      # ~1.1s rolling pre-roll so no start clipping
 
         def is_echo(t):
@@ -1061,14 +1063,20 @@ class Api:
                 _r = rms_of(f)
                 idle.append(_r)                     # floor follows the room: startup can be noisy (bed mic at the pillow)
                 if len(idle) >= 125 and len(idle) % 25 == 0:
-                    floor = float(np.percentile(idle, 20)); trigger = max(trig_min, floor * 1.6)
+                    # ponytail: p80 not p20 - fan/AC noise comes in bursts; p20*1.6 sat under every burst and
+                    # recorded 12 s of noise nonstop (763/763 clips). p80*2.2 + 2 frames: 101/763. Wake model = real fix.
+                    floor = float(np.percentile(idle, 80)); trigger = max(trig_min, floor * 2.2)
                 # live mic level -> HUD input bars (throttled to every 2nd frame)
                 self._lvl_i = (getattr(self, "_lvl_i", 0) + 1) % 2
                 if self._lvl_i == 0:
                     _lv = max(0.0, min(1.0, (_r - floor) / max(1.0, trigger * 3 - floor)))
                     self._js("window.novaLevel&&window.novaLevel(%.3f)" % _lv)
                 if _r < trigger:                    # wait for speech to clearly begin
+                    hot = 0; continue
+                hot += 1
+                if hot < 2:                         # one loud frame = a noise spike; speech holds >= 160 ms
                     continue
+                hot = 0
                 # speech detected -> capture the whole utterance (with pre-roll) and transcribe it
                 self._placeholder("Listening…")
                 _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms)
@@ -1355,8 +1363,13 @@ class Api:
                 return
             if m.topic.startswith("home/mac/stt/") and not nova.IS_HUB:     # Mac: transcribe for the hub
                 def _do(rid=m.topic.rsplit("/", 1)[1], wav=m.payload):
+                    # one at a time: the hub gives up after ~5 s, so a pile of parallel jobs (noise clips) made
+                    # EVERY job too slow and real commands timed out. Busy -> answer "" now, hub moves on.
+                    if not self._stt_lock.acquire(blocking=False):
+                        c.publish("home/hub/stt/" + rid, "", qos=1); return
                     try: txt = self._local_stt(wav)
                     except Exception as e: print("[stt] local failed:", e, flush=True); txt = ""
+                    finally: self._stt_lock.release()
                     c.publish("home/hub/stt/" + rid, txt, qos=1)
                 threading.Thread(target=_do, daemon=True).start(); return
             if m.topic.startswith("home/hub/stt/"):
