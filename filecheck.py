@@ -39,7 +39,7 @@ def _pdf(raw):
         if re.search(key, blob): danger.append(why)
     hs = _hosts(blob)
     if hs: out.append("links to " + ", ".join(hs[:3]))
-    if PHISH.search(blob): out.append("phishing words (login, payment, WhatsApp or order-confirm)")
+    if PHISH.search(blob): out.append("contains phishing words like login, payment or WhatsApp")
     return danger, out
 
 
@@ -116,8 +116,8 @@ def check(path):
         elif kind in ("rar", "7z", "gzip"):
             warn.append("is an archive Nova can't look inside")
     v = _clam(path)
-    if v: danger.insert(0, "antivirus found malware: " + v)
-    elif v is None: warn.append("antivirus scan didn't run")
+    if v: danger.insert(0, "is known malware (%s)" % v)
+    elif v is None: warn.append("couldn't be virus-scanned")
     return ("danger" if danger else "warn" if warn else "clean"), danger + warn
 
 
@@ -173,6 +173,6 @@ if __name__ == "__main__":       # self-check: build harmless look-alikes of eac
         eicar = mk("test.pdf", b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*")   # harmless AV test string
         v = check(eicar)
         assert v[0] == "danger", v
-        print("clamav ok:", v[1][0][:60])
+        print("clamav ok:", spoken(eicar)[1])
     shutil.rmtree(d)
     print("filecheck ok")
