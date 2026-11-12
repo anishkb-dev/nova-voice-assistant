@@ -1052,8 +1052,8 @@ class Api:
                     if self._mac_online:
                         self._mac_busy, self._busy_ts = True, time.time(); nova._hub_send("heard", cmd); print("[hf] -> mac: %r" % cmd, flush=True)
                         subprocess.Popen(["afplay", "-v", "0.35", EARCON], stderr=subprocess.DEVNULL)   # "got it" chime covers the think gap
-                    else: print("[hf] mac away — ignoring voice command %r" % cmd, flush=True)
-                    return
+                        return
+                    print("[hf] mac away (lid closed?) — hub answers %r itself" % cmd, flush=True)   # cloud brains + hub speaker
                 r = self.chat(cmd)
                 print("[hf] brain+speak=%.2fs reply=%r" % (time.time() - _t, (r.get("reply", "") if isinstance(r, dict) else str(r))[:80]), flush=True)
             except Exception as e:
