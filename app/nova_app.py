@@ -26,6 +26,7 @@ WAKE_RE = re.compile(
     # 2026-11-12: the owner's "Nova" sometimes transcribes as "no law" -> counts at the start before a command.
     # "now/no/you know" were tried and REMOVED the same day: TV said "Now what will you do..." and woke Nova.
     # ponytail: stopgap until the wake-word model is retrained on voice_samples/wake.
+    r"|^\W*no\s+(?:a|law)\b(?=\W+(?:good\s*night|good\s*morning)\b)"      # "No a good night" = "Nova, good night"
     r"|^\W*no\s+law\W+(?=(?:what|what's|whats|how|when|where|who|is|are|can|could|will|"
     r"turn|switch|play|stop|set|open|tell|call|lights?|ac|remind)\b)",
     re.IGNORECASE)
