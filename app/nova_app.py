@@ -23,10 +23,10 @@ ON_SENSES = not WORKER and (socket.gethostname().split(".")[0] == "nova-hub" or 
 WAKE_RE = re.compile(
     r"(?:hey\s+)?(?:nova|novah|noba|nofa|nowa|nava|navah|noma|novo|"
     r"novea|nyova|knova|nowva|novo|nolva|noah|noaa|noa)\b"
-    # 2026-11-12: the owner's "Nova" often transcribes as now / no / no law / you know. Count those ONLY at the
-    # very start AND followed by a question/command, so "now" mid-sentence (TV) never wakes Nova.
+    # 2026-11-12: the owner's "Nova" sometimes transcribes as "no law" -> counts at the start before a command.
+    # "now/no/you know" were tried and REMOVED the same day: TV said "Now what will you do..." and woke Nova.
     # ponytail: stopgap until the wake-word model is retrained on voice_samples/wake.
-    r"|^\W*(?:now|no(?:\s+law)?|you\s+know)\W+(?=(?:what|what's|whats|how|when|where|who|is|are|can|could|will|"
+    r"|^\W*no\s+law\W+(?=(?:what|what's|whats|how|when|where|who|is|are|can|could|will|"
     r"turn|switch|play|stop|set|open|tell|call|lights?|ac|remind)\b)",
     re.IGNORECASE)
 
@@ -73,7 +73,8 @@ def TO_NOVA(text, nova_said):
                  "words are addressed to Nova (a reply, question, request, thanks, small talk with Nova) or to someone else "
                  "(a phone call, another person in the room, talking to himself, reading or singing). Nova controls his room, so "
                  "requests like 'make it warmer', 'a bit dimmer', 'louder' are for Nova. Phone-call talk like 'hello? can you "
-                 "hear me?', 'I'm on the train', 'call you back' is not. Answer only yes or no."},
+                 "hear me?', 'I'm on the train', 'call you back' is not. A TV or video is often playing: lines that sound like film, "
+                 "show or video dialogue, narration or ads are NOT for Nova. If unsure, answer no. Answer only yes or no."},
                 {"role": "user", "content": "Nova just said: \"%s\"\nHe now says: \"%s\"\nAddressed to Nova?" % (nova_said[-300:], text)}])
         a = (r.choices[0].message.content or "").strip().lower()
         if a.startswith(("yes", "no")):
@@ -1256,8 +1257,9 @@ class Api:
                     if _END_RE.search(follow):        # "that's all", "thanks Nova" -> close the conversation
                         print("[hf] conversation ended by %r" % follow, flush=True)
                         self.speak("Very good, sir."); convo = False; break
-                    asked_q = getattr(self, "_last_spoken", "").rstrip().endswith("?")
-                    if not (DIRECT_CMD(follow) or asked_q or WAKE_RE.search(got)) and \
+                    # no "Nova asked a question -> accept anything" bypass: TV lines got taken as answers and the
+                    # replies (often questions) kept the loop going. TO_NOVA sees Nova's question, so real answers pass.
+                    if not (DIRECT_CMD(follow) or WAKE_RE.search(got)) and \
                             not TO_NOVA(follow, getattr(self, "_last_spoken", "")):
                         print("[hf] follow ignored (talking to someone else)", flush=True)
                         convo = False; break
