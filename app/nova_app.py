@@ -839,7 +839,9 @@ class Api:
         dev_name = pa.get_device_info_by_index(dev_idx)["name"] if dev_idx is not None else "default"
         print("[hf] input devices=%s -> using #%s '%s'" % (cands, dev_idx, dev_name), flush=True)
         _nm = None
-        if nova.IS_HUB:                      # bedside ESP32 mic (iot/esp32_bedmic) wins when it's streaming
+        _bed_off = os.path.exists(os.path.expanduser("~/anish-ai/.bedmic_off"))   # touch it = use the USB mic
+        if _bed_off: print("[hf] bed mic disabled (~/anish-ai/.bedmic_off) -> USB mic", flush=True)
+        if nova.IS_HUB and not _bed_off:     # bedside ESP32 mic (iot/esp32_bedmic) wins when it's streaming
             try:
                 from netmic import NetMic
                 _nm = NetMic()
