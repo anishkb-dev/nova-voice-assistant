@@ -942,8 +942,51 @@ def _wake_rest():
     parts.append(("On your list: %s." % todo) if todo else "Nothing on your reminders list.")
     events = "; ".join(e for e in events.split("; ") if e and e not in todo.split("; "))   # reminders show in Calendar too
     if events: parts.append("Today's calendar: %s." % events)
+    tg = _overnight_telegram()
+    if tg: parts.append(tg)
     line = " ".join(parts)
     (SPEAK or (lambda t: subprocess.run(["say", "-v", "Daniel", t])))(line)
+
+
+_TG_READ_F = os.path.expanduser("~/anish-ai/.tg_read_ts")
+
+
+def _overnight_telegram(max_items=6):
+    """What the Telegram bot sent since the last morning read-out (or the last 14 h), from this machine's log
+    plus the hub's (most alerts are sent from the hub). Emojis and long numbers (codes) are never spoken."""
+    import json, guard
+    try: since = float(open(_TG_READ_F).read())
+    except Exception: since = 0
+    since = max(since, time.time() - 14 * 3600)
+    rows = guard.sent_since(since)
+    if not IS_HUB:
+        try:
+            out = subprocess.run(["ssh", "-o", "ConnectTimeout=4", "-o", "BatchMode=yes", "nova-hub",
+                                  "cat ~/anish-ai/.tg_sent.jsonl 2>/dev/null | tail -200"],
+                                 capture_output=True, text=True, timeout=8).stdout
+            rows += [r for r in map(json.loads, filter(None, out.splitlines())) if r.get("ts", 0) > since and r.get("text")]
+        except Exception as e:
+            print("[wake] hub telegram log unavailable:", e, flush=True)
+    try: open(_TG_READ_F, "w").write(str(time.time()))
+    except Exception: pass
+    return _tg_spoken(sorted(rows, key=lambda r: r["ts"]), max_items)
+
+
+def _tg_spoken(rows, max_items=6):
+    def clean(t):
+        t = re.sub(r"\d{4,}", "", t)                                    # OTPs, card/phone numbers: never aloud
+        t = re.sub(r"[^\w\s.,:;!?'%&()/-]", " ", t)                    # emojis / symbols
+        t = re.sub(r"\s+([.,:;!?])", r"\1", " ".join(t.split()))[:160].rstrip(" .,:;")
+        return t if t.endswith(("?", "!")) else t + "."
+    seen, items = set(), []
+    for r in rows:
+        c = clean(r["text"])
+        if len(c) > 2 and c not in seen: seen.add(c); items.append(c)
+    if not items:
+        return ""
+    head = "Overnight, your Telegram bot sent %d message%s." % (len(items), "s" * (len(items) != 1))
+    more = " And %d more on Telegram." % (len(items) - max_items) if len(items) > max_items else ""
+    return " ".join([head] + items[:max_items]) + more
 
 
 def wake_brief() -> str:

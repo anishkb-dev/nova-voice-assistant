@@ -76,3 +76,5 @@ OUTREACH.md
 .icloud_session/
 .mailwatch_state.json
 voice_samples/
+.tg_sent.jsonl
+.tg_read_ts

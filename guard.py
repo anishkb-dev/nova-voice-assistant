@@ -9,6 +9,7 @@ import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOKEN_F = os.path.join(HERE, ".telegram_key")      # git-ignored (*_key)
 CHAT_F = os.path.join(HERE, ".telegram_chat_key")  # guard stays off until setup writes this
+SENT_LOG = os.path.join(HERE, ".tg_sent.jsonl")     # git-ignored: what the bot sent you (morning read-out)
 MOTION_PCT = 2.0     # % of pixels that must change; raise if curtains/light flicker trigger it
 COOLDOWN = 120       # s between alerts, so one visitor isn't 50 messages
 
@@ -18,7 +19,25 @@ def _tg(method, **kw):
     tok = open(TOKEN_F).read().strip()
     r = requests.post(f"https://api.telegram.org/bot{tok}/{method}", timeout=20, **kw)
     r.raise_for_status()
+    if method in ("sendMessage", "sendPhoto"):          # remember what the bot told you -> read out at good morning
+        try:
+            import json
+            text = (kw.get("data") or {}).get("text") or (kw.get("data") or {}).get("caption") or ""
+            with open(SENT_LOG, "a") as f:
+                f.write(json.dumps({"ts": time.time(), "text": text[:500]}) + "\n")
+        except Exception:
+            pass
     return r.json()
+
+
+def sent_since(ts):
+    """Messages the bot sent after unix time ts, oldest first (from this machine's log)."""
+    import json
+    try:
+        rows = [json.loads(l) for l in open(SENT_LOG)]
+    except Exception:
+        return []
+    return [r for r in rows if r.get("ts", 0) > ts and r.get("text")]
 
 
 def send_text(text):
