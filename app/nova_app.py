@@ -2489,12 +2489,18 @@ class Api:
                 continue
             try:
                 b = psutil.sensors_battery()
-                if b and not b.power_plugged and b.percent <= 20 and not self._alerted.get("bat20"):
-                    self._alerted["bat20"] = True
-                    self._proactive("Sir, battery is at %d percent. You may wish to connect a charger." % round(b.percent))
+                lvl = next((t for t in (5, 10, 20) if b and not b.power_plugged and b.percent <= t), None)
+                if lvl and lvl < self._alerted.get("bat", 101):      # warn at 20, again at 10 and 5
+                    self._alerted["bat"] = lvl
+                    msg = "Sir, battery is at %d percent. %s" % (round(b.percent), "Please plug in the charger now."
+                          if lvl <= 10 else "You may wish to connect a charger.")
+                    if lvl <= 10:                                    # urgent: speaks even in good-night quiet mode
+                        self._js('window.novaSay && window.novaSay(' + json.dumps(msg) + ');'); self.speak(msg)
+                    else:
+                        self._proactive(msg)
                     continue
                 if b and b.power_plugged:
-                    self._alerted["bat20"] = False
+                    self._alerted["bat"] = 101
                 # (no memory-pressure nagging — macOS manages it, and it oscillated ~85-92% and kept re-firing)
                 # room climate — Nova notices the real sensor and speaks up (deduped, only when fresh)
                 io = self._iot_data

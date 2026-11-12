@@ -24,7 +24,7 @@ def _recognizer():
 
 def clean(text):
     """Whisper labels non-speech: '(wind blowing)', '[BLANK_AUDIO]', '*music*' -> drop them."""
-    return " ".join(re.sub(r"\([^)]*\)|\[[^\]]*\]|\*[^*]*\*|♪+", " ", text).split()).strip()
+    return " ".join(re.sub(r"\([^)]*(?:\)|$)|\[[^\]]*(?:\]|$)|\*[^*]*\*|♪+", " ", text).split()).strip()
 
 
 def transcribe(pcm, rate=16000):
@@ -38,7 +38,7 @@ def transcribe(pcm, rate=16000):
 
 if __name__ == "__main__":       # self-check on the model's own sample, or: python localstt.py a.wav b.wav
     import sys, time, wave, glob
-    assert clean("(wind blowing)") == "" and clean("[BLANK_AUDIO]") == "" and clean("Nova, (cough) lights on") == "Nova, lights on"
+    assert clean("(wind blowing)") == "" and clean("[BLANK_AUDIO]") == "" and clean("Nova, (cough) lights on") == "Nova, lights on" and clean("(clicking") == "" and clean("(") == ""
     files = sys.argv[1:] or sorted(glob.glob(os.path.join(D, "test_wavs", "*.wav")))[:1]
     for f in files:
         w = wave.open(f); a = np.frombuffer(w.readframes(w.getnframes()), np.int16)
