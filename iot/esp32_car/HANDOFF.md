@@ -278,3 +278,7 @@ In progress / next (in order):
 5. Sonar (5V, Trig 18, Echo via 1k/1.8k -> 19), wheel sensor (3V3, OUT 35), motors wheels-up ONLY when the user says "test", camera last (5V/GND from the ESP board; fix CAM_IP .107 -> .103).
 
 User style: short plain-English steps, one thing at a time; sends WhatsApp photos — check every photo for red/black in the same Wago and cap polarity before any power-on. Never run motor tests without the user saying "go"/"test".
+
+**2026-11-12 — ESP powered from the UBEC: OK.** ESP board mounted in the tray, L298N signal jumpers (ribbon) plugged, UBEC out -> board 5V/GND header pins, 1000 uF on the board 5V/GND (not on the Wagos — all 9 Wago holes in use). USB unplugged. 3V3 = 3.30 V. MQTT: status online, boot wdt, i2c=none (nothing on I2C yet), vbat 0 (divider removed), distance -1 (no sonar yet), rssi -75. Ping to .112 timed out but MQTT works. Next: I2C (OLED/MPU/INA) + INA battery read in firmware.
+
+**2026-11-12 — motors tested wheels-up: steer L/R OK, drive fwd + back OK, no ESP resets.** Back first failed: IN2 (GPIO27) jumper was loose/misplaced, reseated. Pulse 450 ms. Next: I2C (OLED first), then INA battery read in firmware.

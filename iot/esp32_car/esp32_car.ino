@@ -134,7 +134,16 @@ float tps = 0;                            // wheel ticks/s, latest 10Hz sample (
 
 // ---- motor helpers ----
 void drive(bool fwd, bool on) {
+  static int lastDir = 0;                 // -1 back, 0 stopped, +1 forward
   on = on && !lowBatt;                    // flat pack: no drive, whatever asked for it
+  int dir = on ? (fwd ? 1 : -1) : 0;
+  if (dir != 0 && dir != lastDir) {       // same soft start as steer(): a full-duty drive kick reset the ESP
+    analogWrite(ENA, 0);                  // (boot sw/wdt right after "forward", 2026-11-12) — ramp ~80 ms
+    digitalWrite(IN1, fwd);
+    digitalWrite(IN2, !fwd);
+    for (int d = 60; d < driveDuty; d += 20) { analogWrite(ENA, d); delay(8); }
+  }
+  lastDir = dir;
   digitalWrite(IN1, on && fwd);           // rebuilt motor wiring: forward is now IN1 high
   digitalWrite(IN2, on && !fwd);
   analogWrite(ENA, on ? driveDuty : 0);   // drive speed (portable across ESP32 cores)
