@@ -460,8 +460,11 @@ void setup() {
 
   Wire.begin(21, 22);
   Wire.setClock(400000);              // SSD1306 fast mode: a frame takes ~25ms instead of ~100ms at 100kHz
-  oledOK = oled.begin(SSD1306_SWITCHCAPVCC, 0x3C) ||   // try the common address...
-           oled.begin(SSD1306_SWITCHCAPVCC, 0x3D);     // ...then the alternate
+  // begin() returns true even with NO OLED attached (reported oled=ok i2c=none), so loop() blasted frames
+  // down floating SDA/SCL every 150ms — suspected I2C hang -> watchdog reset after motor noise. Probe first.
+  auto ack = [](uint8_t a) { Wire.beginTransmission(a); return Wire.endTransmission() == 0; };
+  oledOK = (ack(0x3C) && oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) ||   // try the common address...
+           (ack(0x3D) && oled.begin(SSD1306_SWITCHCAPVCC, 0x3D));     // ...then the alternate
   if (oledOK) { oled.clearDisplay(); oled.display(); }
   Wire.beginTransmission(MPU); Wire.write(0x6B); Wire.write(0);   // PWR_MGMT_1: wake from sleep
   imuOK = Wire.endTransmission() == 0;

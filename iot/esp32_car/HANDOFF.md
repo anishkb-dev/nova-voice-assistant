@@ -281,4 +281,12 @@ User style: short plain-English steps, one thing at a time; sends WhatsApp photo
 
 **2026-11-12 — ESP powered from the UBEC: OK.** ESP board mounted in the tray, L298N signal jumpers (ribbon) plugged, UBEC out -> board 5V/GND header pins, 1000 uF on the board 5V/GND (not on the Wagos — all 9 Wago holes in use). USB unplugged. 3V3 = 3.30 V. MQTT: status online, boot wdt, i2c=none (nothing on I2C yet), vbat 0 (divider removed), distance -1 (no sonar yet), rssi -75. Ping to .112 timed out but MQTT works. Next: I2C (OLED/MPU/INA) + INA battery read in firmware.
 
-**2026-11-12 — motors tested wheels-up: steer L/R OK, drive fwd + back OK, no ESP resets.** Back first failed: IN2 (GPIO27) jumper was loose/misplaced, reseated. Pulse 450 ms. Next: I2C (OLED first), then INA battery read in firmware.
+**2026-11-12 — motors tested wheels-up: steer L/R OK, drive fwd + back OK. CORRECTION: the ESP DID reset after motor runs (missed by reading only the retained boot msg — always watch boot/status with timestamps over 30–45 s).** Back first failed: IN2 (GPIO27) jumper was loose/misplaced, reseated. Pulse 450 ms. Next: I2C (OLED first), then INA battery read in firmware.
+
+
+**2026-11-13 — motor resets ROOT-CAUSED: noise enters via the FC-51 wheel-sensor wires.**
+- Wiring found mixed: front-drive and steering pairs were swapped (forward drove rear + steering). Fixed: front+rear drive on OUT1/OUT2 (reds OUT2, blacks OUT1 — swapped once because both ran backwards), steering on OUT3/OUT4. Drive fwd/back now OK with no resets.
+- Steering still froze/reset the ESP (poweron/sw/wdt/panic). Serial log over USB (UBEC off the ESP, GND jumper ESP->L298N; script pattern in session scratchpad serlog3.py: open port dtr/rts False, wait for "MQTT up" before sending) showed: instant CPU freeze on "left", RTC WDT reboot ~9 s later, once "esp_image checksum failed" at boot = flash reads corrupted -> noise on the chip's 3V3/GND.
+- Ruled out: power (froze on Mac USB too), steer stall (150 ms pulse froze too), OLED code (firmware fix: oled.begin() returned true with no OLED -> now ACK-probed first; flashed), wheel ISR code, steering motor (4.3–4.7 ohm), shorts. Steering motor now has 3 caps (across + each tab->can; one tab beeps to the can — harmless, can is isolated).
+- Steering motor unplugged -> no freeze. CORRECTION: the FC-51 was NOT plugged in during these tests. What stopped the freeze was removing **the big 1000 uF cap and the small 104 EN->GND cap from the ESP board** (battery on, motor turning, 4 steer cmds, no freeze). Next: put them back one at a time (checking pins + polarity: stripe to GND) to find the bad one.
+- A TEST build with the wheel ISR off is on the ESP — rebuild + flash ~/anish-ai/iot/esp32_car (source unchanged) to restore.
