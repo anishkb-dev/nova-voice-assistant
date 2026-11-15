@@ -563,7 +563,14 @@ def lights(command: str) -> str:
                          stdout=open(os.path.expanduser("~/anish-ai/light_panel.log"), "a"), stderr=subprocess.STDOUT)
         time.sleep(6)
     from lights import lights as _lights
-    return _lights(command)
+    said = _lights(command)          # the panel sends it to every strip (bed + table)
+    try:                             # ceiling bulb follows the same mode (colour/warm/party/on/off); routines set its brightness themselves
+        import wiz
+        if not re.search(r"bright|dim|speed", command.lower()) and wiz.parse(command):
+            threading.Thread(target=wiz.bulb, args=(command,), daemon=True).start()
+    except Exception as e:
+        print("[lights] bulb mirror:", e, flush=True)
+    return said
 
 def light_panel() -> str:
     """Open the LED light control panel (colour wheel, effects, music-listen, timer) in the browser."""

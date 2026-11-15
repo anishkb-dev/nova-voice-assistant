@@ -20,27 +20,43 @@ STATE = {"connected": False, "on": False, "listen": False, "timer_at": None}
 _listen_thread = None
 _timer_thread = None
 
-def send(data):
-    CMDQ.put(data)
+QS = []      # one queue per strip (bed + table): every command goes to all of them, so they stay in sync
+_LIVE = set()
 
-# ---------- persistent BLE connection ----------
-async def _ble_loop():
+def send(data):
+    for q in QS or [CMDQ]:   # before the strips are found, buffer in CMDQ
+        q.put(data)
+
+# ---------- persistent BLE connections, one per MELK/ELK strip ----------
+async def _strip(dev, q):
     from bleak import BleakClient
     while True:
         try:
-            async with BleakClient(await lights._find(), timeout=20) as c:   # each Mac has its own BLE UUID
-                STATE["connected"] = True
-                print("BLE connected")
-                while True:
+            async with BleakClient(dev, timeout=20) as c:
+                _LIVE.add(dev.address); STATE["connected"] = True
+                print("BLE connected", dev.name, flush=True)
+                while c.is_connected:
                     try:
-                        data = CMDQ.get_nowait()
-                        await c.write_gatt_char(lights.CHAR, data, response=False)
+                        await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=False)
                     except queue.Empty:
                         await asyncio.sleep(0.03)
         except Exception as e:
-            STATE["connected"] = False; lights._dev = None     # rescan by name next time
-            print("BLE reconnect in 2s:", str(e)[:70], flush=True)
-            await asyncio.sleep(2)
+            print("BLE %s reconnect in 2s: %s" % (dev.name, str(e)[:70]), flush=True)
+        _LIVE.discard(dev.address); STATE["connected"] = bool(_LIVE)
+        await asyncio.sleep(2)
+
+async def _ble_loop():
+    """Keep scanning: a strip held by the phone app (or unplugged) joins as soon as it advertises again."""
+    from bleak import BleakScanner
+    known, tasks = set(), []
+    while True:
+        for d in await BleakScanner.discover(timeout=8):
+            if (d.name or "").upper().startswith(("MELK", "ELK")) and d.address not in known:
+                known.add(d.address); q = queue.Queue()
+                while not CMDQ.empty(): q.put(CMDQ.get_nowait())   # commands sent before any strip was found
+                QS.append(q); tasks.append(asyncio.ensure_future(_strip(d, q)))
+                print("BLE strip found:", d.name, flush=True)
+        await asyncio.sleep(30)
 
 def _start_ble():
     asyncio.run(_ble_loop())
