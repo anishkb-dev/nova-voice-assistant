@@ -1330,6 +1330,14 @@ class Api:
             self._last_welcome_ts = now
             threading.Thread(target=self._welcome_if_owner, args=(away,), daemon=True).start()
 
+    def _greeting(self):
+        """First greeting of the morning (5-12) = "Very good morning", otherwise "Welcome back" (owner's wording)."""
+        today = time.strftime("%Y-%m-%d")
+        if 5 <= time.localtime().tm_hour < 12 and getattr(self, "_gm_day", None) != today:
+            self._gm_day = today
+            return "Very good morning, sir."
+        return "Welcome back, sir."
+
     def _welcome_if_owner(self, away):
         """Motion after an absence -> hand the Lapcare from gesture control to the face-check
         (you're away, not gesturing), verify it's you, then resume gesture. Never uses the Mac cam."""
@@ -1341,7 +1349,7 @@ class Api:
         who = None
         gesture_was_on = False
         if not self._cam_on:                             # webcam switched off in the HUD -> don't open it, just greet
-            self.speak(random.choice(["Welcome back, sir.", "Welcome home, sir."])); return
+            self.speak(self._greeting()); return
         import importlib.util
         if not importlib.util.find_spec("insightface"):   # face-check can't run here -> don't steal the camera from gestures
             print("[face] insightface not installed — skipping face check, gestures keep the camera", flush=True)
@@ -1367,8 +1375,7 @@ class Api:
             print("[iot] motion but no face to verify — staying quiet", flush=True); return
         if not os.path.exists(owner_file):
             print("[face] not enrolled — greeting on motion. Enroll: python3 ~/anish-ai/face_id.py enroll", flush=True)
-        self.speak(random.choice(["Welcome back, sir.", "Ah, you're back — welcome home, sir.",
-                                  "Good to have you back, sir.", "Welcome home, sir."]))
+        self.speak(self._greeting())
         print("[iot] welcome-back (away %.0fs, owner=%s)" % (away, who), flush=True)
 
     def _warm_face(self):
