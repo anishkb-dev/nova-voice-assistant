@@ -1693,7 +1693,9 @@ class Api:
                 print("[files]", type(e).__name__, e, flush=True)
 
     def _health_watch(self):
-        home_gw, mem_day, mem_week = None, None, None
+        home_gw, mem_day = None, None
+        _wk_f = os.path.expanduser("~/anish-ai/.weekly_sent")    # on disk: a restart in the 11:00 hour must not resend
+        mem_week = open(_wk_f).read().strip() if os.path.exists(_wk_f) else None
         time.sleep(120)                                          # startup grace
         while True:
             try:
@@ -1703,7 +1705,7 @@ class Api:
                     if bad and mem_day != time.strftime("%F"):           # at most one alert a day
                         mem_day = time.strftime("%F"); self._tg_alert("\U0001F9E0 " + rep)
                     if time.strftime("%a %H") == "Sun 11" and mem_week != time.strftime("%F"):
-                        mem_week = time.strftime("%F"); self._tg_alert("\U0001F4CA Weekly. " + rep)
+                        mem_week = time.strftime("%F"); open(_wk_f, "w").write(mem_week); self._tg_alert("\U0001F4CA Weekly. " + rep)
                 else:
                     # ponytail: "at home" = same router as when we last reached the hub; a Mac restarted
                     # while the hub is already down never learns it, so no alert until the hub is seen once.
