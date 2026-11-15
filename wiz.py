@@ -65,7 +65,7 @@ def parse(cmd):
     if c in ("on", "turn on"): return {"state": True}
     if c in ("off", "turn off"): return {"state": False}
     for k, sid in SCENES.items():
-        if re.search(r"\b%s\b" % k, c): return {"state": True, "sceneId": sid}
+        if re.search(r"\b%s\b" % k, c): return {"state": True, "sceneId": sid, **({"speed": 200} if sid == 4 else {})}   # party at max speed (10-200)
     m = re.search(r"(\d+)", c)
     if m and ("bright" in c or "dim" in c or "%" in c): return {"state": True, "dimming": max(10, min(100, int(m.group(1))))}
     for k, t in TEMPS.items():

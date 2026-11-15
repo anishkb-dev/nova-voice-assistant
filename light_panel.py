@@ -31,25 +31,33 @@ def send(data):
     for q in QS:
         q.put(data)
 
-# ---------- persistent BLE connections, one per MELK/ELK strip ----------
+# ---------- BLE: a fresh connection per burst of commands, one per MELK strip ----------
+# A link held open for minutes went stale on the table controller (reported connected, writes ignored),
+# while a fresh connection always worked. So: connect when there's work, send the app's clock handshake
+# plus the full current state (LAST), keep the link while commands keep coming, drop it after 3 s idle.
+# ponytail: ~1-2 s connect lag on the first command after idle; fine for voice, music-listen stays connected.
 async def _strip(dev, q):
     from bleak import BleakClient
     while True:
         try:
+            while q.empty(): await asyncio.sleep(0.05)
             async with BleakClient(dev, timeout=20) as c:
-                _LIVE.add(dev.address); STATE["connected"] = True
-                print("BLE connected", dev.name, flush=True)
-                for d in list(LAST.values()): q.put(d)   # catch up: late/reconnected strip gets the current mode
-                while c.is_connected:
+                _LIVE.add(dev.address)
+                while not q.empty(): q.get_nowait()          # LAST already holds the newest state
+                for d in [lights._clock()] + list(LAST.values()):
+                    await c.write_gatt_char(lights.CHAR, d, response=True); await asyncio.sleep(0.15)
+                idle = time.time()
+                while time.time() - idle < 3:
                     try:
-                        await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=True)   # confirmed: the table controller (HH-P10Y68K) dropped some unconfirmed writes
-                        await asyncio.sleep(0.15)   # ...and ignores a colour sent right after "on" (bed strip didn't care)
+                        await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=True)   # confirmed writes
+                        await asyncio.sleep(0.15); idle = time.time()   # the table controller needs the gap
                     except queue.Empty:
                         await asyncio.sleep(0.03)
         except Exception as e:
-            print("BLE %s reconnect in 2s: %s" % (dev.name, str(e)[:70]), flush=True)
-        _LIVE.discard(dev.address); STATE["connected"] = bool(_LIVE)
-        await asyncio.sleep(2)
+            print("BLE %s: %s (retry in 2s)" % (dev.name, str(e)[:70]), flush=True)
+            q.put(b"")                                        # retry: wake the loop to resend LAST
+            await asyncio.sleep(2)
+        _LIVE.discard(dev.address)
 
 async def _ble_loop():
     """Keep scanning: a strip held by the phone app (or unplugged) joins as soon as it advertises again."""
@@ -61,6 +69,7 @@ async def _ble_loop():
                 known.add(d.address); q = queue.Queue()
                 QS.append(q); tasks.append(asyncio.ensure_future(_strip(d, q)))
                 print("BLE strip found:", d.name, flush=True)
+                STATE["connected"] = True   # links are per-burst now; this means "strips known"
         await asyncio.sleep(30)
 
 def _start_ble():
