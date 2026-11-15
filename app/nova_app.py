@@ -2599,6 +2599,21 @@ def main():
                           width=1120, height=740, min_size=(900, 600),
                           background_color="#020608")
 
+    if DISPLAY:        # monitor shared via HDMI switch: when it comes back to the hub, relaunch so the HUD
+        def _screen_watch():   # reopens fullscreen on it (launchd KeepAlive restarts us in ~20 s)
+            import ctypes
+            cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+            def n():
+                c = ctypes.c_uint32(0); cg.CGGetActiveDisplayList(0, None, ctypes.byref(c)); return c.value
+            last = n()
+            while True:
+                time.sleep(5)
+                now = n()
+                if now > last:
+                    print("[display] monitor back -> relaunching HUD", flush=True); time.sleep(3); os._exit(0)
+                last = now
+        threading.Thread(target=_screen_watch, daemon=True).start()
+
     def _autostart():          # always-on: begin listening a moment after the window loads
         time.sleep(2.0)
         if WORKER:            # hub: devices + automations only; the Mac's Nova does the talking
