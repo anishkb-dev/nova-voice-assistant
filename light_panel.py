@@ -64,10 +64,16 @@ _LIVE = set()
 
 LAST = {}    # current power/mode/brightness/speed packets -> replayed to a strip when it (re)connects
 
+_LAST_F = os.path.expanduser("~/anish-ai/.panel_last.json")   # survives restarts, so the wall knows the strips' state
+try: LAST.update({(k if k == "mode" else int(k)): bytes.fromhex(v) for k, v in json.load(open(_LAST_F)).items()})
+except Exception: pass
+
 def send(data):
     if len(data) > 3:   # ELK packet byte 2 = type: 4 power, 5 colour, 3 effect (colour/effect = one "mode"), 1 brightness, 2 speed
         k = "mode" if data[2] in (3, 5) else data[2]
         LAST.pop(k, None); LAST[k] = data
+        try: json.dump({str(k): v.hex() for k, v in LAST.items()}, open(_LAST_F, "w"))
+        except Exception: pass
     for q in QS:
         q.put(data)
 

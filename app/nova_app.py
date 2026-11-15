@@ -676,7 +676,7 @@ class Api:
         if not d.get("online") or t - d.get("ts", 0) > 120: return  # node offline/stale -> never act on old data
         self._day_stats(d, t)
         moving = bool(d.get("motion"))
-        if asleep and moving and 6 <= now.hour < 12:               # forgot "good morning" -> first morning motion resumes rules
+        if asleep and moving and 8 <= now.hour < 12:               # forgot "good morning" -> first motion after 8 resumes rules
             # ponytail: PIR can't tell bed-tossing from getting up; raise the start hour if it wakes things too early
             self._auto_on, asleep = True, False
             print("[auto] morning motion -> automations resumed", flush=True)
@@ -1649,7 +1649,7 @@ class Api:
             import guard
             guard._tg("sendMessage", data={"chat_id": open(guard.CHAT_F).read().strip(), "text": text})
         except Exception as e:
-            print("[health] telegram failed:", e, flush=True)
+            print("[health] telegram failed:", nova.redact(e), flush=True)
 
     # ---- maintenance: ask on Telegram, fix only when you tap Fix ----
     _fix_pending = {}          # nonce -> (key, label, cmd)
@@ -1665,7 +1665,7 @@ class Api:
             guard._tg("sendMessage", data={"chat_id": open(guard.CHAT_F).read().strip(), "text": text,
                                            "reply_markup": json.dumps(kb)})
         except Exception as e:
-            print("[fix] telegram failed:", e, flush=True); return
+            print("[fix] telegram failed:", nova.redact(e), flush=True); return
         if not (self._fix_poller and self._fix_poller.is_alive()):
             self._fix_poller = threading.Thread(target=self._fix_poll, daemon=True); self._fix_poller.start()
 
@@ -2745,6 +2745,7 @@ def main():
             pass
         if nova.IS_HUB:       # timed routines, sensor rules + room guard live on the hub only (else they'd fire twice)
             threading.Thread(target=api._automation_loop, daemon=True).start()
+            threading.Thread(target=nova.ensure_panel, daemon=True).start()   # strips' BLE server, survives hub reboots
             threading.Thread(target=api._guard_loop, daemon=True).start()
         try:  # only un-strand a low output volume; never change the user's chosen audio device
             v = subprocess.run(["osascript", "-e", "output volume of (get volume settings)"],

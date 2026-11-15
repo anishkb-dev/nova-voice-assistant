@@ -466,6 +466,10 @@ def _mqtt_peek(topics, wait=1.2):
     return got
 
 
+def redact(e):
+    """Error text without secrets: a failed Telegram call prints its URL, which holds the bot token."""
+    return re.sub(r"bot\d+:[\w-]+", "bot<token>", str(e))
+
 DEV_FILE = os.path.expanduser("~/anish-ai/.dev_last.json")
 def _dev(name, cmd):
     """Wall HUD: remember the last command per IR/BLE device (they report no state back)."""
@@ -552,6 +556,16 @@ def ac(command: str) -> str:
     threading.Thread(target=_blaster, daemon=True).start()
     return say
 
+def ensure_panel():
+    """Start light_panel (the BLE strips' server) if it isn't running. True = just started it.
+    Runs as a child of hub Nova so it inherits NovaHub.app's Bluetooth permission (a launchd job wouldn't)."""
+    import urllib.request, subprocess
+    try: urllib.request.urlopen("http://localhost:8099/state", timeout=0.4); return False
+    except Exception: pass
+    subprocess.Popen([sys.executable, os.path.expanduser("~/anish-ai/light_panel.py")], start_new_session=True,
+                     stdout=open(os.path.expanduser("~/anish-ai/light_panel.log"), "a"), stderr=subprocess.STDOUT)
+    return True
+
 def lights(command: str) -> str:
     """Control the BLE LED strip (local Bluetooth). command e.g. 'on','off','blue','warm','brightness 60'."""
     _dev("lights", command)
@@ -561,12 +575,7 @@ def lights(command: str) -> str:
         try: _hub_send("lights", command)   # ponytail: no ack from the hub; add a reply topic if it matters
         except Exception as e: return f"Couldn't reach the hub for the lights: {e}"
         return f"Lights {command}, sir."
-    import urllib.request, subprocess, time
-    try: urllib.request.urlopen("http://localhost:8099/state", timeout=0.4)
-    except Exception:                       # light_panel holds ONE persistent BLE link; per-command connects failed half the time
-        subprocess.Popen([sys.executable, os.path.expanduser("~/anish-ai/light_panel.py")], start_new_session=True,
-                         stdout=open(os.path.expanduser("~/anish-ai/light_panel.log"), "a"), stderr=subprocess.STDOUT)
-        time.sleep(6)
+    if ensure_panel(): time.sleep(6)
     from lights import lights as _lights
     said = _lights(command)          # the panel sends it to every strip (bed + table)
     try:                             # ceiling bulb follows the same mode (colour/warm/party/on/off); routines set its brightness themselves
@@ -1012,7 +1021,7 @@ def night_summary():
             L.append("\U0001F916 Nova did: " + ", ".join("%s \u00d7%d" % kv for kv in acts.most_common(5)))
         L.append("\U0001F4CB Next 24 h: " + ("; ".join(x for x in (cal, rem) if x) or "nothing scheduled"))
         try: guard.send_text("\n".join(L))
-        except Exception as e: print("[night] telegram failed:", e, flush=True)
+        except Exception as e: print("[night] telegram failed:", redact(e), flush=True)
     threading.Thread(target=_send, daemon=True).start()
     return "recap going to Telegram"
 
