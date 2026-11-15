@@ -537,6 +537,12 @@ def lights(command: str) -> str:
         try: _hub_send("lights", command)   # ponytail: no ack from the hub; add a reply topic if it matters
         except Exception as e: return f"Couldn't reach the hub for the lights: {e}"
         return f"Lights {command}, sir."
+    import urllib.request, subprocess, time
+    try: urllib.request.urlopen("http://localhost:8099/state", timeout=0.4)
+    except Exception:                       # light_panel holds ONE persistent BLE link; per-command connects failed half the time
+        subprocess.Popen([sys.executable, os.path.expanduser("~/anish-ai/light_panel.py")], start_new_session=True,
+                         stdout=open(os.path.expanduser("~/anish-ai/light_panel.log"), "a"), stderr=subprocess.STDOUT)
+        time.sleep(6)
     from lights import lights as _lights
     return _lights(command)
 

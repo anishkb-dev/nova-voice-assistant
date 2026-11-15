@@ -79,3 +79,4 @@ voice_samples/
 .tg_sent.jsonl
 .tg_read_ts
 .weekly_sent
+light_panel.log

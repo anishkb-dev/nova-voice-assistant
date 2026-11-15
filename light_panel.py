@@ -28,7 +28,7 @@ async def _ble_loop():
     from bleak import BleakClient
     while True:
         try:
-            async with BleakClient(lights.ADDR, timeout=20) as c:
+            async with BleakClient(await lights._find(), timeout=20) as c:   # each Mac has its own BLE UUID
                 STATE["connected"] = True
                 print("BLE connected")
                 while True:
@@ -38,8 +38,8 @@ async def _ble_loop():
                     except queue.Empty:
                         await asyncio.sleep(0.03)
         except Exception as e:
-            STATE["connected"] = False
-            print("BLE reconnect in 2s:", str(e)[:70])
+            STATE["connected"] = False; lights._dev = None     # rescan by name next time
+            print("BLE reconnect in 2s:", str(e)[:70], flush=True)
             await asyncio.sleep(2)
 
 def _start_ble():

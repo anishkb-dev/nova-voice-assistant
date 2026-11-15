@@ -1489,7 +1489,13 @@ class Api:
                         finally: self._hub_speaking = False
                     threading.Thread(target=_say_here, daemon=True).start()
                 elif key == "lights":
-                    threading.Thread(target=lambda: print("[hub] lights", val, "->", nova.lights(val), flush=True), daemon=True).start()
+                    if not getattr(self, "_strip_q", None):          # one worker = strip commands run in arrival order
+                        import queue; self._strip_q = queue.Queue()
+                        def _strip_worker():
+                            while True:
+                                v = self._strip_q.get(); print("[hub] lights", v, "->", nova.lights(v), flush=True)
+                        threading.Thread(target=_strip_worker, daemon=True).start()
+                    self._strip_q.put(val)
                 elif key == "later":                      # a delayed routine step the Mac handed over
                     j = json.loads(val); st = j["st"]
                     threading.Timer(float(st["after_min"]) * 60, lambda: self._safe_step(j["name"], st)).start()

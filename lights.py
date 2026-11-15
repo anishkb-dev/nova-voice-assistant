@@ -10,7 +10,7 @@ Nova calls lights("on") / lights("blue") / lights("brightness 50").
 ELK-BLEDOM protocol, write char 0xFFF3. BLE allows ONE connection at a time —
 if the phone app is connected it blocks this, so close the app.
 """
-import asyncio, sys
+import asyncio, threading, sys
 
 ADDR = "95A77178-E246-FE4E-B242-F25E93D8F949"    # MELK-OA10 (macOS BLE UUID; re-scan if it ever changes)
 CHAR = "0000fff3-0000-1000-8000-00805f9b34fb"
@@ -59,7 +59,13 @@ async def _send(payloads):
         _dev = None   # strip moved/reset -> rescan next time
         raise
 
+_LOCK = threading.Lock()   # BLE allows one link: overlapping commands (routine steps, hub jobs) failed "didn't respond"
+
 def _tx(payloads):
+    with _LOCK:
+        return _tx1(payloads)
+
+def _tx1(payloads):
     # If the light_panel server is running, route through ITS persistent BLE connection
     # (BLE allows one link — this avoids the panel and voice fighting over it).
     try:
