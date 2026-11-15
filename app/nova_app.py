@@ -536,6 +536,9 @@ class Api:
                 later.append(st)
         def _bg():
             for st in later:
+                if st.get("after_min") and not nova.IS_HUB:     # the Mac may sleep (lid closed) -> the hub keeps the timer
+                    try: nova._hub_send("later", json.dumps({"name": name, "st": st})); continue
+                    except Exception as e: print("[routine] hub unreachable, timing locally:", e, flush=True)
                 if st.get("after_min"):
                     threading.Timer(float(st["after_min"]) * 60, lambda st=st: self._safe_step(name, st)).start()
                 else:
@@ -1487,6 +1490,10 @@ class Api:
                     threading.Thread(target=_say_here, daemon=True).start()
                 elif key == "lights":
                     threading.Thread(target=lambda: print("[hub] lights", val, "->", nova.lights(val), flush=True), daemon=True).start()
+                elif key == "later":                      # a delayed routine step the Mac handed over
+                    j = json.loads(val); st = j["st"]
+                    threading.Timer(float(st["after_min"]) * 60, lambda: self._safe_step(j["name"], st)).start()
+                    print("[hub] later %s in %s min: %s(%r)" % (j["name"], st["after_min"], st.get("do"), st.get("arg")), flush=True)
                 elif key == "automations":
                     self._auto_on = (val == "on"); print("[hub] automations", val, flush=True)
                 elif key == "stop":                       # Mac's stop button / interrupt
