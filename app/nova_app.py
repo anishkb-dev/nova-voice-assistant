@@ -2644,9 +2644,10 @@ def main():
                 if not w: return
                 app = AppKit.NSApplication.sharedApplication()
                 if off:
-                    w.setLevel_(AppKit.NSNormalWindowLevel); app.setPresentationOptions_(0); return
+                    app.setPresentationOptions_(0); w.setLevel_(AppKit.NSNormalWindowLevel); w.orderOut_(None); return   # hide HUD -> desktop
                 w.setFrame_display_(w.screen().frame(), True)
                 w.setLevel_(AppKit.NSScreenSaverWindowLevel)
+                w.orderFrontRegardless()
                 w.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces | AppKit.NSWindowCollectionBehaviorStationary)
                 app.activateIgnoringOtherApps_(True)
                 app.setPresentationOptions_(AppKit.NSApplicationPresentationHideDock | AppKit.NSApplicationPresentationHideMenuBar
