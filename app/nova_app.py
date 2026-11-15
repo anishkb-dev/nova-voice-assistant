@@ -2561,7 +2561,8 @@ class Api:
             if lw in vp["vocab"] or len(lw) < 4:
                 out.append(w); continue
             m = difflib.get_close_matches(lw, common, n=1, cutoff=0.82)   # snap only very-near misses
-            out.append(m[0] if m else w)
+            # never snap a plural onto its singular: "evening lights" -> "evening light" broke routine phrases
+            out.append(m[0] if m and lw.rstrip("s") != m[0].rstrip("s") else w)
         return " ".join(out)
 
     def _monitor(self):
