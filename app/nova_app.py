@@ -2721,16 +2721,18 @@ def main():
         def _screen_watch():   # reopens fullscreen on it (launchd KeepAlive restarts us in ~20 s)
             import ctypes
             cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
-            def n():
-                c = ctypes.c_uint32(0); cg.CGGetActiveDisplayList(0, None, ctypes.byref(c)); return c.value
+            def n():      # the set of active display ids: with the broken internal panel, switching the HDMI
+                ids = (ctypes.c_uint32 * 8)(); c = ctypes.c_uint32(0)   # back can swap internal -> external at the
+                cg.CGGetActiveDisplayList(8, ids, ctypes.byref(c))       # SAME count, so compare ids, not the count
+                return tuple(sorted(ids[:c.value]))
             last, k = n(), 0
             while True:
                 time.sleep(5)
                 k += 1
                 if k % 2 == 1: _kiosk()          # every 10 s: re-take the screen if anything got in front
                 now = n()
-                if now > last:
-                    print("[display] monitor back -> relaunching HUD", flush=True); time.sleep(3); os._exit(0)
+                if now and now != last and not set(now) <= set(last):   # a display appeared (not just one leaving)
+                    print("[display] monitor back %s -> relaunching HUD" % (now,), flush=True); time.sleep(3); os._exit(0)
                 last = now
         threading.Thread(target=_screen_watch, daemon=True).start()
 
