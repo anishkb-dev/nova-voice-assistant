@@ -537,7 +537,14 @@ class Api:
         if do == "mic":    return str(self.set_handsfree(arg in (True, "on")))
         if do == "camera": return str(self.set_camera(arg in (True, "on")))
         if do == "bulb":                              # WiZ ceiling bulb (wiz.py), reachable from the Mac and the hub
-            import wiz; return wiz.bulb(str(arg))
+            import wiz
+            r = wiz.bulb(str(arg))
+            if "can't reach" in r:                    # a missed UDP reply left the light on after goodnight (2026-11-15)
+                time.sleep(2); r = wiz.bulb(str(arg))
+            if "can't reach" in r and not nova.IS_HUB:   # last try: the hub, which sits next to the bulb
+                nova._hub_send("later", json.dumps({"name": "bulb", "st": {"do": "bulb", "arg": arg, "after_min": 0}}))
+                r = "Bulb handed to the hub."
+            return r
         if do == "display":                           # the hub's wall screen (only the hub drives it)
             if nova.IS_HUB: subprocess.Popen(["pmset", "displaysleepnow"] if arg == "off" else ["caffeinate", "-u", "-t", "2"])
             else: nova._hub_send("display", arg)
