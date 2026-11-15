@@ -23,7 +23,7 @@ var D = ["SUN","MON","TUE","WED","THU","FRI","SAT"], M = ["JAN","FEB","MAR","APR
 function p2(n) { return (n < 10 ? "0" : "") + n; }
 function clock() { var d = new Date();
   txt("clk-d", D[d.getDay()] + " " + d.getDate() + " " + M[d.getMonth()]);
-  txt("clk-t", p2(d.getHours()) + ":" + p2(d.getMinutes())); txt("clk-s", ":" + p2(d.getSeconds())); }
+  txt("clk-t", (d.getHours() % 12 || 12) + ":" + p2(d.getMinutes())); txt("clk-s", ":" + p2(d.getSeconds()) + (d.getHours() < 12 ? " AM" : " PM")); }
 clock(); setInterval(clock, 1000);
 
 /* ---- gauges: arc from (12,52) round a r=38 circle centred (50,52); 0..1 -> 0..180deg ---- */
@@ -75,7 +75,7 @@ function heard(s) {
       d.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:900px";
       d.textContent = "“" + x[0] + "”  →  " + x[1]; hist.appendChild(d); }); }
   lastU = s || ""; txt("c-user", s ? "“" + s + "”" : "");
-  var d = new Date(); txt("last-cmd", "LAST COMMAND: " + p2(d.getHours()) + ":" + p2(d.getMinutes()));
+  var d = new Date(); txt("last-cmd", "LAST COMMAND: " + (d.getHours() % 12 || 12) + ":" + p2(d.getMinutes()) + (d.getHours() < 12 ? " AM" : " PM"));
 }
 function said(s) { txt("c-nova", s || "…"); }
 var sentAt = 0;
