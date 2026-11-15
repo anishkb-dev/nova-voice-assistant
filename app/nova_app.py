@@ -459,6 +459,7 @@ class Api:
             wav = self._audio_q.get()
             if time.time() < self._mute_until:      # interrupted -> the rest of that reply is stale
                 self._hub_speaking = not self._audio_q.empty(); continue
+            if not self._hub_speaking: self._table_voice(1)   # reply starts -> table strip follows the voice
             self._hub_speaking = True
             n += 1; path = "/tmp/nova_k_%d.wav" % (n % 4)
             try:
@@ -474,7 +475,15 @@ class Api:
             except Exception as e:
                 print("[hub] audio play failed: %s" % e, flush=True)
             if self._audio_q.empty():
-                self._hub_speaking = False
+                self._hub_speaking = False; self._table_voice(0)
+
+    def _table_voice(self, on):
+        """Table strip: its built-in mic mode while Nova talks, back to the room's light mode after (light_panel /voice)."""
+        def go():
+            import urllib.request
+            try: urllib.request.urlopen("http://localhost:8099/voice?on=%d" % on, timeout=3)
+            except Exception: pass                   # panel not running -> nothing to animate
+        threading.Thread(target=go, daemon=True).start()
 
     def stop_speaking(self):
         self._speak_gen += 1               # abort any in-flight streaming loop
@@ -1487,8 +1496,13 @@ class Api:
                     def _say_here(val=val):
                         self._hub_speaking = True     # covers the ~1s of synthesis before audio starts
                         print("[hub] say %r" % val[:80], flush=True)
-                        try: self.speak(val)
-                        finally: self._hub_speaking = False
+                        self._table_voice(1)
+                        try:
+                            self.speak(val)           # returns when audio STARTS; later chunks follow
+                            quiet = 0
+                            while quiet < 4:          # done = nothing playing for 0.8 s (covers chunk gaps)
+                                time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) else quiet + 1
+                        finally: self._hub_speaking = False; self._table_voice(0)
                     threading.Thread(target=_say_here, daemon=True).start()
                 elif key == "lights":
                     if not getattr(self, "_strip_q", None):          # one worker = strip commands run in arrival order

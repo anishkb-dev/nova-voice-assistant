@@ -20,6 +20,9 @@ _listen_thread = None
 _timer_thread = None
 
 QS = []      # one queue per strip (bed + table): every command goes to all of them, so they stay in sync
+NAMES = {}   # queue -> strip name
+VOICE_STRIP = "61"   # name suffix of the TABLE strip (MELK-OA10   61): only it reacts to Nova's voice
+VOICE_SENS = 50      # device-mic sensitivity 0-100; higher = flickers on room noise too
 _LIVE = set()
 
 LAST = {}    # current power/mode/brightness/speed packets -> replayed to a strip when it (re)connects
@@ -43,14 +46,16 @@ async def _strip(dev, q):
             while q.empty(): await asyncio.sleep(0.05)
             async with BleakClient(dev, timeout=20) as c:
                 _LIVE.add(dev.address)
-                while not q.empty(): q.get_nowait()          # LAST already holds the newest state
                 for d in [lights._clock()] + list(LAST.values()):
                     await c.write_gatt_char(lights.CHAR, d, response=True); await asyncio.sleep(0.15)
                 idle = time.time()
                 while time.time() - idle < 3:
                     try:
-                        await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=True)   # confirmed writes
-                        await asyncio.sleep(0.15); idle = time.time()   # the table controller needs the gap
+                        d = q.get_nowait()
+                        if d:                                            # b"" = retry wake-up marker
+                            await c.write_gatt_char(lights.CHAR, d, response=True)   # confirmed writes
+                            await asyncio.sleep(0.15)                    # the table controller needs the gap
+                        idle = time.time()
                     except queue.Empty:
                         await asyncio.sleep(0.03)
         except Exception as e:
@@ -67,7 +72,7 @@ async def _ble_loop():
         for d in await BleakScanner.discover(timeout=8):
             if (d.name or "").upper().startswith(("MELK", "ELK")) and d.address not in known:
                 known.add(d.address); q = queue.Queue()
-                QS.append(q); tasks.append(asyncio.ensure_future(_strip(d, q)))
+                QS.append(q); NAMES[q] = d.name or ""; tasks.append(asyncio.ensure_future(_strip(d, q)))
                 print("BLE strip found:", d.name, flush=True)
                 STATE["connected"] = True   # links are per-burst now; this means "strips known"
         await asyncio.sleep(30)
@@ -163,6 +168,13 @@ class H(http.server.BaseHTTPRequestHandler):
             _stop_listen(); send(lights.ON); send(lights._effect(eid)); STATE["on"] = True
         elif path == "/speed":
             send(lights._speed(g("v", 50)))
+        elif path == "/voice":                                 # Nova speaking: table strip -> its own mic mode, then back
+            if LAST.get(4) == lights.ON:                       # lights off (goodnight) -> stay dark
+                frames = ([bytes.fromhex("7e07038004ffff00ef"), bytes([0x7e, 7, 6, VOICE_SENS, 0xff, 0xff, 0xff, 0, 0xef])]
+                          if g("on") else list(LAST.values()))  # mic mode 0x80 = Energy (PROTOCOL.md) / restore
+                for q in QS:
+                    if NAMES.get(q, "").endswith(VOICE_STRIP):
+                        for f in frames: q.put(f)
         elif path == "/raw":                                   # voice/lights.py routes raw bytes through here
             try: send(bytes.fromhex(q.get("hex", [""])[0]))
             except Exception: pass
