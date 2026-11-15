@@ -165,3 +165,49 @@ function pollHud() { api("hud").then(function (h) { if (!h) return; chip("hub-st
 function start() { poll(); pollHud(); setInterval(poll, 2500); setInterval(pollHud, 5000); }
 if (window.pywebview && window.pywebview.api) start(); else window.addEventListener("pywebviewready", start);
 })();
+
+/* ===== rotating 3D wireframe rock-crawler (realistic build; same holo theme) ===== */
+(function(){var svg=null;[].forEach.call(document.querySelectorAll("div"),function(d){if(!svg&&d.children.length===0&&d.textContent.trim()==="TRX-4 CHASSIS")svg=d.parentElement.querySelector("svg");});if(!svg)return;
+  var cv=document.createElement("canvas");cv.width=300;cv.height=200;cv.style.cssText="width:100%;height:100%;display:block;filter:drop-shadow(0 0 3px rgba(255,150,70,.5))";
+  svg.parentNode.replaceChild(cv,svg);
+  var x=cv.getContext("2d"),CX=150,CY=112,SC=2.2,tilt=0.16,t=0,TAU=6.28318;
+  function tf(p,ay){var X=p[0],Y=p[1],Z=p[2],cy=Math.cos(ay),sy=Math.sin(ay),x1=X*cy+Z*sy,z1=-X*sy+Z*cy,cx=Math.cos(tilt),sx=Math.sin(tilt),y1=Y*cx-z1*sx,z2=Y*sx+z1*cx;return [CX+x1*SC,CY-y1*SC,z2];}
+  function edge(a,b,ay,base){var p=tf(a,ay),q=tf(b,ay),zc=(p[2]+q[2])/2,al=(base||.7)*(0.36+0.64*(zc+95)/190);al=Math.max(.08,Math.min(1,al));x.strokeStyle="rgba(255,162,80,"+al+")";x.beginPath();x.moveTo(p[0],p[1]);x.lineTo(q[0],q[1]);x.stroke();}
+  function box(x0,x1,y0,y1,z0,z1,ay,b){var v=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){edge(v[e[0]],v[e[1]],ay,b);});}
+  function ring(cx,cy,cz,R,ay){var pv=null;for(var i=0;i<=12;i++){var a=i/12*TAU,pt=[cx,cy+Math.cos(a)*R,cz+Math.sin(a)*R];if(pv)edge(pv,pt,ay,.5);pv=pt;}}
+  /* big knobby tire with 5-spoke star hub (matches the gold-rim wheels) */
+  function wheel(wx,wy,wz,R,ay){var N=13,w=6.5,i,a,f=(wx<0?-1:1),io=wx-w*f,oo=wx+w*f,cy,sz;
+    for(var s=0;s<2;s++){var xf=(s?oo:io),pv=null;for(i=0;i<=N;i++){a=i/N*TAU;var pt=[xf,wy+Math.cos(a)*R,wz+Math.sin(a)*R];if(pv)edge(pv,pt,ay,.84);pv=pt;}}
+    for(i=0;i<N;i++){a=i/N*TAU;cy=Math.cos(a);sz=Math.sin(a);
+      if(i%2===0)edge([io,wy+cy*R,wz+sz*R],[oo,wy+cy*R,wz+sz*R],ay,.32);
+      edge([wx,wy+cy*R,wz+sz*R],[wx,wy+cy*(R+2.6),wz+sz*(R+2.6)],ay,.5);}                              /* knobby lugs */
+    var hr=R*.5;ring(oo,wy,wz,hr,ay);                                                                   /* rim */
+    for(i=0;i<5;i++){a=i/5*TAU+.3;edge([oo,wy,wz],[oo,wy+Math.cos(a)*hr,wz+Math.sin(a)*hr],ay,.5);}     /* 5 spokes */
+  }
+  function axle(z,ay){var y=-11;edge([-31,y,z],[31,y,z],ay,.7);ring(-5,y,z,5,ay);ring(5,y,z,5,ay);edge([-5,y,z],[5,y,z],ay,.4);} /* solid axle + gearbox barrel */
+  /* coil-over shock: a real helix spring between chassis mount a and axle mount b */
+  function coil(a,b,turns,R,spt,ay){var dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2],L=Math.hypot(dx,dy,dz)||1,ux=dx/L,uy=dy/L,uz=dz/L;
+    var hx=Math.abs(uy)<.9?0:1,hy=Math.abs(uy)<.9?1:0;
+    var px=-uz*hy,py=uz*hx,pz=ux*hy-uy*hx,pl=Math.hypot(px,py,pz)||1;px/=pl;py/=pl;pz/=pl;
+    var qx=uy*pz-uz*py,qy=uz*px-ux*pz,qz=ux*py-uy*px,M=Math.round(turns*spt),pv=null;
+    for(var i=0;i<=M;i++){var tt=i/M,an=tt*turns*TAU,c=Math.cos(an),s=Math.sin(an);
+      var pt=[a[0]+dx*tt+(px*c+qx*s)*R,a[1]+dy*tt+(py*c+qy*s)*R,a[2]+dz*tt+(pz*c+qz*s)*R];
+      if(pv)edge(pv,pt,ay,.6);pv=pt;}}
+  function shock(sx,zc,ay){coil([sx*13,9,zc*.55],[sx*25,-11,zc],5,3.1,6,ay);edge([sx*12,-3,zc*.5],[sx*27,-11,zc],ay,.4);} /* spring + lower link */
+  function base(ay){var pv=null,i,a;for(i=0;i<=40;i++){a=i/40*TAU;var pt=[Math.cos(a)*64,-30,Math.sin(a)*64];if(pv)edge(pv,pt,ay,.16);pv=pt;}for(i=0;i<20;i++){a=i/20*TAU;edge([Math.cos(a)*54,-30,Math.sin(a)*54],[Math.cos(a)*64,-30,Math.sin(a)*64],ay,.18);}}
+  var _last=0;(function d(ts){requestAnimationFrame(d);if(ts-_last<32)return;_last=ts;t+=.012;var ay=t;x.clearRect(0,0,300,200);x.lineWidth=1.15;
+    base(ay*.5);
+    var xr=14,yb=-4,yt=1;                                            /* flat open chassis: 2 side rails + crossmembers */
+    edge([-xr,yb,-30],[-xr,yb,30],ay,.82);edge([xr,yb,-30],[xr,yb,30],ay,.82);
+    edge([-xr,yt,-28],[-xr,yt,28],ay,.5);edge([xr,yt,-28],[xr,yt,28],ay,.5);
+    [-28,-12,4,20,28].forEach(function(z){edge([-xr,yb,z],[xr,yb,z],ay,.44);edge([-xr,yb,z],[-xr,yt,z],ay,.3);edge([xr,yb,z],[xr,yt,z],ay,.3);});
+    edge([-xr,yb,30],[0,yb-3,37],ay,.5);edge([xr,yb,30],[0,yb-3,37],ay,.5);                          /* front skid taper */
+    edge([-xr,yb,-30],[0,yb-2,-36],ay,.45);edge([xr,yb,-30],[0,yb-2,-36],ay,.45);                    /* rear taper */
+    box(-11,11,yt,9,-13,13,ay,.6);[-8,-4,0,4,8].forEach(function(z){edge([-11,9,z],[11,9,z],ay,.28);}); /* battery box + ribs */
+    axle(26,ay);axle(-26,ay);
+    shock(-1,26,ay);shock(1,26,ay);shock(-1,-26,ay);shock(1,-26,ay);               /* 4 coil-over shocks */
+    edge([-3,9,2],[0,15,-3],ay,.5);edge([0,15,-3],[4,14,-7],ay,.5);edge([4,14,-7],[6,9,-9],ay,.45);   /* draped wires */
+    var ap=tf([6,15,-8],ay);x.fillStyle="#ffd7a0";x.beginPath();x.arc(ap[0],ap[1],1.8,0,TAU);x.fill();
+    wheel(-30,-11,26,17,ay);wheel(30,-11,26,17,ay);wheel(-30,-11,-26,17,ay);wheel(30,-11,-26,17,ay);
+  })(0);
+})();
