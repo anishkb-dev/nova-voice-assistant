@@ -165,7 +165,7 @@ FP_ACTIVE = False   # False = only log "[fp]" scores (calibration); True = skip 
 import nova  # reuse MODEL, TOOLS, FUNCS (get_datetime, open_app, search_web, play_music, stop_music)
 import ollama
 
-HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nova_hud.html")  # 2026-11-15 lean HUD; nova_stitch.html = previous  # Stitch HUD, wired (index.html / index_reactor.html kept as backups)
+HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nova_v3.html")  # 2026-11-15 Stitch v3 (user design); nova_hud.html / nova_stitch.html = previous  # Stitch HUD, wired (index.html / index_reactor.html kept as backups)
 
 
 
