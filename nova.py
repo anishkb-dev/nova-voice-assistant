@@ -497,6 +497,22 @@ def ac(command: str) -> str:
     command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
     _dev("ac", command)
     cmd = (command or "").lower().strip()
+    # "temp 21 for 5 min" -> do it, then put the AC back the way it was after N minutes
+    m = re.search(r"\s*\bfor\s+(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?)\b", cmd)
+    if m:
+        mins = float(m.group(1)) * (60 if m.group(2).startswith("h") else 1)
+        try:
+            prev = (_mqtt_peek(["home/room/ac"]).get("home/room/ac") or "off 24").split()
+        except Exception:
+            prev = ["off", "24"]
+        revert = "off" if prev[0] == "off" else "temp " + prev[1]
+        said = ac(cmd[:m.start()] + cmd[m.end():])
+        if IS_HUB:
+            threading.Timer(mins * 60, ac, args=(revert,)).start()
+        else:
+            _hub_send("later", json.dumps({"name": "ac timer", "st": {"do": "ac", "arg": revert, "after_min": mins}}))
+        back = "off" if revert == "off" else "back to %s degrees" % prev[1]
+        return "%s For %g minute%s, then %s." % (said, mins, "" if mins == 1 else "s", back)
     try:
         st = _mqtt_peek(["home/room/status", "home/room/ac"])
     except Exception:
@@ -1219,7 +1235,7 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "ac", "description": "Control the air conditioner (AC) via the smart IR blaster. Use for 'turn on/off the AC', 'set AC to 24', 'AC cool mode', 'AC fan high'. For relative changes like 'make it warmer/colder' or 'increase/lower the temperature', send 'increase' or 'decrease' (it reads the current temp and steps 1 degree).",
         "parameters": {"type": "object", "properties": {
-            "command": {"type": "string", "description": "e.g. 'on', 'off', 'temp 24', 'increase', 'decrease', 'mode cool', 'fan high'"}}, "required": ["command"]}}},
+            "command": {"type": "string", "description": "e.g. 'on', 'off', 'temp 24', 'temp 21 for 5 min', 'increase', 'decrease', 'mode cool', 'fan high'"}}, "required": ["command"]}}},
     {"type": "function", "function": {
         "name": "lights", "description": "Control the BED LIGHTS — the Bluetooth RGB LED strip. Use for 'turn on/off the bed lights' (or just 'the lights'/'the strip'), 'make the bed lights blue/red/warm', 'dim the bed lights', and animations like 'party mode', 'fade', 'strobe', plus 'speed up/slow down the effect'. NOT the room/ceiling light (that's iot_control).",
         "parameters": {"type": "object", "properties": {

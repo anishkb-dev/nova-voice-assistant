@@ -1349,15 +1349,13 @@ class Api:
             return
         import random
         sys.path.insert(0, os.path.expanduser("~/anish-ai"))
-        owner_file = os.path.expanduser("~/anish-ai/owner_face.npy")
+        import face_id
+        if not os.path.exists(face_id.OWNER):             # owner's rule: greet ONLY on a recognised face, never on motion
+            print("[face] not enrolled — no greeting. Enroll: python3 ~/anish-ai/face_id.py enroll", flush=True); return
+        if not self._cam_on:                             # webcam switched off in the HUD -> never open it (so no greeting)
+            return
         who = None
         gesture_was_on = False
-        if not self._cam_on:                             # webcam switched off in the HUD -> don't open it, just greet
-            self.speak(self._greeting()); return
-        import importlib.util
-        if not importlib.util.find_spec("insightface"):   # face-check can't run here -> don't steal the camera from gestures
-            print("[face] insightface not installed — skipping face check, gestures keep the camera", flush=True)
-            return
         try:
             gesture_was_on = nova.gesture_control("stop").startswith("Gesture control off")  # free the Lapcare
             time.sleep(1.2)                              # let the camera actually release
@@ -1373,12 +1371,8 @@ class Api:
                 nova.gesture_control("start")          # hand the camera back to gesture control
             except Exception:
                 pass
-        if who is False:                                  # positively NOT you -> stay quiet
-            print("[iot] motion but not you — staying quiet", flush=True); return
-        if who is None and os.path.exists(owner_file):    # enrolled, but couldn't verify a face -> don't greet
-            print("[iot] motion but no face to verify — staying quiet", flush=True); return
-        if not os.path.exists(owner_file):
-            print("[face] not enrolled — greeting on motion. Enroll: python3 ~/anish-ai/face_id.py enroll", flush=True)
+        if who is not True:                               # someone else, or no face seen -> stay quiet
+            print("[iot] motion, face not recognised (%s) — staying quiet" % who, flush=True); return
         self.speak(self._greeting())
         print("[iot] welcome-back (away %.0fs, owner=%s)" % (away, who), flush=True)
 
@@ -2040,7 +2034,8 @@ class Api:
         _temp_set = (re.search(r"\b(temp(erature)?|degrees?)\b", low) and re.search(r"\b(1[6-9]|2\d|30)\b", low)
                      and re.search(r"\b(set|make|to|adjust|change|put)\b", low))   # "set room temp to 21" -> AC
         if re.search(r"\b(ac|a\.c\.|air\s*con(?:ditioner)?)\b", low) or _temp_set:
-            temp = re.search(r"\b(1[6-9]|2\d|30)\b", low)
+            dur = re.search(r"\bfor\s+\d+(?:\.\d+)?\s*(?:h|hrs?|hours?|m|mins?|minutes?)\b", low)   # "... for 5 min"
+            temp = re.search(r"\b(1[6-9]|2\d|30)\b", low[:dur.start()] + low[dur.end():] if dur else low)
             fan_sp = re.search(r"\b(low|mid|medium|high|auto)\b", low)
             mode = re.search(r"\b(cool|heat|dry|auto)\b", low)
             acmd = None
@@ -2057,6 +2052,7 @@ class Api:
                 if acmd is None and mode:
                     nova.FUNCS["ac"]("mode " + mode.group(1)); acmd = "on"
             if acmd:
+                if dur: acmd += " " + dur.group(0)
                 return _instant(nova.FUNCS["ac"](acmd), "ac(%s)" % acmd)
         # WIZ BULB (room ceiling light): "bulb ..." or a WiZ scene name with "light(s)" -> wiz.py parses the rest.
         if re.search(r"\bbulb\b", low) or (re.search(r"\blights?\b", low) and not re.search(r"\bbed\s*light|\bstrip\b|\bled\b", low)
