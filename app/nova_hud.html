@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<title>Nova</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0b0907;--panel:#14100c;--line:#2a2018;--txt:#f3e6d8;--dim:#9a8676;--amb:#ff9a42;--amb2:#ffcf9e;--bad:#ff6b5a;--ok:#7fd18b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:14px/1.4 Inter,system-ui,sans-serif;overflow:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+#app{display:grid;grid-template-rows:52px 1fr 60px;height:100vh}
+header{display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--line)}
+header h1{margin:0;font:600 18px 'JetBrains Mono',monospace;letter-spacing:.3em;color:var(--amb)}
+.pill{font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;padding:4px 10px;border:1px solid var(--line);border-radius:99px;color:var(--dim)}
+.pill b{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:1px}
+.pill.on b{background:var(--ok)} .pill.off b{background:var(--bad)}
+header .sp{flex:1} #clock{font:600 16px 'JetBrains Mono',monospace;color:var(--amb2)}
+main{display:grid;grid-template-columns:260px 1fr 260px;gap:14px;padding:14px;min-height:0}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-height:0}
+h2{margin:0 0 10px;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+.col{display:flex;flex-direction:column;gap:14px;min-height:0}
+.stat{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0}
+.stat span{color:var(--dim)} .stat b{font:600 18px 'JetBrains Mono',monospace;color:var(--amb2)}
+.dev{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line)}
+.dev:first-of-type{border-top:0}
+.tg{width:44px;height:24px;border-radius:99px;border:1px solid var(--line);background:#1d1611;position:relative;cursor:pointer;transition:.2s}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--dim);transition:.2s}
+.tg.on{background:rgba(255,154,66,.25);border-color:var(--amb)} .tg.on::after{left:23px;background:var(--amb)}
+.center{display:flex;flex-direction:column;align-items:center;min-height:0}
+#orb{width:190px;height:190px;border-radius:50%;margin:10px 0 6px;cursor:pointer;position:relative;
+  background:radial-gradient(circle at 50% 50%,#ffe2c2 0,#ff9a42 18%,rgba(255,154,66,.25) 45%,transparent 70%);
+  box-shadow:0 0 60px rgba(255,154,66,.25);transition:transform .12s, box-shadow .3s}
+#orb::before{content:"";position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(255,154,66,.35);animation:spin 18s linear infinite;border-top-color:var(--amb)}
+#orb.thinking::before{animation-duration:1.4s}
+#orb.speaking{box-shadow:0 0 90px rgba(255,154,66,.5)}
+@keyframes spin{to{transform:rotate(360deg)}}
+#state{font:600 12px 'JetBrains Mono',monospace;letter-spacing:.2em;color:var(--amb);margin-bottom:12px}
+#log{width:100%;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px;scrollbar-width:none}
+#log::-webkit-scrollbar{display:none}
+.m{max-width:85%;padding:8px 12px;border-radius:10px;font-size:14px}
+.m.me{align-self:flex-end;background:#221a13;color:var(--amb2)}
+.m.nv{align-self:flex-start;background:#1a140f;border:1px solid var(--line)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modes button{font:500 13px Inter,sans-serif;color:var(--txt);background:#1d1611;border:1px solid var(--line);border-radius:8px;padding:10px 6px;cursor:pointer;transition:.15s}
+.modes button:hover{border-color:var(--amb);color:var(--amb2)}
+.modes button.act{background:rgba(255,154,66,.18);border-color:var(--amb)}
+footer{display:flex;align-items:center;gap:10px;padding:0 14px 14px}
+#cmd{flex:1;height:42px;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:0 14px;font:14px Inter,sans-serif;outline:none}
+#cmd:focus{border-color:var(--amb)}
+footer button{height:42px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:#1d1611;color:var(--txt);cursor:pointer;font:500 13px Inter}
+#send{background:var(--amb);color:#1a0f05;border-color:var(--amb);font-weight:600}
+#vol{color:var(--dim);font:12px 'JetBrains Mono',monospace;min-width:56px;text-align:right}
+</style></head>
+<body><div id="app">
+<header>
+  <h1>NOVA</h1>
+  <span class="pill" id="p-hub"><b></b>HUB</span>
+  <span class="pill" id="p-room"><b></b>ROOM</span>
+  <span class="pill" id="p-bat"><b></b>BAT --</span>
+  <span class="sp"></span>
+  <span id="clock">--:--</span>
+</header>
+<main>
+  <div class="col">
+    <section>
+      <h2>Room</h2>
+      <div class="stat"><span>Temperature</span><b id="s-temp">--</b></div>
+      <div class="stat"><span>Humidity</span><b id="s-hum">--</b></div>
+      <div class="stat"><span>Motion</span><b id="s-mot">--</b></div>
+    </section>
+    <section>
+      <h2>Devices</h2>
+      <div class="dev"><span>Ceiling bulb</span><div class="tg" data-d="bulb"></div></div>
+      <div class="dev"><span>Bed lights</span><div class="tg" data-d="bed lights"></div></div>
+      <div class="dev"><span>AC</span><div class="tg" data-d="ac"></div></div>
+      <div class="dev"><span>Fan</span><div class="tg" data-d="fan"></div></div>
+      <div class="dev"><span>Listening</span><div class="tg on" data-d="mic"></div></div>
+    </section>
+  </div>
+  <section class="center">
+    <div id="orb" title="Click to stop Nova talking"></div>
+    <div id="state">READY</div>
+    <div id="log"></div>
+  </section>
+  <section>
+    <h2>Modes</h2>
+    <div class="modes">
+      <button>Good morning</button><button>Evening</button>
+      <button>Focus</button><button>Relax</button>
+      <button>Cozy</button><button>Movie</button>
+      <button>Party</button><button>Romantic</button>
+      <button>I'm home</button><button>Good night</button>
+    </div>
+  </section>
+</main>
+<footer>
+  <input id="cmd" autocomplete="off" placeholder="Type a command, or say “Nova…”"/>
+  <span id="vol">VOL --</span>
+  <button id="stop">Stop</button>
+  <button id="send">Send</button>
+</footer>
+</div>
+<script>
+(function(){"use strict";
+var $=function(s){return document.querySelector(s)};
+function api(m,a){try{var A=window.pywebview&&window.pywebview.api;if(A&&A[m])return a!==undefined?A[m](a):A[m]();}catch(e){}return Promise.reject();}
+function esc(s){return String(s==null?"":s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]});}
+var log=$("#log"),orb=$("#orb"),st=$("#state"),busy=false,typed="";
+function add(cls,t){var d=document.createElement("div");d.className="m "+cls;d.innerHTML=esc(t);log.appendChild(d);
+  while(log.children.length>30)log.removeChild(log.firstChild);log.scrollTop=1e9;}
+function setState(s){orb.className=s==="thinking"?"thinking":s==="speaking"?"speaking":"";
+  st.textContent={thinking:"THINKING…",speaking:"SPEAKING",standby:"READY",listening:"LISTENING"}[s]||"READY";}
+function send(t){t=(t||"").trim();if(!t||busy)return;typed=t.toLowerCase();add("me",t);busy=true;setState("thinking");
+  api("chat",t).then(function(r){busy=false;if(r&&r.reply)window.novaSay(r.reply);else setState("standby");})
+    .catch(function(){busy=false;add("nv","Something went wrong, sir.");setState("standby");});}
+function stop(){api("stop_speaking");setState("standby");}
+$("#send").onclick=function(){send($("#cmd").value);$("#cmd").value="";};
+$("#cmd").onkeydown=function(e){if(e.key==="Enter"){send(this.value);this.value="";}};
+$("#stop").onclick=stop;orb.onclick=stop;
+document.addEventListener("keydown",function(e){if(e.key==="Escape")stop();});
+document.querySelectorAll(".modes button").forEach(function(b){b.onclick=function(){
+  document.querySelectorAll(".modes button").forEach(function(x){x.classList.remove("act")});b.classList.add("act");
+  send(b.textContent.replace(/^(Evening|Focus|Relax|Cozy|Movie|Party|Romantic)$/,"$1 mode"));};});
+document.querySelectorAll(".tg").forEach(function(t){t.onclick=function(){var on=!t.classList.contains("on");t.classList.toggle("on",on);
+  var d=t.dataset.d;if(d==="mic")api("set_handsfree",on);else send(d+" "+(on?"on":"off"));};});
+
+/* Python -> HUD */
+window.setCoreState=setState;
+window.novaHeard=function(t){if(String(t).toLowerCase()===typed){typed="";return;}add("me",t);setState("thinking");};
+window.novaSay=function(t){add("nv",t);setState("speaking");setTimeout(function(){if(!busy)setState("standby")},3000);};
+window.novaVolume=function(v,m){$("#vol").textContent=m?"MUTED":"VOL "+Math.round(v);};
+window.novaMicReset=function(){st.textContent="MIC OFF";};
+window.novaLevel=function(l){orb.style.transform="scale("+(1+Math.min(.25,l*1.5))+")";};
+window.novaMotion=function(){$("#s-mot").textContent="Now";};
+
+function pill(id,ok,label){var p=$(id);p.className="pill "+(ok==null?"":ok?"on":"off");if(label)p.lastChild.nodeValue=label;}
+function tg(d,on){var t=document.querySelector('.tg[data-d="'+d+'"]');if(t&&on!=null)t.classList.toggle("on",!!on);}
+function poll(){api("hud").then(function(s){if(!s)return;var io=s.iot||{};
+  $("#s-temp").textContent=io.fresh&&io.temp!=null?(+io.temp).toFixed(1)+"°C":"--";
+  $("#s-hum").textContent=io.fresh&&io.humidity!=null?io.humidity+"%":"--";
+  $("#s-mot").textContent=!io.fresh?"--":io.motion?"Now":s.motion_ago!=null?s.motion_ago:"Clear";
+  pill("#p-hub",s.hub);pill("#p-room",!!(io.fresh&&io.online));
+  if(s.bat&&s.bat.pct!=null)pill("#p-bat",s.bat.pct>20||s.bat.plug,(s.bat.plug?"⚡ ":"")+"BAT "+s.bat.pct+"%");
+  tg("bulb",s.bulb==null?null:s.bulb==="on");tg("fan",io.fan==null?null:io.fan==="on"||io.fan===true||io.fan===1);
+}).catch(function(){});}
+function tick(){$("#clock").textContent=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});}
+function start(){poll();setInterval(poll,3000);}
+tick();setInterval(tick,10000);
+if(window.pywebview&&window.pywebview.api)start();else window.addEventListener("pywebviewready",start);
+})();
+</script>
+</body></html>

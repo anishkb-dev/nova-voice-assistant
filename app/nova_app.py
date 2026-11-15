@@ -165,7 +165,7 @@ FP_ACTIVE = False   # False = only log "[fp]" scores (calibration); True = skip 
 import nova  # reuse MODEL, TOOLS, FUNCS (get_datetime, open_app, search_web, play_music, stop_music)
 import ollama
 
-HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nova_stitch.html")  # Stitch HUD, wired (index.html / index_reactor.html kept as backups)
+HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nova_hud.html")  # 2026-11-15 lean HUD; nova_stitch.html = previous  # Stitch HUD, wired (index.html / index_reactor.html kept as backups)
 
 
 
@@ -1848,6 +1848,21 @@ class Api:
                 "car": {**self._car_data, "fresh": (time.time() - self._car_data["ts"]) < 12},
                 "iot": {**self._iot_data, "fresh": (time.time() - self._iot_data["ts"]) < 12}}
 
+    def hud(self):
+        """Cheap state for nova_hud.html (stats() walks every process -- too heavy to poll)."""
+        now = time.time()
+        if now - getattr(self, "_bulb_ts", 0) > 10:            # WiZ UDP round-trip: at most every 10 s
+            self._bulb_ts = now
+            try: import wiz; self._bulb = wiz.state()
+            except Exception: self._bulb = None
+        bat = {"pct": None, "plug": None}
+        try:
+            b = psutil.sensors_battery()
+            if b: bat = {"pct": round(b.percent), "plug": bool(b.power_plugged)}
+        except Exception: pass
+        return {"iot": {**self._iot_data, "fresh": (now - self._iot_data["ts"]) < 12}, "bat": bat,
+                "hub": True if nova.IS_HUB else getattr(self, "_hub_app_on", None), "bulb": getattr(self, "_bulb", None)}
+
     def _wifi(self):
         """WiFi SSID + signal % (cached ~12s; querying is slow)."""
         now = time.time()
@@ -1877,6 +1892,7 @@ class Api:
 
     def chat(self, user):
         """One user turn. Deterministic intercepts first, then the tiered brain (Claude->Groq->Qwen)."""
+        self._js("window.novaHeard&&window.novaHeard(%s)" % json.dumps(user))   # HUD shows voice commands too
         low = user.lower()
         wants_stop = re.search(r"\b(stop|pause|halt|silence|quiet|shut up|enough|turn it off)\b", low)
         mpv_on = nova.music_playing()                     # mpv here, afplay on the hub
