@@ -7,6 +7,7 @@ function api(m) { try { var A = window.pywebview && window.pywebview.api; if (A 
 var RED = "#FF4B3A", AMB = "#ff9a42";
 
 /* exact 1920x1080 frame -> scale to whatever the screen really is */
+document.documentElement.style.cursor = "none";   // kiosk: no pointer on the wall
 function fit() { var z = Math.min(innerWidth / 1920, innerHeight / 1080); document.body.style.zoom = z; document.body.style.overflow = "hidden"; }
 fit(); addEventListener("resize", fit);
 

@@ -2624,10 +2624,38 @@ def main():
     api = Api()
     if DISPLAY:        # biggest screen = the external monitor (the hub's own panel is broken)
         scr = max(webview.screens, key=lambda s: s.width * s.height) if webview.screens else None
-        webview.create_window("Nova", url=os.path.join(os.path.dirname(HTML), "nova_wall.html"), js_api=api, fullscreen=True, screen=scr, background_color="#050302")
+        # kiosk: a borderless window over the whole screen at screen-saver level (above Dock, menu bar,
+        # notification banners and every other app), with app switching disabled while we're active
+        webview.create_window("Nova", url=os.path.join(os.path.dirname(HTML), "nova_wall.html"), js_api=api, frameless=True,
+                              x=scr.x if scr else 0, y=scr.y if scr else 0, width=scr.width if scr else 1920,
+                              height=scr.height if scr else 1080, screen=scr, background_color="#050302")
     elif not HEADLESS: webview.create_window("Nova", url=HTML, js_api=api,
                           width=1120, height=740, min_size=(900, 600),
                           background_color="#020608")
+
+    def _kiosk():
+        """Pin the wall HUD over everything. `touch /tmp/nova_kiosk_off` on the hub releases it (to use the hub)."""
+        import AppKit
+        from PyObjCTools import AppHelper
+        off = os.path.exists("/tmp/nova_kiosk_off")
+        def apply():
+            try:
+                w = webview.windows[0].native
+                if not w: return
+                app = AppKit.NSApplication.sharedApplication()
+                if off:
+                    w.setLevel_(AppKit.NSNormalWindowLevel); app.setPresentationOptions_(0); return
+                w.setFrame_display_(w.screen().frame(), True)
+                w.setLevel_(AppKit.NSScreenSaverWindowLevel)
+                w.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces | AppKit.NSWindowCollectionBehaviorStationary)
+                app.activateIgnoringOtherApps_(True)
+                app.setPresentationOptions_(AppKit.NSApplicationPresentationHideDock | AppKit.NSApplicationPresentationHideMenuBar
+                                            | AppKit.NSApplicationPresentationDisableProcessSwitching
+                                            | AppKit.NSApplicationPresentationDisableHideApplication
+                                            | AppKit.NSApplicationPresentationDisableAppleMenu)
+            except Exception as e:
+                print("[kiosk]", e, flush=True)
+        AppHelper.callAfter(apply)
 
     if DISPLAY:        # monitor shared via HDMI switch: when it comes back to the hub, relaunch so the HUD
         def _screen_watch():   # reopens fullscreen on it (launchd KeepAlive restarts us in ~20 s)
@@ -2635,9 +2663,11 @@ def main():
             cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
             def n():
                 c = ctypes.c_uint32(0); cg.CGGetActiveDisplayList(0, None, ctypes.byref(c)); return c.value
-            last = n()
+            last, k = n(), 0
             while True:
                 time.sleep(5)
+                k += 1
+                if k % 2 == 1: _kiosk()          # every 10 s: re-take the screen if anything got in front
                 now = n()
                 if now > last:
                     print("[display] monitor back -> relaunching HUD", flush=True); time.sleep(3); os._exit(0)
