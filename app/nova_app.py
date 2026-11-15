@@ -518,8 +518,22 @@ class Api:
                 return (name, r)
         return None
 
+    # Routine brightness is capped by the hour (calibration knob): (from_hour, max %), latest match wins.
+    BRIGHT_CAP = [(0, 35), (6, 70), (8, 100), (18, 85), (21, 60), (23, 35)]
+
+    @classmethod
+    def _time_cap(cls, arg):
+        """'brightness 100' at 22:00 -> 'brightness 60'. Lower values (goodnight fade) pass through."""
+        import re
+        m = re.fullmatch(r"brightness (\d+)", str(arg))
+        if not m: return arg
+        h = time.localtime().tm_hour
+        cap = [c for f, c in cls.BRIGHT_CAP if h >= f][-1]
+        return "brightness %d" % min(int(m.group(1)), cap)
+
     def _routine_step(self, st):
         do, arg = st.get("do"), st.get("arg")
+        if do in ("bulb", "lights"): arg = self._time_cap(arg)
         if do == "mic":    return str(self.set_handsfree(arg in (True, "on")))
         if do == "camera": return str(self.set_camera(arg in (True, "on")))
         if do == "bulb":                              # WiZ ceiling bulb (wiz.py), reachable from the Mac and the hub
