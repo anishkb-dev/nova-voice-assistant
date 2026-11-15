@@ -474,6 +474,11 @@ def _dev(name, cmd):
     try: d = json.load(open(DEV_FILE))
     except Exception: d = {}
     if cmd == "toggle": cmd = "on" if (d.get(name) or ["off"])[0] == "off" else "off"
+    if name == "lights" and cmd != "off":                  # strips: show mode AND brightness ("warm 85%")
+        m = re.match(r"(?:brightness|dim|bright)\D*(\d+)", cmd)
+        if m: d["lights_bri"] = int(m.group(1))
+        elif cmd != "on": d["lights_mode"] = cmd
+        cmd = "%s %d%%" % (d.get("lights_mode", "on"), d.get("lights_bri", 100))
     d[name] = [cmd, time.time()]
     try: json.dump(d, open(DEV_FILE, "w"))
     except Exception: pass

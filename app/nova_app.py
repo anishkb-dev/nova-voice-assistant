@@ -538,6 +538,10 @@ class Api:
         if do == "camera": return str(self.set_camera(arg in (True, "on")))
         if do == "bulb":                              # WiZ ceiling bulb (wiz.py), reachable from the Mac and the hub
             import wiz; return wiz.bulb(str(arg))
+        if do == "display":                           # the hub's wall screen (only the hub drives it)
+            if nova.IS_HUB: subprocess.Popen(["pmset", "displaysleepnow"] if arg == "off" else ["caffeinate", "-u", "-t", "2"])
+            else: nova._hub_send("display", arg)
+            return "display " + str(arg)
         if do == "automations":                       # goodnight pauses sensor rules, morning/home resume them
             self._auto_on = arg in (True, "on")
             if not nova.IS_HUB: nova._hub_send("automations", "on" if self._auto_on else "off")   # they run on the hub
@@ -1546,6 +1550,8 @@ class Api:
                     j = json.loads(val); st = j["st"]
                     threading.Timer(float(st["after_min"]) * 60, lambda: self._safe_step(j["name"], st)).start()
                     print("[hub] later %s in %s min: %s(%r)" % (j["name"], st["after_min"], st.get("do"), st.get("arg")), flush=True)
+                elif key == "display":                    # goodnight sleeps the wall screen, morning wakes it
+                    subprocess.Popen(["pmset", "displaysleepnow"] if val == "off" else ["caffeinate", "-u", "-t", "2"])
                 elif key == "automations":
                     self._auto_on = (val == "on"); print("[hub] automations", val, flush=True)
                 elif key == "stop":                       # Mac's stop button / interrupt
