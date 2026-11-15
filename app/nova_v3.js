@@ -10,6 +10,14 @@ function api(m, a) {
 }
 var RED = "#FF4B3A", AMB = "#FF9A42", DIM = "#9A4A12";
 
+/* ---- fill the window: zoom uniformly, then let the grid stretch into the leftover axis ---- */
+function fit() {
+  var z = Math.min(innerWidth / 1120, innerHeight / 740), b = document.body.style;
+  b.zoom = z; b.width = b.maxWidth = (innerWidth / z) + "px"; b.height = b.maxHeight = (innerHeight / z) + "px";
+}
+document.documentElement.style.background = "#050302";
+fit(); addEventListener("resize", fit);
+
 /* ---- clock ---- */
 var D = ["SUN","MON","TUE","WED","THU","FRI","SAT"], M = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 function p2(n) { return (n < 10 ? "0" : "") + n; }
