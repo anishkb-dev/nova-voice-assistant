@@ -519,7 +519,7 @@ class Api:
         return None
 
     # Routine brightness is capped by the hour (calibration knob): (from_hour, max %), latest match wins.
-    BRIGHT_CAP = [(0, 35), (6, 70), (8, 100), (18, 85), (21, 60), (23, 35)]
+    BRIGHT_CAP = [(0, 35), (6, 100), (18, 85), (21, 60), (23, 35)]
 
     @classmethod
     def _time_cap(cls, arg):
