@@ -7,6 +7,13 @@ _IP_FILE = os.path.expanduser("~/anish-ai/.wiz_ip")
 COLOURS = {"red": (255, 0, 0), "green": (0, 255, 0), "blue": (0, 0, 255), "purple": (140, 0, 255),
            "pink": (255, 40, 120), "orange": (255, 100, 0), "yellow": (255, 200, 0),
            "aqua": (0, 255, 200), "teal": (0, 160, 140), "cyan": (0, 255, 255)}
+# WiZ built-in scenes (sceneId). Plain whites stay in TEMPS; the bulb accepts any id 1-40, so it can't confirm a name.
+SCENES = {"ocean": 1, "romance": 2, "romantic": 2, "sunset": 3, "party": 4, "fireplace": 5, "cozy": 6, "cosy": 6,
+          "forest": 7, "pastel": 8, "wake up": 9, "wake-up": 9, "bedtime": 10, "night": 14, "focus": 15,
+          "relax": 16, "true colou?rs": 17, "tv": 18, "movie": 18, "plant": 19, "spring": 20, "summer": 21,
+          "fall": 22, "autumn": 22, "deep dive": 23, "jungle": 24, "mojito": 25, "club": 26, "christmas": 27,
+          "halloween": 28, "candle": 29, "candlelight": 29, "golden": 30, "pulse": 31, "steampunk": 32,
+          "diwali": 33, "alarm": 35, "snow": 36, "snowy": 36}
 TEMPS = {"warm": 2700, "white": 4000, "neutral": 4000, "cool": 6000, "daylight": 6500}
 
 
@@ -57,7 +64,8 @@ def parse(cmd):
     c = cmd.lower().strip()
     if c in ("on", "turn on"): return {"state": True}
     if c in ("off", "turn off"): return {"state": False}
-    if c in ("night", "night light", "nightlight"): return {"state": True, "sceneId": 14}
+    for k, sid in SCENES.items():
+        if re.search(r"\b%s\b" % k, c): return {"state": True, "sceneId": sid}
     m = re.search(r"(\d+)", c)
     if m and ("bright" in c or "dim" in c or "%" in c): return {"state": True, "dimming": max(10, min(100, int(m.group(1))))}
     for k, t in TEMPS.items():
@@ -90,7 +98,7 @@ def bulb(command: str) -> str:
         return "The bulb is refusing my commands, sir. Please allow local communication in the WiZ app."
     except OSError:
         return "I can't reach the bulb, sir. Is it powered and on the Wi-Fi?"
-    return "Bulb %s, sir." % command.strip()
+    return "Bulb %s, sir." % ("on" if p.get("state") else "off") if set(p) == {"state"} else "Done, sir."
 
 
 if __name__ == "__main__":                    # self-check against a fake bulb on localhost
@@ -98,6 +106,8 @@ if __name__ == "__main__":                    # self-check against a fake bulb o
     assert parse("off") == {"state": False}
     assert parse("dim to 30%") == {"state": True, "dimming": 30}
     assert parse("make it warm") == {"state": True, "temp": 2700}
+    assert parse("party mode")["sceneId"] == 4 and parse("night light")["sceneId"] == 14
+    assert parse("warm white") == {"state": True, "temp": 2700} and parse("tv time")["sceneId"] == 18
     assert parse("blue")["b"] == 255 and parse("dimmer") == {"_step": -25}
     got = []
     srv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); srv.bind(("127.0.0.1", PORT))

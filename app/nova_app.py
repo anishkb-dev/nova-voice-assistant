@@ -1936,6 +1936,11 @@ class Api:
                     nova.FUNCS["ac"]("mode " + mode.group(1)); acmd = "on"
             if acmd:
                 return _instant(nova.FUNCS["ac"](acmd), "ac(%s)" % acmd)
+        # WIZ BULB (room ceiling light): "bulb ..." or a WiZ scene name with "light(s)" -> wiz.py parses the rest.
+        if re.search(r"\bbulb\b", low) or (re.search(r"\blights?\b", low) and not re.search(r"\bbed\s*light|\bstrip\b|\bled\b", low)
+                and re.search(r"\b(ocean|romance|romantic|sunset|fireplace|cozy|cosy|forest|pastel|bedtime|focus|relax|movie|tv|jungle|club|christmas|halloween|candle\w*|golden|diwali|snowy?)\b", low)):
+            import wiz
+            return _instant(wiz.bulb(low), "wiz(%s)" % low[:30])
         # BED LIGHTS (Bluetooth LED strip) — MUST come before the room-relay light so 'bed lights',
         # 'the strip', or any colour/effect routes to the strip, not the ESP ceiling light.
         _col = re.search(r"\b(blue|red|green|white|warm|yellow|orange|purple|pink|cyan|magenta)\b", low)
