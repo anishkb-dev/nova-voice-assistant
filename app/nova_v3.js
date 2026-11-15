@@ -57,10 +57,26 @@ setInterval(function () {
   var target = Date.now() - lvlT < 400 ? 0.1 + lvl * 0.9 : ({ speaking: 0.9, thinking: 0.45, listening: 0.25 }[state] || 0.2);
   amp += (target - amp) * 0.2; t += 0.12;
   bars.forEach(function (b, i) { var k = 0.5 + 0.5 * Math.sin(t * 2 + i * 0.7) * Math.cos(t + i * 0.3); b.style.height = (3 + amp * 16 * k).toFixed(1) + "px"; });
+  // reactor breathes with the same signal: brighter + bigger halo when you talk / Nova speaks
+  if (rSvg) rSvg.style.filter = "brightness(" + (0.8 + amp * 0.7).toFixed(2) + ")";
+  if (rGlow) { rGlow.style.opacity = (0.4 + amp * 1.6).toFixed(2); rGlow.style.transform = "scale(" + (0.95 + amp * 0.25).toFixed(3) + ")"; }
 }, 50);
+var rSvg = $("r-svg"), rGlow = $("r-glow");
 
 /* ---- conversation lines + command bar ---- */
-function heard(s) { txt("c-user", s ? "“" + s + "”" : ""); }
+/* last 2 finished exchanges sit dimmed above the live pair */
+var hist = document.createElement("div"), past = [], lastU = "";
+hist.style.cssText = "display:flex;flex-direction:column;gap:1px;font-family:'JetBrains Mono',monospace;font-size:10px;opacity:.5;color:#FFD9A8";
+$("c-user").parentElement.parentElement.prepend(hist);
+function heard(s) {
+  var prevN = $("c-nova").textContent;
+  if (lastU) { past.push([lastU, prevN]); if (past.length > 2) past.shift();
+    hist.innerHTML = ""; past.forEach(function (x) { var d = document.createElement("div");
+      d.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:900px";
+      d.textContent = "“" + x[0] + "”  →  " + x[1]; hist.appendChild(d); }); }
+  lastU = s || ""; txt("c-user", s ? "“" + s + "”" : "");
+  var d = new Date(); txt("last-cmd", "LAST COMMAND: " + p2(d.getHours()) + ":" + p2(d.getMinutes()));
+}
 function said(s) { txt("c-nova", s || "…"); }
 var sentAt = 0;
 function submit() {
@@ -91,7 +107,10 @@ function paintMotion(stale) {
 }
 
 /* ---- RC crawler ---- */
-function drive(d) { txt("car-last", "SENT: " + d.toUpperCase()); api("drive", d); }
+function drive(d) {
+  if (d.indexOf("speed") === 0) txt("car-spd", d.split(" ")[1] + "%"); else txt("car-cmd", d.toUpperCase());
+  api("drive", d);
+}
 [].forEach.call(document.querySelectorAll("[data-d]"), function (b) { b.addEventListener("click", function () { drive(b.getAttribute("data-d")); }); });
 var prof = [].slice.call(document.querySelectorAll("[data-sp]")), ON = "px-1 py-0.5 border border-[#FF9A42] bg-[#FF9A42] text-[#140600] font-bold text-center",
     OFF = "px-1 py-0.5 border border-[#9A4A12]/50 bg-[#160601] text-[#FFD9A8]/70 text-center hover:border-[#FF9A42]";
@@ -105,11 +124,11 @@ document.addEventListener("keydown", function (e) {
 });
 
 /* ---- live stats ---- */
-var flow = [];
+var flow = [], linkAt = 0;
 function kb(n) { return n >= 1000 ? (n / 1024).toFixed(1) + "M" : String(n); }
 function tok(n) { n = n || 0; return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : (n / 1e3).toFixed(1) + "k"; }
 function chip(id, ok) { var e = $(id); if (!e) return; e.textContent = ok ? "ONLINE" : ok === false ? "OFFLINE" : "--"; e.style.color = ok ? "" : RED; }
-function upt(s) { var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600); return d ? d + "d " + h + "h" : h + "h " + Math.floor(s % 3600 / 60) + "m"; }
+function upt(s) { if (s < 3600) return Math.floor(s / 60) + "m " + (s % 60) + "s"; var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600); return d ? d + "d " + h + "h" : h + "h " + Math.floor(s % 3600 / 60) + "m"; }
 
 function poll() { api("stats").then(function (s) { if (!s) return;
   var io = s.iot || {}, b = s.bat || {}, vt = s.vitals || {}, cl = s.claude || {}, c = s.car || {}, wf = s.wifi || {};
@@ -131,9 +150,14 @@ function poll() { api("stats").then(function (s) { if (!s) return;
   if (s.uptime) txt("uptime", "UP: " + upt(s.uptime));
   // cpu
   txt("cpu-avg", "AVG " + s.cpu + "%");
-  var rows = $("cpu-rows") ? $("cpu-rows").children : [];
-  (s.cores || []).slice(0, rows.length).forEach(function (v, i) { var r = rows[i], sp = r.querySelectorAll("span");
-    sp[1].textContent = v + "%"; sp[2].textContent = ""; r.querySelector(".h-full").style.width = v + "%"; });
+  // design has 4 rows; the Mac has more cores -> show the 4 busiest, with their real numbers
+  var rows = $("cpu-rows") ? $("cpu-rows").children : [], cs = (s.cores || []).map(function (v, i) { return [v, i]; });
+  txt("cpu-title", cs.length > rows.length ? "CPU // BUSIEST " + rows.length + " OF " + cs.length : "CPU USAGE (" + cs.length + " CORES)");
+  cs.sort(function (a, b) { return b[0] - a[0]; }).slice(0, rows.length).forEach(function (c, i) { var r = rows[i], sp = r.querySelectorAll("span");
+    sp[0].textContent = "CORE " + c[1]; sp[1].textContent = c[0] + "%"; sp[2].textContent = ""; r.querySelector(".h-full").style.width = c[0] + "%"; });
+  txt("power", "POWER: " + (b.plug ? "ADAPTER" : b.plug === false ? "BATTERY" : "--"));
+  var ra = $("room-age"); ra.textContent = io.fresh ? "LIVE" : "STALE"; ra.style.color = io.fresh ? "" : RED;
+  txt("top-wifi", wf.up ? "WI-FI: " + wf.ssid + " // " + wf.signal + "%" : "WI-FI: OFF");
   txt("cpu-load", "LOAD: " + s.load); txt("cpu-top", "TOP: " + (s.top || {}).name);
   // memory + claude
   txt("ram-t", "RAM: " + s.mem_gb + " / " + s.mem_tot + " GB"); txt("ram-v", s.mem + "%"); w("ram-b", s.mem);
@@ -157,6 +181,11 @@ function poll() { api("stats").then(function (s) { if (!s) return;
   txt("car-thr", { forward: "FWD", back: "REV" }[c.throttle] || "IDLE");
   $("car-dot").style.transform = "translateX(" + ({ left: -14, right: 14 }[c.steer] || 0) + "px)";
   txt("car-steer", "STEER: " + ({ left: "LEFT", right: "RIGHT" }[c.steer] || "CENTER"));
+  if (live && !linkAt) linkAt = Date.now(); if (!live) linkAt = 0;
+  txt("car-up", linkAt ? upt(Math.floor((Date.now() - linkAt) / 1000)) : "--");
+  var cst = $("car-st"); cst.textContent = live ? "ONLINE" : "OFFLINE"; cst.style.color = live ? "" : RED;
+  txt("car-drv", live ? ({ forward: "FWD", back: "REV" }[c.throttle] || "IDLE") + "/" + ({ left: "L", right: "R" }[c.steer] || "C") : "--");
+  txt("car-last", c.ts ? "SEEN " + Math.max(0, Math.round(Date.now() / 1000 - c.ts)) + "s AGO" : "NEVER SEEN");
 }).catch(function () {}); }
 
 function pollHud() { api("hud").then(function (h) { if (!h) return; chip("hub-st", h.hub);
