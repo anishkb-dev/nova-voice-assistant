@@ -15,6 +15,7 @@ WHISPER_MODEL = os.path.expanduser("~/anish-ai/app/models/ggml-small.en.bin")   
 os.environ["PATH"] = "/opt/homebrew/bin:" + os.environ.get("PATH", "")
 WORKER = os.environ.get("NOVA_ROLE") == "worker"   # hub: no voice/window; runs devices + automations for the Mac
 HEADLESS = WORKER or os.environ.get("NOVA_HEADLESS") == "1"
+DISPLAY = os.environ.get("NOVA_DISPLAY") == "1"   # hub kiosk: HUD fullscreen on the external monitor, nobody to click dialogs
 # mic + camera live on the hub (on the table); the Mac is window + typed chat. NOVA_SENSES=1 forces them on.
 import socket
 ON_SENSES = not WORKER and (socket.gethostname().split(".")[0] == "nova-hub" or os.environ.get("NOVA_SENSES") == "1")
@@ -2309,6 +2310,7 @@ class Api:
 
     def _confirm(self, prompt):
         try:
+            if DISPLAY: return False         # kiosk screen: nobody there to click, never block
             return bool(webview.windows[0].evaluate_js("window.confirm(" + json.dumps(prompt) + ")"))
         except Exception:
             return False                      # headless hub / no window -> deny
@@ -2590,7 +2592,10 @@ def main():
         print("[nova] another instance is already running — exiting", flush=True)
         return
     api = Api()
-    if not HEADLESS: webview.create_window("Nova", url=HTML, js_api=api,
+    if DISPLAY:        # biggest screen = the external monitor (the hub's own panel is broken)
+        scr = max(webview.screens, key=lambda s: s.width * s.height) if webview.screens else None
+        webview.create_window("Nova", url=HTML, js_api=api, fullscreen=True, screen=scr, background_color="#050302")
+    elif not HEADLESS: webview.create_window("Nova", url=HTML, js_api=api,
                           width=1120, height=740, min_size=(900, 600),
                           background_color="#020608")
 
@@ -2619,7 +2624,7 @@ def main():
         except Exception:
             pass
         threading.Thread(target=api._monitor, daemon=True).start()   # proactive alerts
-    if HEADLESS:   # hub (broken screen): no window; UI calls fail soft, confirm dialogs auto-deny
+    if HEADLESS and not DISPLAY:   # hub (broken screen): no window; UI calls fail soft, confirm dialogs auto-deny
         _autostart()
         threading.Event().wait()
     threading.Thread(target=_autostart, daemon=True).start()
