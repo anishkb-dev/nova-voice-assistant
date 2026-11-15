@@ -697,6 +697,11 @@ class Api:
                 if tc is None: continue
                 if tc < w.get("reset_below", w["temp_above"] - 2): st["armed"] = True
                 fire = st["armed"] and tc >= w["temp_above"]
+            elif "temp_below" in w:
+                tc = d.get("temp")
+                if tc is None: continue
+                if tc > w.get("reset_above", w["temp_below"] + 2): st["armed"] = True
+                fire = st["armed"] and tc <= w["temp_below"]
             else:
                 continue
             if fire:
