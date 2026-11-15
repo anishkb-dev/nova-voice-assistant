@@ -41,7 +41,12 @@ def _call(params, method="setPilot"):
         if not ip:
             break
         try:
-            return _send(ip, {"method": method, "params": params})[0]
+            r = _send(ip, {"method": method, "params": params})[0]
+            if "error" in r:                  # e.g. -32602 when "Allow local communication" is off in the WiZ app
+                raise PermissionError("bulb refused: %s" % r["error"].get("message"))
+            return r
+        except PermissionError:
+            raise
         except (OSError, ValueError):
             ip = find()                       # bulb moved or cache stale -> rediscover once
     raise OSError("no WiZ bulb answered on the LAN")
@@ -81,6 +86,8 @@ def bulb(command: str) -> str:
             cur = _call({}, "getPilot").get("result", {}).get("dimming", 60)
             p = {"state": True, "dimming": max(10, min(100, cur + p["_step"]))}
         _call(p)
+    except PermissionError:
+        return "The bulb is refusing my commands, sir. Please allow local communication in the WiZ app."
     except OSError:
         return "I can't reach the bulb, sir. Is it powered and on the Wi-Fi?"
     return "Bulb %s, sir." % command.strip()
