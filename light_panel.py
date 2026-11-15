@@ -22,7 +22,19 @@ _timer_thread = None
 QS = []      # one queue per strip (bed + table): every command goes to all of them, so they stay in sync
 NAMES = {}   # queue -> strip name
 VOICE_STRIP = "61"   # name suffix of the TABLE strip (MELK-OA10   61): only it reacts to Nova's voice
-VOICE_SENS = 50      # device-mic sensitivity 0-100; higher = flickers on room noise too
+NOVA_RGB = (255, 154, 66)   # Nova's amber (#ff9a42, the wall HUD colour): the table breathes in it while Nova speaks
+_voice_on = threading.Event()
+
+def _voice_breathe(q):
+    """Breathe the table strip in Nova's amber until _voice_on clears, then restore its normal state."""
+    import math
+    t = 0
+    while _voice_on.is_set():
+        if q.qsize() < 2:                                  # don't outrun the 0.15 s write gap
+            lv = 0.15 + 0.85 * (0.5 - 0.5 * math.cos(t))   # 15% -> 100% -> 15%, ~1.5 s per breath
+            q.put(lights._rgb(*[int(c * lv) for c in NOVA_RGB])); t += 0.6
+        time.sleep(0.12)
+    for f in list(LAST.values()): q.put(f)
 _LIVE = set()
 
 LAST = {}    # current power/mode/brightness/speed packets -> replayed to a strip when it (re)connects
@@ -168,13 +180,12 @@ class H(http.server.BaseHTTPRequestHandler):
             _stop_listen(); send(lights.ON); send(lights._effect(eid)); STATE["on"] = True
         elif path == "/speed":
             send(lights._speed(g("v", 50)))
-        elif path == "/voice":                                 # Nova speaking: table strip -> its own mic mode, then back
-            if LAST.get(4) == lights.ON:                       # lights off (goodnight) -> stay dark
-                frames = ([bytes.fromhex("7e07038004ffff00ef"), bytes([0x7e, 7, 6, VOICE_SENS, 0xff, 0xff, 0xff, 0, 0xef])]
-                          if g("on") else list(LAST.values()))  # mic mode 0x80 = Energy (PROTOCOL.md) / restore
-                for q in QS:
-                    if NAMES.get(q, "").endswith(VOICE_STRIP):
-                        for f in frames: q.put(f)
+        elif path == "/voice":                                 # Nova speaking: table strip breathes in Nova's amber, then back
+            tq = [q for q in QS if NAMES.get(q, "").endswith(VOICE_STRIP)]
+            if g("on") and LAST.get(4) == lights.ON and tq and not _voice_on.is_set():   # lights off -> stay dark
+                _voice_on.set(); threading.Thread(target=_voice_breathe, args=(tq[0],), daemon=True).start()
+            elif not g("on"):
+                _voice_on.clear()
         elif path == "/raw":                                   # voice/lights.py routes raw bytes through here
             try: send(bytes.fromhex(q.get("hex", [""])[0]))
             except Exception: pass
