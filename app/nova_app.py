@@ -512,6 +512,8 @@ class Api:
         do, arg = st.get("do"), st.get("arg")
         if do == "mic":    return str(self.set_handsfree(arg in (True, "on")))
         if do == "camera": return str(self.set_camera(arg in (True, "on")))
+        if do == "bulb":                              # WiZ ceiling bulb (wiz.py), reachable from the Mac and the hub
+            import wiz; return wiz.bulb(str(arg))
         if do == "automations":                       # goodnight pauses sensor rules, morning/home resume them
             self._auto_on = arg in (True, "on")
             if not nova.IS_HUB: nova._hub_send("automations", "on" if self._auto_on else "off")   # they run on the hub
