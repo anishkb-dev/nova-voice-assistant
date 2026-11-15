@@ -1,3 +1,4 @@
+import json
 #!/usr/bin/env python3
 """Nova light control panel — a local web UI for the MELK/ELK-BLEDOM BLE strip.
 
@@ -24,6 +25,30 @@ NAMES = {}   # queue -> strip name
 VOICE_STRIP = "61"   # name suffix of the TABLE strip (MELK-OA10   61): only it reacts to Nova's voice
 NOVA_RGB = (255, 154, 66)   # Nova's amber (#ff9a42, the wall HUD colour): the table breathes in it while Nova speaks
 _voice_on = threading.Event()
+
+STRIPS = {"bed": "17", "table": "61"}   # wall HUD rows -> strip name suffix
+
+def _describe():
+    """What the panel last set (the strips can't report back): 'WARM 85%', 'PARTY 100%', 'OFF', '--' = unknown."""
+    p = LAST.get(4)
+    if p is None: return "--"
+    if p == lights.OFF: return "OFF"
+    m, txt = LAST.get("mode"), "ON"
+    if m is not None and m[2] == 5:
+        rgb = tuple(m[4:7]); txt = next((k for k, v in lights.COLORS.items() if tuple(v) == rgb), "#%02x%02x%02x" % rgb)
+    elif m is not None:
+        txt = next((k for k, v in lights.EFFECTS.items() if v == m[3]), "effect %d" % m[3])
+    if LAST.get(1): txt += " %d%%" % LAST[1][3]
+    return txt.upper()
+
+def _strips_state():
+    found = set(NAMES.values()); now = _describe()
+    out = {}
+    for row, suf in STRIPS.items():
+        if not any(n.endswith(suf) for n in found): out[row] = "NOT FOUND"
+        elif row == "table" and _voice_on.is_set(): out[row] = "NOVA VOICE"
+        else: out[row] = now
+    return out
 
 def _voice_breathe(q):
     """Breathe the table strip in Nova's amber until _voice_on clears, then restore its normal state."""
@@ -195,9 +220,8 @@ class H(http.server.BaseHTTPRequestHandler):
             m = g("min"); (_set_timer(m) if m > 0 else _cancel_timer())
         elif path == "/state":
             left = max(0, int(STATE["timer_at"] - time.time())) if STATE["timer_at"] else 0
-            return self._send('{"connected":%s,"on":%s,"listen":%s,"timer":%d}' % (
-                str(STATE["connected"]).lower(), str(STATE["on"]).lower(),
-                str(STATE["listen"]).lower(), left))
+            return self._send(json.dumps({"connected": STATE["connected"], "on": STATE["on"], "listen": STATE["listen"],
+                                          "timer": left, "strips": _strips_state()}))
         else:
             self.send_response(404); self.end_headers(); return
         return self._send('{"ok":true}')

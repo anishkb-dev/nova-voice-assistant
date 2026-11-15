@@ -77,6 +77,16 @@ def parse(cmd):
     return {}
 
 
+def describe():
+    """Wall HUD: 'OFF' / 'ON · PARTY 100%' / 'ON · WARM 70%', None if unreachable."""
+    try: r = _call({}, "getPilot").get("result", {})
+    except OSError: return None
+    if not r.get("state"): return "OFF"
+    sid = r.get("sceneId") or 0
+    name = next((k for k, v in SCENES.items() if v == sid), None) if sid else None
+    if not name: name = "warm" if (r.get("temp") or 0) and r["temp"] <= 3200 else "white" if r.get("temp") else "colour"
+    return ("ON · %s %d%%" % (name, r.get("dimming", 100))).upper()
+
 def state():
     """'on' / 'off', or None if the bulb can't be reached (rules then don't fire)."""
     try:

@@ -113,15 +113,18 @@ function devRow(row, on, val) {
 function pollWall() {
   api("hud").then(function (h) { if (!h) return; chip("hub-st", h.hub !== false);
     var row = DEVS.filter(function (r) { return r.getAttribute("data-dev") === "bulb"; })[0];
-    devRow(row, h.bulb === "on", h.bulb ? h.bulb.toUpperCase() : "UNREACHABLE"); }).catch(function () {});
+    var bd = h.bulb_desc || (h.bulb ? h.bulb.toUpperCase() : "UNREACHABLE");
+    devRow(row, /^ON/.test(bd), bd); }).catch(function () {});
   api("wall").then(function (w) { if (!w) return;
-    var dv = w.dev || {};
-    DEVS.forEach(function (r) { var k = r.getAttribute("data-dev"); if (k === "bulb") return; var d = dv[k];
-      if (!d) { devRow(r, false, "--"); return; }
-      var cmd = d[0], off = /\boff\b/.test(cmd), rest = cmd.replace(/^(turn |switch )?on\b\s*/, "").toUpperCase();
-      if (k === "ac" && /\d+/.test(cmd)) rest = cmd.match(/\d+/)[0] + "°C";
-      devRow(r, !off, off ? "OFF" : rest ? "ON · " + rest : "ON");
-    });
+    // live state, not last command: strips from the light panel, AC from the room node, projector from Nova
+    var st = w.strips || {}, ac = (w.ac || "").split(" "), pj = w.projector;
+    var val = {
+      bed: st.bed || "PANEL OFF", table: st.table || "PANEL OFF",
+      ac: !w.ac ? "--" : ac[0] !== "on" ? "OFF" : "ON · " + ac[1] + "°C " + (ac[2] || "").toUpperCase() + " · FAN " + (ac[3] || "").toUpperCase(),
+      projector: !pj ? "--" : pj.toUpperCase()
+    };
+    DEVS.forEach(function (r) { var k = r.getAttribute("data-dev"); if (!(k in val)) return;
+      var v = val[k]; devRow(r, !/^(OFF|--|PANEL OFF|NOT FOUND)/.test(v), v); });
     var x = w.wx;
     if (x) { txt("wx-t", x.temp); txt("wx-c", x.cond.toUpperCase()); txt("wx-r", "RAIN " + x.rain + "%");
       txt("wx-hi", x.hi + "°C"); txt("wx-lo", x.lo + "°C"); txt("wx-w", x.wind + " KM/H " + x.dir); txt("wx-place", x.place.toUpperCase()); }

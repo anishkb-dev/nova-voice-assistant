@@ -643,6 +643,24 @@ def _proj_code(n):
 
 def projector(action: str = "toggle") -> str:
     """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset."""
+    r = _projector(action)
+    threading.Thread(target=_proj_report, daemon=True).start()
+    return r
+
+def _proj_report():
+    """Retained home/room/projector = Nova's tracked state ('on · nebula · laser on'), so the hub's wall can show it."""
+    try:
+        on = os.path.exists(_PROJ_ON)
+        try: col = _PROJ_COLOURS[int(open(_PROJ_COL).read())]
+        except Exception: col = ""
+        txt = "off" if not on else " · ".join(x for x in ("on", col, "laser " + ("off" if os.path.exists(_PROJ_LASER_OFF) else "on")) if x)
+        c = mqtt_client(); c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
+        c.publish("home/room/projector", txt, qos=1, retain=True).wait_for_publish(3)
+        c.disconnect(); c.loop_stop()
+    except Exception as e:
+        print("[projector] state report failed:", str(e)[:80], flush=True)
+
+def _projector(action):
     _dev("projector", action)
     a = (action or "toggle").lower().strip()
     a = {"color": "colour", "brightness up": "brighter", "brightness down": "dimmer", "speed up": "faster",

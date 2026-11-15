@@ -1592,7 +1592,9 @@ class Api:
                     if now_m:
                         self._js("window.novaMotion&&window.novaMotion()")  # flash the HUD instantly
                 elif key == "status":    d["online"] = (val == "online")
-                elif key == "ac":        d["ac"] = (val.split() or [""])[0]   # "on 24 cool auto lg m-1" -> "on" (rule if:{ac:on})
+                elif key == "ac":                         # "on 24 cool auto lg m-1": "on" for rules, whole state for the wall
+                    d["ac"], d["ac_full"] = (val.split() or [""])[0], val
+                elif key == "projector": d["projector"] = val   # Nova's tracked projector state (nova._proj_report)
                 elif key == "telemetry":
                     t = _json.loads(val)
                     if "temp" in t:     d["temp"] = float(t["temp"])
@@ -1905,15 +1907,15 @@ class Api:
         now = time.time()
         if now - getattr(self, "_bulb_ts", 0) > 10:            # WiZ UDP round-trip: at most every 10 s
             self._bulb_ts = now
-            try: import wiz; self._bulb = wiz.state()
-            except Exception: self._bulb = None
+            try: import wiz; self._bulb_desc = wiz.describe(); self._bulb = None if self._bulb_desc is None else ("off" if self._bulb_desc == "OFF" else "on")
+            except Exception: self._bulb = self._bulb_desc = None
         bat = {"pct": None, "plug": None}
         try:
             b = psutil.sensors_battery()
             if b: bat = {"pct": round(b.percent), "plug": bool(b.power_plugged)}
         except Exception: pass
         return {"iot": {**self._iot_data, "fresh": (now - self._iot_data["ts"]) < 12}, "bat": bat,
-                "hub": True if nova.IS_HUB else getattr(self, "_hub_app_on", None), "bulb": getattr(self, "_bulb", None)}
+                "hub": True if nova.IS_HUB else getattr(self, "_hub_app_on", None), "bulb": getattr(self, "_bulb", None), "bulb_desc": getattr(self, "_bulb_desc", None)}
 
     def wall(self):
         """Wall HUD extras: weather (wttr.in, 15 min cache), last device commands, next timed routine, night flag."""
@@ -1940,7 +1942,13 @@ class Api:
                     if not nxt or at < nxt[1]: nxt = (k, at)
         except Exception: pass
         lr = getattr(self, "_last_routine", None)
-        return {"wx": getattr(self, "_wx", None), "dev": nova.dev_last(),
+        strips = None
+        try:
+            import urllib.request
+            strips = json.load(urllib.request.urlopen("http://localhost:8099/state", timeout=0.3)).get("strips")
+        except Exception: pass
+        return {"wx": getattr(self, "_wx", None), "dev": nova.dev_last(), "strips": strips,
+                "ac": self._iot_data.get("ac_full"), "projector": self._iot_data.get("projector"),
                 "next": [nxt[0].replace("_", " ").upper(), nxt[1].strftime("%H:%M")] if nxt else None,
                 "night": bool(lr and lr[0] == "goodnight" and now - lr[1] < 10 * 3600)}
 
