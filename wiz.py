@@ -117,6 +117,6 @@ if __name__ == "__main__":                    # self-check against a fake bulb o
             srv.sendto(json.dumps({"result": {"dimming": 60} if m["method"] == "getPilot" else {"success": True}}).encode(), a)
     threading.Thread(target=fake, daemon=True).start()
     _IP_FILE = "/tmp/.wiz_ip_test"; open(_IP_FILE, "w").write("127.0.0.1")
-    assert bulb("dimmer") == "Bulb dimmer, sir."
+    assert bulb("dimmer") == "Done, sir."
     assert got[1]["params"] == {"state": True, "dimming": 35}, got
     print("wiz ok")
