@@ -672,6 +672,10 @@ class Api:
         if not d.get("online") or t - d.get("ts", 0) > 120: return  # node offline/stale -> never act on old data
         self._day_stats(d, t)
         moving = bool(d.get("motion"))
+        if asleep and moving and 6 <= now.hour < 12:               # forgot "good morning" -> first morning motion resumes rules
+            # ponytail: PIR can't tell bed-tossing from getting up; raise the start hour if it wakes things too early
+            self._auto_on, asleep = True, False
+            print("[auto] morning motion -> automations resumed", flush=True)
         try: cam_seen = os.path.getmtime("/tmp/nova_cam_seen")    # hub webcam saw movement (cam_presence.py)
         except OSError: cam_seen = 0
         last_move = t if moving else max(self._last_motion_ts, self._motion_end_ts, cam_seen)
