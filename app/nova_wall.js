@@ -15,7 +15,7 @@ fit(); addEventListener("resize", fit);
 var D = ["SUN","MON","TUE","WED","THU","FRI","SAT"], M = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 function p2(n) { return (n < 10 ? "0" : "") + n; }
 function clock() { var d = new Date();
-  txt("clk-t", p2(d.getHours()) + ":" + p2(d.getMinutes())); txt("clk-s", ":" + p2(d.getSeconds()));
+  txt("clk-t", (d.getHours() % 12 || 12) + ":" + p2(d.getMinutes())); txt("clk-s", ":" + p2(d.getSeconds()) + (d.getHours() < 12 ? " AM" : " PM"));
   txt("clk-d", D[d.getDay()] + " " + d.getDate() + " " + M[d.getMonth()]);
   var u = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); u.setUTCDate(u.getUTCDate() + 4 - (u.getUTCDay() || 7));
   txt("clk-w", "// WK_" + p2(Math.ceil(((u - Date.UTC(u.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7)));   // ISO week
