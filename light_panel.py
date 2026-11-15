@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.expanduser("~/anish-ai"))
 import lights  # ADDR, CHAR, ON, OFF, _rgb, _bri, _effect, _speed, EFFECTS
 
 PORT = 8099
-CMDQ = queue.Queue()
 STATE = {"connected": False, "on": False, "listen": False, "timer_at": None}
 _listen_thread = None
 _timer_thread = None
@@ -23,8 +22,13 @@ _timer_thread = None
 QS = []      # one queue per strip (bed + table): every command goes to all of them, so they stay in sync
 _LIVE = set()
 
+LAST = {}    # current power/mode/brightness/speed packets -> replayed to a strip when it (re)connects
+
 def send(data):
-    for q in QS or [CMDQ]:   # before the strips are found, buffer in CMDQ
+    if len(data) > 3:   # ELK packet byte 2 = type: 4 power, 5 colour, 3 effect (colour/effect = one "mode"), 1 brightness, 2 speed
+        k = "mode" if data[2] in (3, 5) else data[2]
+        LAST.pop(k, None); LAST[k] = data
+    for q in QS:
         q.put(data)
 
 # ---------- persistent BLE connections, one per MELK/ELK strip ----------
@@ -35,6 +39,7 @@ async def _strip(dev, q):
             async with BleakClient(dev, timeout=20) as c:
                 _LIVE.add(dev.address); STATE["connected"] = True
                 print("BLE connected", dev.name, flush=True)
+                for d in list(LAST.values()): q.put(d)   # catch up: late/reconnected strip gets the current mode
                 while c.is_connected:
                     try:
                         await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=False)
@@ -53,7 +58,6 @@ async def _ble_loop():
         for d in await BleakScanner.discover(timeout=8):
             if (d.name or "").upper().startswith(("MELK", "ELK")) and d.address not in known:
                 known.add(d.address); q = queue.Queue()
-                while not CMDQ.empty(): q.put(CMDQ.get_nowait())   # commands sent before any strip was found
                 QS.append(q); tasks.append(asyncio.ensure_future(_strip(d, q)))
                 print("BLE strip found:", d.name, flush=True)
         await asyncio.sleep(30)
