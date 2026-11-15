@@ -17,7 +17,7 @@ WORKER = os.environ.get("NOVA_ROLE") == "worker"   # hub: no voice/window; runs 
 HEADLESS = WORKER or os.environ.get("NOVA_HEADLESS") == "1"
 DISPLAY = os.environ.get("NOVA_DISPLAY") == "1"   # hub kiosk: HUD fullscreen on the external monitor, nobody to click dialogs
 # mic + camera live on the hub (on the table); the Mac is window + typed chat. NOVA_SENSES=1 forces them on.
-import socket
+import socket, datetime
 ON_SENSES = not WORKER and (socket.gethostname().split(".")[0] == "nova-hub" or os.environ.get("NOVA_SENSES") == "1")
 
 # Wake word — "Nova", broadened for common Whisper mishearings on a rough mic.
@@ -527,6 +527,7 @@ class Api:
     def _run_routine(self, name, r):
         """Spoken steps run now (their results join the reply); the rest run in the background so
         a slow device (BLE strip, IR cloud) never delays the answer. after_min steps are scheduled."""
+        self._last_routine = (name, time.time())          # wall HUD: goodnight -> night mode
         said = [r.get("reply", "Done, sir.")]
         later = []
         for st in r.get("steps", []):
@@ -1864,6 +1865,35 @@ class Api:
         return {"iot": {**self._iot_data, "fresh": (now - self._iot_data["ts"]) < 12}, "bat": bat,
                 "hub": True if nova.IS_HUB else getattr(self, "_hub_app_on", None), "bulb": getattr(self, "_bulb", None)}
 
+    def wall(self):
+        """Wall HUD extras: weather (wttr.in, 15 min cache), last device commands, next timed routine, night flag."""
+        now = time.time()
+        if now - getattr(self, "_wx_ts", 0) > 900:
+            self._wx_ts = now
+            try:
+                j = json.loads(subprocess.run(["curl", "-s", "-m", "10", "https://wttr.in/?format=j1"],   # curl: hub python lacks CA certs
+                                              capture_output=True, timeout=15).stdout)
+                c, d = j["current_condition"][0], j["weather"][0]
+                self._wx = {"temp": c["temp_C"], "cond": c["weatherDesc"][0]["value"], "hi": d["maxtempC"], "lo": d["mintempC"],
+                            "rain": max(int(h.get("chanceofrain", 0)) for h in d["hourly"]), "wind": c["windspeedKmph"],
+                            "dir": c["winddir16Point"], "place": j["nearest_area"][0]["areaName"][0]["value"]}
+            except Exception as e:
+                self._wx_ts = now - 780                       # retry in ~2 min
+                print("[wall] weather:", e, flush=True)
+        nxt = None
+        try:
+            rs = json.load(open(self.ROUTINES)); t = datetime.datetime.now()
+            for k, r in rs.items():   # ponytail: ignores 'days' -- fine while every timed routine is daily
+                if isinstance(r, dict) and r.get("at"):
+                    h, m = map(int, r["at"].split(":")); at = t.replace(hour=h, minute=m, second=0)
+                    if at <= t: at += datetime.timedelta(days=1)
+                    if not nxt or at < nxt[1]: nxt = (k, at)
+        except Exception: pass
+        lr = getattr(self, "_last_routine", None)
+        return {"wx": getattr(self, "_wx", None), "dev": nova.dev_last(),
+                "next": [nxt[0].replace("_", " ").upper(), nxt[1].strftime("%H:%M")] if nxt else None,
+                "night": bool(lr and lr[0] == "goodnight" and now - lr[1] < 10 * 3600)}
+
     def _wifi(self):
         """WiFi SSID + signal % (cached ~12s; querying is slow)."""
         now = time.time()
@@ -2594,7 +2624,7 @@ def main():
     api = Api()
     if DISPLAY:        # biggest screen = the external monitor (the hub's own panel is broken)
         scr = max(webview.screens, key=lambda s: s.width * s.height) if webview.screens else None
-        webview.create_window("Nova", url=HTML, js_api=api, fullscreen=True, screen=scr, background_color="#050302")
+        webview.create_window("Nova", url=os.path.join(os.path.dirname(HTML), "nova_wall.html"), js_api=api, fullscreen=True, screen=scr, background_color="#050302")
     elif not HEADLESS: webview.create_window("Nova", url=HTML, js_api=api,
                           width=1120, height=740, min_size=(900, 600),
                           background_color="#020608")

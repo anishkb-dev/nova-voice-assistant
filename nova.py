@@ -466,9 +466,27 @@ def _mqtt_peek(topics, wait=1.2):
     return got
 
 
+DEV_FILE = os.path.expanduser("~/anish-ai/.dev_last.json")
+def _dev(name, cmd):
+    """Wall HUD: remember the last command per IR/BLE device (they report no state back)."""
+    cmd = (cmd or "").lower().strip()
+    if not cmd or cmd == "status": return
+    try: d = json.load(open(DEV_FILE))
+    except Exception: d = {}
+    if cmd == "toggle": cmd = "on" if (d.get(name) or ["off"])[0] == "off" else "off"
+    d[name] = [cmd, time.time()]
+    try: json.dump(d, open(DEV_FILE, "w"))
+    except Exception: pass
+
+def dev_last():
+    try: return json.load(open(DEV_FILE))
+    except Exception: return {}
+
+
 def ac(command: str) -> str:
     """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10); Tuya blaster if the ESP32 is offline.
     command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
+    _dev("ac", command)
     cmd = (command or "").lower().strip()
     try:
         st = _mqtt_peek(["home/room/status", "home/room/ac"])
@@ -531,6 +549,7 @@ def ac(command: str) -> str:
 
 def lights(command: str) -> str:
     """Control the BLE LED strip (local Bluetooth). command e.g. 'on','off','blue','warm','brightness 60'."""
+    _dev("lights", command)
     import os, sys
     sys.path.insert(0, os.path.expanduser("~/anish-ai"))
     if not IS_HUB:   # the strip is Bluetooth -> only the hub (next to it) can reach it
@@ -602,6 +621,7 @@ def _proj_code(n):
 
 def projector(action: str = "toggle") -> str:
     """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset."""
+    _dev("projector", action)
     a = (action or "toggle").lower().strip()
     a = {"color": "colour", "brightness up": "brighter", "brightness down": "dimmer", "speed up": "faster",
          "speed down": "slower", "laser off": "laser off", "lasers off": "laser off", "laser on": "laser on", "lasers": "laser", "galaxy": "nebula", "purple": "nebula", "natural": "nebula", "real": "nebula", "pink and blue": "pink", "pink blue": "pink", "green and blue": "aqua", "green blue": "aqua", "teal": "aqua", "cyan": "aqua", "multicolour": "rainbow", "multicolor": "rainbow", "mixed": "rainbow", "green yellow red": "rainbow", "second green": "green two", "laser brightness up": "laser brighter", "laser brightness down": "laser dimmer"}.get(a, a)

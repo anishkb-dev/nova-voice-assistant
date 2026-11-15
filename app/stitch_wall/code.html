@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_blank" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;background-color:#050302;color:#ffdbc9;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}.nova-grid-bg{background-image:linear-gradient(to right,rgba(255,154,66,0.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,154,66,0.05) 1px,transparent 1px);background-size:24px 24px;}.nova-scanline{background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.4) 50%,rgba(0,0,0,0.4));background-size:100% 4px;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      "colors": {
+        "surface-tint": "#ffb780",
+        "on-secondary-container": "#d6b384",
+        "surface-container-highest": "#5a2500",
+        "on-error-container": "#ffdad6",
+        "on-tertiary-fixed-variant": "#930002",
+        "error-container": "#93000a",
+        "on-error": "#690005",
+        "on-secondary-fixed": "#291800",
+        "secondary-fixed-dim": "#e5c191",
+        "surface": "#260c00",
+        "tertiary-container": "#ff9687",
+        "on-secondary": "#422c09",
+        "surface-container-lowest": "#1e0800",
+        "on-background": "#ffdbc9",
+        "background": "#260c00",
+        "surface-container-low": "#331200",
+        "on-primary-fixed-variant": "#6f3800",
+        "on-tertiary-fixed": "#410000",
+        "secondary-container": "#5e4420",
+        "error": "#ffb4ab",
+        "surface-variant": "#5a2500",
+        "outline": "#a38c7e",
+        "inverse-on-surface": "#532200",
+        "secondary": "#e5c191",
+        "primary-fixed-dim": "#ffb780",
+        "on-surface": "#ffdbc9",
+        "on-tertiary-container": "#900002",
+        "surface-container": "#391500",
+        "on-primary-container": "#6c3700",
+        "surface-bright": "#612900",
+        "tertiary-fixed-dim": "#ffb4a9",
+        "inverse-surface": "#ffdbc9",
+        "primary": "#ffc193",
+        "secondary-fixed": "#ffddb3",
+        "inverse-primary": "#924c00",
+        "on-primary-fixed": "#2f1400",
+        "on-secondary-fixed-variant": "#5b421e",
+        "outline-variant": "#554337",
+        "primary-container": "#ff9a42",
+        "on-surface-variant": "#dbc2b1",
+        "tertiary": "#ffbfb5",
+        "tertiary-fixed": "#ffdad5",
+        "surface-container-high": "#491d00",
+        "on-tertiary": "#690001",
+        "surface-dim": "#260c00",
+        "on-primary": "#4e2600",
+        "primary-fixed": "#ffdcc4"
+      },
+      "borderRadius": {
+        "DEFAULT": "0.25rem",
+        "lg": "0.5rem",
+        "xl": "0.75rem",
+        "full": "9999px"
+      },
+      "spacing": {
+        "gutter": "1rem",
+        "space-xs": "0.25rem",
+        "space-xl": "2.5rem",
+        "gutter-mobile": "0.5rem",
+        "space-md": "1rem",
+        "margin": "2rem",
+        "space-sm": "0.5rem",
+        "space-lg": "1.5rem",
+        "margin-mobile": "1rem"
+      },
+      "fontFamily": {
+        "headline-lg": ["Space Grotesk"],
+        "display-lg-mobile": ["Space Grotesk"],
+        "telemetry-sm": ["JetBrains Mono"],
+        "body-md": ["JetBrains Mono"],
+        "telemetry-lg": ["JetBrains Mono"],
+        "body-lg": ["JetBrains Mono"],
+        "headline-md": ["Space Grotesk"],
+        "label-sm": ["Space Grotesk"],
+        "display-lg": ["Space Grotesk"],
+        "label-md": ["Space Grotesk"]
+      },
+      "fontSize": {
+        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "0.12em", "fontWeight": "600"}],
+        "display-lg-mobile": ["28px", {"lineHeight": "36px", "letterSpacing": "0.12em", "fontWeight": "700"}],
+        "telemetry-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+        "body-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "400"}],
+        "telemetry-lg": ["20px", {"lineHeight": "24px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+        "body-lg": ["15px", {"lineHeight": "22px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+        "headline-md": ["18px", {"lineHeight": "24px", "letterSpacing": "0.1em", "fontWeight": "600"}],
+        "label-sm": ["10px", {"lineHeight": "14px", "letterSpacing": "0.18em", "fontWeight": "500"}],
+        "display-lg": ["40px", {"lineHeight": "48px", "letterSpacing": "0.15em", "fontWeight": "700"}],
+        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.16em", "fontWeight": "600"}]
+      }
+    }
+  }
+};</script></head><body class="bg-[#050302] text-on-surface font-body-md text-body-md select-none"><div class="relative w-[1920px] h-[1080px] mx-auto overflow-hidden nova-grid-bg shadow-2xl"><div class="pointer-events-none absolute inset-0 nova-scanline opacity-40 z-30"></div><header class="absolute top-0 left-0 right-0 h-16 px-margin z-20 flex items-center justify-between pointer-events-none"><div class="flex items-center gap-space-sm"><span class="text-primary-container text-body-lg font-telemetry-lg">◇</span><span class="font-headline-lg text-headline-lg text-primary tracking-[0.2em] drop-shadow-[0_0_12px_rgba(255,154,66,0.6)]">NOVA</span><span class="text-outline-variant font-telemetry-sm text-telemetry-sm ml-space-xs pt-1">// SYS_DISP_v4.2</span></div><div class="flex items-center gap-space-md"><span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse shadow-[0_0_8px_#ff9a42]"></span><div class="font-label-md text-label-md tracking-[0.2em] text-on-surface-variant"><span class="text-outline">WAKE WORD:</span> <span class="text-primary font-headline-md text-headline-md tracking-widest drop-shadow-[0_0_8px_rgba(255,154,66,0.5)]">NOVA</span></div></div></header><main class="relative w-full h-full pt-16 pb-8 px-margin z-10 box-border flex flex-col"><div class="flex flex-col w-full h-[980px] justify-between relative select-none overflow-hidden">
+<!-- Subtle Ambient Core Lighting Overlay -->
+<div class="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2 w-[740px] h-[740px] rounded-full pointer-events-none bg-[radial-gradient(circle,_rgba(255,154,66,0.15)_0%,_rgba(154,74,18,0.05)_48%,_transparent_72%)]"></div>
+<!-- MAIN HUD GRID (1920x1080 interior bounds) -->
+<div class="grid grid-cols-[470px_1fr_470px] gap-space-xl h-[890px] w-full pt-1">
+<!-- ==================== LEFT COLUMN (470px) ==================== -->
+<div class="flex flex-col justify-between h-full pr-space-sm">
+<!-- GIANT BEDROOM CLOCK -->
+<div class="relative pl-1">
+<div class="flex items-baseline gap-space-xs leading-none">
+<span class="font-telemetry-lg text-[136px] font-bold text-primary tracking-tighter drop-shadow-[0_0_24px_rgba(255,154,66,0.55)]">21:47</span>
+<span class="font-telemetry-lg text-[34px] font-semibold text-primary-container tracking-wider drop-shadow-[0_0_12px_rgba(255,154,66,0.4)] mb-3">:32</span>
+</div>
+<div class="flex items-center gap-space-md mt-2">
+<div class="h-[2px] w-12 bg-primary shadow-[0_0_8px_#ff9a42]"></div>
+<span class="font-headline-lg text-[26px] tracking-[0.24em] text-secondary font-bold uppercase drop-shadow-[0_0_8px_rgba(229,193,145,0.3)]">SUN 15 NOV</span>
+<span class="font-telemetry-sm text-telemetry-sm text-outline tracking-widest">// WK_46</span>
+</div>
+</div>
+<!-- ROOM TELEMETRY BLOCK -->
+<div class="relative bg-surface/30 p-space-lg shadow-[inset_0_0_16px_rgba(154,74,18,0.15)]">
+<!-- Corner L-brackets -->
+<span class="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-primary-container"></span>
+<span class="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-primary-container"></span>
+<span class="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-primary-container"></span>
+<span class="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-primary-container"></span>
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center gap-space-xs font-headline-md text-[19px] tracking-[0.18em] text-primary">
+<span class="text-primary-container text-sm">■</span>
+<span>ROOM TELEMETRY</span>
+</div>
+<span class="font-telemetry-sm text-[10px] text-outline tracking-widest">SEC_01 // ATMOS</span>
+</div>
+<div class="grid grid-cols-2 gap-space-md my-space-sm pt-space-xs">
+<!-- Temp Metric -->
+<div class="flex flex-col">
+<div class="relative flex items-center justify-start h-20">
+<svg class="w-20 h-20 -rotate-90" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#391500" stroke-dasharray="251.2" stroke-dashoffset="62.8" stroke-linecap="round" stroke-width="4"></circle>
+<circle class="drop-shadow-[0_0_6px_#ff9a42]" cx="50" cy="50" fill="transparent" r="40" stroke="#ff9a42" stroke-dasharray="251.2" stroke-dashoffset="110" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="ml-space-xs">
+<div class="font-telemetry-lg text-[48px] font-bold text-primary tracking-tight leading-none drop-shadow-[0_0_14px_rgba(255,154,66,0.45)]">24.8<span class="text-2xl text-secondary">°C</span></div>
+<div class="font-headline-md text-label-md text-outline tracking-[0.2em] mt-1">INDOOR TEMP</div>
+</div>
+</div>
+</div>
+<!-- Humidity Metric -->
+<div class="flex flex-col">
+<div class="relative flex items-center justify-start h-20">
+<svg class="w-20 h-20 -rotate-90" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="transparent" r="40" stroke="#391500" stroke-dasharray="251.2" stroke-dashoffset="62.8" stroke-linecap="round" stroke-width="4"></circle>
+<circle class="drop-shadow-[0_0_6px_#ff9a42]" cx="50" cy="50" fill="transparent" r="40" stroke="#ff9a42" stroke-dasharray="251.2" stroke-dashoffset="132" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="ml-space-xs">
+<div class="font-telemetry-lg text-[48px] font-bold text-primary tracking-tight leading-none drop-shadow-[0_0_14px_rgba(255,154,66,0.45)]">62<span class="text-2xl text-secondary">%</span></div>
+<div class="font-headline-md text-label-md text-outline tracking-[0.2em] mt-1">HUMIDITY</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-sm mt-space-xs bg-surface-container-lowest/60 px-space-sm py-1.5">
+<span class="font-headline-md text-[13px] tracking-[0.16em] text-on-surface-variant flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container shadow-[0_0_8px_#ff9a42]"></span>
+            PIR SENSOR: MOTION CLEAR
+          </span>
+<span class="font-telemetry-sm text-[11px] text-primary-fixed-dim">NOMINAL</span>
+</div>
+</div>
+<!-- WEATHER BLOCK -->
+<div class="relative bg-surface/30 p-space-lg shadow-[inset_0_0_16px_rgba(154,74,18,0.15)]">
+<span class="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-primary-container"></span>
+<span class="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-primary-container"></span>
+<span class="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-primary-container"></span>
+<span class="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-primary-container"></span>
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center gap-space-xs font-headline-md text-[19px] tracking-[0.18em] text-primary">
+<span class="text-primary-container text-sm">■</span>
+<span>EXTERNAL METEOROLOGY</span>
+</div>
+<span class="font-telemetry-sm text-[10px] text-outline tracking-widest">METAR // SF</span>
+</div>
+<div class="flex items-center justify-between mt-space-xs">
+<div>
+<div class="font-telemetry-lg text-[52px] font-bold text-primary tracking-tight leading-none drop-shadow-[0_0_14px_rgba(255,154,66,0.45)]">
+              16.4<span class="text-2xl text-secondary">°C</span>
+</div>
+<div class="flex items-center gap-space-sm mt-space-xs">
+<span class="font-headline-md text-body-lg text-primary tracking-[0.18em] drop-shadow-[0_0_6px_rgba(255,154,66,0.4)]">LIGHT RAIN</span>
+<span class="text-outline-variant font-telemetry-sm">//</span>
+<span class="font-telemetry-sm text-body-md text-secondary tracking-wider">PRECIP 78%</span>
+</div>
+</div>
+<div class="flex flex-col items-end justify-center text-right font-telemetry-sm text-body-md text-on-surface-variant gap-1">
+<div class="flex items-center gap-2">
+<span class="text-outline">H:</span>
+<span class="text-primary-fixed-dim font-bold">19.0°C</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-outline">L:</span>
+<span class="text-surface-tint">14.0°C</span>
+</div>
+<div class="flex items-center gap-2 text-outline-variant text-[11px] pt-1">
+<span>WIND:</span>
+<span>12 KM/H WNW</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- ==================== CENTRE ZONE (~860px) ==================== -->
+<div class="flex flex-col items-center justify-between h-full px-space-md">
+<!-- GIANT ARC REACTOR SVG CORE (~540px) -->
+<div class="relative w-[520px] h-[520px] flex items-center justify-center">
+<!-- Rotating Reticle Layer Outer -->
+<svg class="absolute inset-0 w-full h-full animate-[spin_60s_linear_infinite]" viewbox="0 0 520 520">
+<!-- Outer 72-tick Calibration Ring -->
+<circle cx="260" cy="260" fill="none" r="250" stroke="#5a2500" stroke-dasharray="2, 6" stroke-width="1"></circle>
+<!-- Cardinal degree marks -->
+<text fill="#a38c7e" font-family="Space Grotesk" font-size="10" letter-spacing="2" text-anchor="middle" x="260" y="24">000°</text>
+<text fill="#a38c7e" font-family="Space Grotesk" font-size="10" letter-spacing="2" text-anchor="middle" x="498" y="263">090°</text>
+<text fill="#a38c7e" font-family="Space Grotesk" font-size="10" letter-spacing="2" text-anchor="middle" x="260" y="506">180°</text>
+<text fill="#a38c7e" font-family="Space Grotesk" font-size="10" letter-spacing="2" text-anchor="middle" x="22" y="263">270°</text>
+<!-- Outer segmented bounding arcs -->
+<circle cx="260" cy="260" fill="none" opacity="0.6" r="236" stroke="#ff9a42" stroke-dasharray="60 40 180 30" stroke-width="1.5"></circle>
+<circle cx="260" cy="260" fill="none" opacity="0.4" r="226" stroke="#ffb780" stroke-dasharray="8 8" stroke-width="1"></circle>
+</svg>
+<!-- Counter-Rotating Segment Layer -->
+<svg class="absolute inset-4 w-[488px] h-[488px] animate-[spin_40s_linear_infinite_reverse]" viewbox="0 0 488 488">
+<circle cx="244" cy="244" fill="none" opacity="0.8" r="216" stroke="#ff9a42" stroke-dasharray="14 18 80 22 40 40" stroke-width="2.5"></circle>
+<circle cx="244" cy="244" fill="none" r="198" stroke="#5a2500" stroke-dasharray="4 4" stroke-width="1"></circle>
+<!-- Radial Coordinate Crosshairs -->
+<line stroke="#ff9a42" stroke-width="2" x1="244" x2="244" y1="16" y2="40"></line>
+<line stroke="#ff9a42" stroke-width="2" x1="244" x2="244" y1="448" y2="472"></line>
+<line stroke="#ff9a42" stroke-width="2" x1="16" x2="40" y1="244" y2="244"></line>
+<line stroke="#ff9a42" stroke-width="2" x1="448" x2="472" y1="244" y2="244"></line>
+</svg>
+<!-- Static Mid Ring & 10 Radial Inductor Coils -->
+<svg class="absolute inset-8 w-[456px] h-[456px]" viewbox="0 0 456 456">
+<defs>
+<radialgradient cx="50%" cy="50%" id="reactorGlow" r="50%">
+<stop offset="0%" stop-color="#ffdcc4" stop-opacity="1"></stop>
+<stop offset="25%" stop-color="#ff9a42" stop-opacity="0.8"></stop>
+<stop offset="65%" stop-color="#ff9a42" stop-opacity="0.15"></stop>
+<stop offset="100%" stop-color="#ff9a42" stop-opacity="0"></stop>
+</radialgradient>
+<!-- Single Coil Module Blueprint -->
+<g id="coil-module">
+<path d="M 218 80 L 238 80 L 234 116 L 222 116 Z" fill="#391500" stroke="#ff9a42" stroke-width="1.5"></path>
+<line stroke="#ffc193" stroke-width="1" x1="220" x2="236" y1="88" y2="88"></line>
+<line stroke="#ffc193" stroke-width="1" x1="221" x2="235" y1="96" y2="96"></line>
+<line stroke="#ffc193" stroke-width="1" x1="222" x2="234" y1="104" y2="104"></line>
+<circle cx="228" cy="74" fill="#ffdcc4" r="2.5"></circle>
+</g>
+</defs>
+<!-- Main Inductor Ring Body -->
+<circle cx="228" cy="228" fill="none" opacity="0.45" r="150" stroke="#5a2500" stroke-width="28"></circle>
+<circle cx="228" cy="228" fill="none" opacity="0.7" r="164" stroke="#ff9a42" stroke-width="1.5"></circle>
+<circle cx="228" cy="228" fill="none" opacity="0.7" r="136" stroke="#ff9a42" stroke-width="1.5"></circle>
+<!-- 10 Radially Arrayed Coils (every 36 deg) -->
+<g transform="rotate(0 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(36 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(72 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(108 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(144 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(180 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(216 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(252 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(288 228 228)"><use href="#coil-module"></use></g>
+<g transform="rotate(324 228 228)"><use href="#coil-module"></use></g>
+<!-- Concentric Inner Iris Ring -->
+<circle cx="228" cy="228" fill="none" r="112" stroke="#ff9a42" stroke-dasharray="12 6" stroke-width="1"></circle>
+<circle cx="228" cy="228" fill="none" r="92" stroke="#ffb780" stroke-dasharray="40 16" stroke-width="2"></circle>
+<polygon fill="none" opacity="0.6" points="228,154 292,265 164,265" stroke="#ff9a42" stroke-width="1.5"></polygon>
+<polygon fill="none" opacity="0.6" points="228,302 164,191 292,191" stroke="#ff9a42" stroke-width="1.5"></polygon>
+<!-- Central White-Hot Emission Core -->
+<circle cx="228" cy="228" fill="url(#reactorGlow)" r="76"></circle>
+<circle class="drop-shadow-[0_0_28px_#ff9a42]" cx="228" cy="228" fill="#ffdcc4" r="32"></circle>
+<circle class="drop-shadow-[0_0_16px_#ffffff]" cx="228" cy="228" fill="#ffffff" r="16"></circle>
+</svg>
+<!-- Arc Reactor Status Annotations -->
+<div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-space-md font-telemetry-sm text-[11px] text-primary-container tracking-widest">
+<span>OUTPUT: 99.84%</span>
+<span>//</span>
+<span>FLUX: 3.84 GW</span>
+</div>
+</div>
+<!-- VOICE STATE STRIP -->
+<div class="w-full flex flex-col items-center gap-space-sm">
+<div class="flex items-center justify-center gap-space-lg w-full py-1">
+<div class="flex items-center gap-space-xs font-headline-md text-[22px] tracking-[0.22em]">
+<span class="w-3 h-3 rounded-full bg-primary-container shadow-[0_0_10px_#ff9a42] animate-pulse"></span>
+<span class="text-primary font-bold drop-shadow-[0_0_10px_rgba(255,154,66,0.6)]">LISTENING</span>
+</div>
+<span class="text-outline-variant font-telemetry-sm">//</span>
+<span class="font-headline-md text-[20px] tracking-[0.2em] text-outline font-semibold">PROCESSING</span>
+<span class="text-outline-variant font-telemetry-sm">//</span>
+<span class="font-headline-md text-[20px] tracking-[0.2em] text-outline font-semibold">SPEAKING</span>
+</div>
+<!-- Audio Spectrum Waveform Bars (SVG) -->
+<div class="flex items-center justify-center gap-1.5 h-6 w-80">
+<span class="w-1 bg-primary-container h-2 rounded-full"></span>
+<span class="w-1 bg-primary-container h-3.5 rounded-full"></span>
+<span class="w-1 bg-primary-container h-5 rounded-full"></span>
+<span class="w-1 bg-primary-container h-3 rounded-full"></span>
+<span class="w-1 bg-primary h-6 rounded-full shadow-[0_0_6px_#ff9a42]"></span>
+<span class="w-1 bg-primary h-4 rounded-full"></span>
+<span class="w-1 bg-primary-fixed-dim h-5.5 rounded-full shadow-[0_0_6px_#ff9a42]"></span>
+<span class="w-1 bg-primary-fixed h-6 rounded-full shadow-[0_0_8px_#ffdcc4]"></span>
+<span class="w-1 bg-primary h-5 rounded-full"></span>
+<span class="w-1 bg-primary-container h-3.5 rounded-full"></span>
+<span class="w-1 bg-primary h-6 rounded-full shadow-[0_0_6px_#ff9a42]"></span>
+<span class="w-1 bg-primary-fixed-dim h-4 rounded-full"></span>
+<span class="w-1 bg-primary-container h-2 rounded-full"></span>
+<span class="w-1 bg-primary-container h-3.5 rounded-full"></span>
+<span class="w-1 bg-primary-container h-1.5 rounded-full"></span>
+</div>
+</div>
+<!-- CONVERSATION EXCHANGE CARD -->
+<div class="w-full relative bg-surface-container-lowest/70 p-space-md shadow-[inset_0_0_14px_rgba(255,154,66,0.12)]">
+<span class="absolute top-0 left-0 w-2 h-2 border-t border-l border-primary"></span>
+<span class="absolute top-0 right-0 w-2 h-2 border-t border-r border-primary"></span>
+<span class="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-primary"></span>
+<span class="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-primary"></span>
+<div class="flex flex-col items-center text-center gap-space-xs">
+<!-- User Prompt -->
+<div class="font-headline-md text-[20px] tracking-[0.16em] text-outline font-medium">
+            USER: <span class="text-secondary-fixed-dim">"turn on the bulb"</span>
+</div>
+<!-- Nova Reply -->
+<div class="flex items-center justify-center gap-space-xs font-headline-lg text-[32px] tracking-[0.18em] text-primary-fixed font-bold drop-shadow-[0_0_16px_rgba(255,154,66,0.65)]">
+<span class="text-primary-container text-2xl">▶</span>
+<span>"Bulb on, sir."</span>
+</div>
+</div>
+</div>
+</div>
+<!-- ==================== RIGHT COLUMN (470px) ==================== -->
+<div class="flex flex-col justify-between h-full pl-space-sm">
+<!-- ACTIVE ENVIRONMENT DEVICES -->
+<div class="relative bg-surface/30 p-space-lg shadow-[inset_0_0_16px_rgba(154,74,18,0.15)]">
+<span class="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-primary-container"></span>
+<span class="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-primary-container"></span>
+<span class="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-primary-container"></span>
+<span class="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-primary-container"></span>
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center gap-space-xs font-headline-md text-[19px] tracking-[0.18em] text-primary">
+<span class="text-primary-container text-sm">■</span>
+<span>ACTIVE ENVIRONMENT</span>
+</div>
+<span class="font-telemetry-sm text-[10px] text-outline tracking-widest">DEVICES // 04</span>
+</div>
+<div class="flex flex-col gap-2.5 mt-space-xs">
+<!-- Row 1: Ceiling Bulb -->
+<div class="flex items-center justify-between py-1 bg-surface-container-low/40 px-space-sm">
+<div class="flex items-center gap-space-sm font-headline-md text-[18px] tracking-[0.14em] text-on-surface">
+<span class="text-primary-container text-xs drop-shadow-[0_0_6px_#ff9a42]">◆</span>
+<span>CEILING BULB</span>
+</div>
+<div class="font-telemetry-lg text-body-lg text-primary tracking-wider font-semibold drop-shadow-[0_0_6px_rgba(255,154,66,0.4)]">
+              ON <span class="text-outline text-xs">·</span> WARM 70%
+            </div>
+</div>
+<!-- Row 2: Bed Lights -->
+<div class="flex items-center justify-between py-1 bg-surface-container-low/40 px-space-sm">
+<div class="flex items-center gap-space-sm font-headline-md text-[18px] tracking-[0.14em] text-on-surface">
+<span class="text-primary-container text-xs drop-shadow-[0_0_6px_#ff9a42]">◆</span>
+<span>BED LIGHTS</span>
+</div>
+<div class="font-telemetry-lg text-body-lg text-primary tracking-wider font-semibold drop-shadow-[0_0_6px_rgba(255,154,66,0.4)]">
+              ON <span class="text-outline text-xs">·</span> ORANGE
+            </div>
+</div>
+<!-- Row 3: Air Con -->
+<div class="flex items-center justify-between py-1 bg-surface-container-low/40 px-space-sm">
+<div class="flex items-center gap-space-sm font-headline-md text-[18px] tracking-[0.14em] text-on-surface">
+<span class="text-primary-container text-xs drop-shadow-[0_0_6px_#ff9a42]">◆</span>
+<span>AIR CON</span>
+</div>
+<div class="font-telemetry-lg text-body-lg text-primary tracking-wider font-semibold drop-shadow-[0_0_6px_rgba(255,154,66,0.4)]">
+              ON <span class="text-outline text-xs">·</span> 21.0°C
+            </div>
+</div>
+<!-- Row 4: Projector (OFF) -->
+<div class="flex items-center justify-between py-1 bg-surface-container-lowest/30 px-space-sm">
+<div class="flex items-center gap-space-sm font-headline-md text-[18px] tracking-[0.14em] text-outline">
+<span class="text-outline-variant text-xs">◇</span>
+<span>PROJECTOR</span>
+</div>
+<div class="font-telemetry-lg text-body-lg text-outline font-medium tracking-wider">
+              STANDBY
+            </div>
+</div>
+</div>
+</div>
+<!-- CORE COMPUTE & NETWORK -->
+<div class="relative bg-surface/30 p-space-lg shadow-[inset_0_0_16px_rgba(154,74,18,0.15)]">
+<span class="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-primary-container"></span>
+<span class="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-primary-container"></span>
+<span class="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-primary-container"></span>
+<span class="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-primary-container"></span>
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex items-center gap-space-xs font-headline-md text-[19px] tracking-[0.18em] text-primary">
+<span class="text-primary-container text-sm">■</span>
+<span>CORE COMPUTE &amp; NET</span>
+</div>
+<span class="font-telemetry-sm text-[10px] text-outline tracking-widest">SYS_LOAD</span>
+</div>
+<div class="flex flex-col gap-space-sm mt-space-xs">
+<!-- Status nodes -->
+<div class="flex items-center justify-between font-telemetry-sm text-telemetry-sm text-secondary">
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-primary-container rounded-full shadow-[0_0_6px_#ff9a42]"></span>HUB: ONLINE</span>
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-primary-container rounded-full shadow-[0_0_6px_#ff9a42]"></span>ROOM NODE: ONLINE</span>
+</div>
+<!-- HUB CPU Load Bar -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between font-telemetry-sm text-body-md text-on-surface-variant">
+<span>HUB CPU LOAD</span>
+<span class="text-primary font-bold">24%</span>
+</div>
+<div class="w-full h-2 bg-surface-container-highest flex gap-0.5 p-0.5">
+<span class="h-full bg-primary-container w-[24%] shadow-[0_0_6px_#ff9a42]"></span>
+</div>
+</div>
+<!-- RAM Allocation Bar -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between font-telemetry-sm text-body-md text-on-surface-variant">
+<span>RAM ALLOC (13.4 / 32 GB)</span>
+<span class="text-primary font-bold">42%</span>
+</div>
+<div class="w-full h-2 bg-surface-container-highest flex gap-0.5 p-0.5">
+<span class="h-full bg-primary-container w-[42%] shadow-[0_0_6px_#ff9a42]"></span>
+</div>
+</div>
+<!-- Wi-Fi Link -->
+<div class="flex items-center justify-between pt-space-xs font-telemetry-sm text-[12px] text-outline">
+<span>LINK: <span class="text-on-surface font-semibold">STARK-NET-5G</span></span>
+<span>SIGNAL: <span class="text-primary-fixed-dim font-bold">98% (-46 dBm)</span></span>
+</div>
+</div>
+</div>
+<!-- RC CRAWLER TELEMETRY -->
+<div class="relative bg-surface/30 p-space-md shadow-[inset_0_0_14px_rgba(154,74,18,0.15)]">
+<span class="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-primary-container"></span>
+<span class="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-primary-container"></span>
+<span class="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-primary-container"></span>
+<span class="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-primary-container"></span>
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-space-xs font-headline-md text-[17px] tracking-[0.16em] text-primary">
+<span class="text-primary-container text-xs">■</span>
+<span>RC CRAWLER TELEMETRY</span>
+</div>
+<span class="font-telemetry-sm text-[10px] text-primary font-bold">UWB_LINKED</span>
+</div>
+<div class="flex items-center justify-between mt-space-xs bg-surface-container-lowest/50 px-space-sm py-1.5 font-telemetry-sm text-[12px]">
+<span class="text-primary-container font-semibold">LINKED</span>
+<span class="text-outline">LAST SEEN: <span class="text-on-surface">3s AGO</span></span>
+<span class="text-outline">RSSI: <span class="text-secondary-fixed-dim font-mono">-58 dBm</span></span>
+</div>
+</div>
+</div>
+</div>
+<!-- ==================== BOTTOM TICKER BAR ==================== -->
+<div class="w-full flex items-center justify-between px-space-sm py-1 bg-surface-container-lowest/80 relative">
+<div class="flex items-center gap-space-xl font-telemetry-sm text-body-md text-outline tracking-wider w-full">
+<span class="flex items-center gap-space-xs">
+<span class="text-primary-container">▶</span>
+<span>NEXT ROUTINE: <span class="text-primary font-semibold">GOOD NIGHT 23:30</span></span>
+</span>
+<span class="text-outline-variant">//</span>
+<span>CLAUDE CONTEXT: <span class="text-primary-fixed-dim font-semibold">65K / 200K (32.5%)</span></span>
+<span class="text-outline-variant">//</span>
+<span>UPTIME: <span class="text-on-surface font-semibold">7D 13H 44M</span></span>
+<span class="text-outline-variant">//</span>
+<span>NODE: <span class="text-secondary font-semibold">BEDROOM_ALPHA</span></span>
+<span class="text-outline-variant">//</span>
+<span class="text-primary-container animate-pulse">HUD_REFRESH: 60FPS STABLE</span>
+</div>
+</div>
+</div></main><footer class="absolute bottom-0 left-0 right-0 h-8 px-margin z-20 flex items-center justify-between text-outline-variant font-telemetry-sm text-telemetry-sm pointer-events-none"><div class="flex items-center gap-space-lg"><span class="text-primary-container font-telemetry-sm text-telemetry-sm">ID // 8820-T-WALL</span><span>COORD: 37.7749° N, 122.4194° W</span><span>COLLIMATION: CALIBRATED [0.002]</span></div><div class="flex items-center gap-space-lg"><span>OPTICAL FLUX: 420 LM</span><span>LATENCY: 1.4MS</span><span class="text-secondary-fixed-dim">SEC_AUTH // ACTIVE</span></div></footer></div></body></html>
