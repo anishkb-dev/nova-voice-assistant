@@ -44,10 +44,11 @@ setInterval(function () {
   var target = Date.now() - lvlT < 400 ? 0.1 + lvl * 0.9 : ({ speaking: 0.9, thinking: 0.45, listening: 0.2 }[state] || 0.2);
   amp += (target - amp) * 0.2; t += 0.12;
   bars.forEach(function (b, i) { var k = 0.5 + 0.5 * Math.sin(t * 2 + i * 0.7) * Math.cos(t + i * 0.3); b.style.height = (3 + amp * 21 * k).toFixed(1) + "px"; });
-  rSvg.style.filter = "brightness(" + (0.8 + amp * 0.7).toFixed(2) + ")";
+  if (!isNight) rSvg.style.opacity = (0.7 + amp * 0.3).toFixed(2);   // opacity, not filter: composited, cheap on the 2015 GPU
   rGlow.style.opacity = (0.4 + amp * 1.6).toFixed(2);
   rGlow.style.transform = "translate(-50%,-50%) scale(" + (0.95 + amp * 0.3).toFixed(3) + ")";
-}, 50);
+}, 100);
+rSvg.style.willChange = rGlow.style.willChange = "opacity, transform";
 
 /* ---- conversation (Python -> page) ---- */
 var lastAt = 0;
@@ -90,8 +91,9 @@ function poll() { api("stats").then(function (s) { if (!s) return;
   txt("car-link", live ? "LINKED" : "NO LINK"); $("car-link").style.color = live ? "" : RED;
   txt("car-st", live ? "ONLINE" : "OFFLINE"); $("car-st").style.color = live ? "" : RED;
   txt("car-last", c.ts ? ago(c.ts) : "NEVER"); txt("car-rssi", c.rssi != null ? c.rssi + " dBm" : "--");
-  txt("ctx", tok(cl.ctx) + " / 200K (" + Math.min(100, (cl.ctx || 0) / 2000).toFixed(1) + "%)");
-  txt("tok", tok(cl.today)); txt("uptime", upt(s.uptime || 0));
+  // Claude runs on the Mac: the hub has no transcript, so show -- rather than a fake 0
+  txt("ctx", cl.ctx ? tok(cl.ctx) + " / 200K (" + Math.min(100, cl.ctx / 2000).toFixed(1) + "%)" : "-- (MAC)");
+  txt("tok", cl.today ? tok(cl.today) : "-- (MAC)"); txt("uptime", upt(s.uptime || 0));
   txt("hubtemp", vt.temp != null ? "HUB TEMP: " + Math.round(vt.temp) + "°C" : "");
   txt("power", "POWER: " + (b.plug ? "ADAPTER" : b.plug === false ? "BATTERY " + b.pct + "%" : "--"));
   txt("disk", "DISK: " + s.disk_free + " GB FREE"); txt("procs", "PROCS: " + s.procs);
