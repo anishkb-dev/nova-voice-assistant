@@ -1947,7 +1947,8 @@ class Api:
         # 'the strip', or any colour/effect routes to the strip, not the ESP ceiling light.
         _col = re.search(r"\b(blue|red|green|white|warm|yellow|orange|purple|pink|cyan|magenta)\b", low)
         _fx  = re.search(r"\b(party|strobe|fade|cycle)\b", low)
-        if re.search(r"\bbed\s*light|\bstrip\b|\bled\b", low) or ((_col or _fx) and re.search(r"\blights?\b", low)):
+        _strip_only = re.search(r"\bbed\s*light|\bstrip\b|\bled\b", low)
+        if _strip_only or (re.search(r"\blights?\b", low) and (_col or _fx or re.search(r"\bdim\w*|brightness|\bbrighte[nr]\b|\d+\s*%", low))):
             if re.search(r"\b(off|kill)\b|switch\s+off|turn\s+off", low):    _lc = "off"
             elif _fx:                                                        _lc = _fx.group(1)
             elif _col:                                                       _lc = _col.group(1)
@@ -1956,7 +1957,12 @@ class Api:
             elif re.search(r"\bdim\b", low):                                 _lc = "dim"
             elif re.search(r"\bbright(en)?\b", low):                         _lc = "brighten"
             else:                                                            _lc = "on"
-            return _instant(nova.FUNCS["lights"](_lc), "lights(%s)" % _lc)
+            if re.search(r"\d+\s*%", low) and not re.search(r"\d", _lc): _lc = "brightness " + re.search(r"(\d+)\s*%", low).group(1)
+            said = nova.FUNCS["lights"](_lc)
+            if not _strip_only:                          # plain "lights ..." = strip AND bulb in sync
+                import wiz
+                if wiz.parse(_lc): wiz.bulb(_lc); said = "Lights %s, sir." % _lc
+            return _instant(said, "lights(%s)%s" % (_lc, "" if _strip_only else "+bulb"))
 
         # light / fan / plug: fire the relay deterministically so the model can't skip the tool (and
         # handle natural phrasing — "light up the room", "kill the lights", "it's too dark").
@@ -1967,7 +1973,10 @@ class Api:
             _act = ("off" if re.search(r"\b(off|kill)\b|switch\s+off|turn\s+off|too\s+bright", low)
                     else "on" if re.search(r"\b(on|dark|bright(en)?)\b|switch\s+on|turn\s+on|light\s+up", low) else None)
             if _act:
-                return _instant(nova.FUNCS["iot_control"](_dev, _act), "iot_control(%s,%s)" % (_dev, _act))
+                said = nova.FUNCS["iot_control"](_dev, _act)
+                if _dev == "light" and not re.search(r"\bbulb\b|\bceiling\b", low):
+                    nova.FUNCS["lights"](_act)           # "lights on/off" switches the bed strip too
+                return _instant(said, "iot_control(%s,%s)" % (_dev, _act))
         m = re.match(r"^(?:hey\s+)?(?:nova[ ,]+)?(?:please\s+)?(?:open|launch|start up|start)\s+(?:the\s+|my\s+)?(.+)$", low)
         if m and len(words) <= 5 and not re.search(r"\b(and|then|door|file|up the|tell|what|why|how)\b", m.group(1)):
             app = m.group(1).strip(" .?!")
