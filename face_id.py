@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Owner face recognition for Nova — ArcFace embeddings via insightface (onnxruntime, no torch).
+"""Owner face recognition for Nova — OpenCV YuNet (detect) + SFace (recognise). Light enough for the 2015 hub;
+insightface's onnx wheel wouldn't build there. Models: ~/anish-ai/models/{yunet,sface}.onnx (opencv_zoo).
 
   python3 face_id.py enroll   # sit in front of the camera to register YOUR face (do this once)
   python3 face_id.py check    # test whether it recognizes you right now
@@ -7,25 +8,33 @@
 import os, sys, time
 import numpy as np
 
-OWNER = os.path.expanduser("~/anish-ai/owner_face.npy")
-THRESH = 0.35            # cosine similarity above this = it's the owner (ArcFace/buffalo_s)
+OWNER = os.path.expanduser("~/anish-ai/owner_face_sface.npy")   # SFace embedding (the old ArcFace one isn't compatible)
+THRESH = 0.363           # SFace cosine threshold from OpenCV's own benchmark; raise if a guest gets greeted
+MODELS = os.path.expanduser("~/anish-ai/models")
+
+class _Face:                                     # same shape insightface gave the callers: .bbox + .normed_embedding
+    def __init__(self, bbox, emb): self.bbox, self.normed_embedding = bbox, emb
 
 _APP = None
 def _app():
     global _APP
     if _APP is None:
-        from insightface.app import FaceAnalysis
-        a = FaceAnalysis(name="buffalo_s", allowed_modules=["detection", "recognition"],
-                         providers=["CPUExecutionProvider"])
-        a.prepare(ctx_id=-1, det_size=(320, 320))   # ctx_id=-1 -> CPU
-        _APP = a
+        import cv2
+        _APP = (cv2.FaceDetectorYN.create(os.path.join(MODELS, "yunet.onnx"), "", (320, 320), 0.8),
+                cv2.FaceRecognizerSF.create(os.path.join(MODELS, "sface.onnx"), ""))
     return _APP
 
 def _largest_face(frame):
-    faces = _app().get(frame)
-    if not faces:
+    det, rec = _app()
+    h, w = frame.shape[:2]
+    det.setInputSize((w, h))
+    _, faces = det.detect(frame)
+    if faces is None or not len(faces):
         return None
-    return max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+    f = max(faces, key=lambda r: r[2] * r[3])
+    emb = rec.feature(rec.alignCrop(frame, f)).flatten()
+    x, y, bw, bh = f[:4]
+    return _Face((x, y, x + bw, y + bh), emb / np.linalg.norm(emb))
 
 def _open_cam(idx=None):
     import cv2
