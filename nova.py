@@ -755,8 +755,34 @@ def claude_usage():
     except Exception:
         st = {}
     if st.get("date") != datetime.date.today().isoformat():
-        st = {"today": 0, "calls": 0, "ctx": st.get("ctx", 0)}
+        st = {"today": 0, "calls": 0}
+    st["ctx"] = _session_ctx()
     return st
+
+_ctx_cache = (None, 0)
+def _session_ctx():
+    """Real context size of Nova's Claude session: the LAST API call's usage in its transcript.
+    (claude -p's own 'usage' is summed over every tool step, so it overstates context a lot.)"""
+    global _ctx_cache
+    import json
+    try:
+        sid = open(os.path.expanduser("~/anish-ai/nova_claude/.session")).read().strip()
+        f = os.path.expanduser("~/.claude/projects/-Users-anishkb/%s.jsonl" % sid)
+        mt = os.path.getmtime(f)
+        if _ctx_cache[0] == mt:
+            return _ctx_cache[1]
+        with open(f, "rb") as fh:
+            fh.seek(max(0, os.path.getsize(f) - 300000))
+            lines = fh.read().decode("utf-8", "ignore").splitlines()
+        for ln in reversed(lines):
+            if '"usage"' in ln:
+                try: u = json.loads(ln)["message"]["usage"]
+                except Exception: continue
+                n = sum(u.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"))
+                _ctx_cache = (mt, n); return n
+    except Exception:
+        pass
+    return 0
 
 def claude(message: str, new: bool = False) -> str:
     """Talk to Claude Code exactly as in the terminal: same home dir (~/CLAUDE.md + memory), same model,
