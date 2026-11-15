@@ -623,10 +623,10 @@ _PROJ_LASER_OFF = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pro
 _proj_last = {}
 
 def _proj_ir(n):
-    """Projector button n: the room ESP32's IR LED (NEC 0x07FD), Tuya blaster if the ESP32 is offline."""
+    """Projector button n: the room ESP32's IR LED (NEC, address bytes as tinytuya sends them), Tuya blaster if the ESP32 is offline."""
     try:
         if _mqtt_peek(["home/room/status"]).get("home/room/status") == "online":
-            _pub(mqtt_client(), [("home/room/ac/set", "nec 07FD %d" % n)])
+            _pub(mqtt_client(), [("home/room/ac/set", "nec FD07 %d" % n)])   # tinytuya sends address 2045 high byte first
             return True
     except Exception as e:
         print("[projector] room node failed:", str(e)[:80], flush=True)
