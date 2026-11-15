@@ -32,7 +32,7 @@ var ON_C = lbl.className, OFF_C = VS[1].className;
 VS.forEach(function (g) { if (g !== VS[0]) { var w = document.createElement("div"); w.setAttribute("data-vs", g.getAttribute("data-vs"));
   w.className = VS[0].className; g.removeAttribute("data-vs"); g.parentNode.replaceChild(w, g); w.appendChild(g); } });
 VS = [].slice.call(document.querySelectorAll("[data-vs]"));
-function setState(s) { state = s;
+function setState(s) { state = s; document.body.classList.toggle("nova-active", s !== "listening");
   VS.forEach(function (g) { var on = g.getAttribute("data-vs") === s, t = g.querySelector("span:last-child");
     t.className = on ? ON_C : OFF_C; if (on) g.insertBefore(dot, t); });
 }
@@ -41,14 +41,16 @@ setState("listening");
 
 var bars = [].slice.call($("wave").children), lvl = 0, lvlT = 0, amp = 0.3, t = 0, rSvg = $("r-svg"), rGlow = $("r-glow");
 window.novaLevel = function (v) { if (typeof v !== "number") return; if (v > 1) v /= 100; lvl = Math.max(0, Math.min(1, v)); lvlT = Date.now(); };
-setInterval(function () {
+(function tick() {
   var target = Date.now() - lvlT < 400 ? 0.1 + lvl * 0.9 : ({ speaking: 0.9, thinking: 0.45, listening: 0.2 }[state] || 0.2);
   amp += (target - amp) * 0.2; t += 0.12;
   bars.forEach(function (b, i) { var k = 0.5 + 0.5 * Math.sin(t * 2 + i * 0.7) * Math.cos(t + i * 0.3); b.style.height = (3 + amp * 21 * k).toFixed(1) + "px"; });
   if (!isNight) rSvg.style.opacity = (0.7 + amp * 0.3).toFixed(2);   // opacity, not filter: composited, cheap on the 2015 GPU
   rGlow.style.opacity = (0.4 + amp * 1.6).toFixed(2);
   rGlow.style.transform = "translate(-50%,-50%) scale(" + (0.95 + amp * 0.3).toFixed(3) + ")";
-}, 100);
+  var busy = state !== "listening" || Date.now() - lvlT < 400 || Math.abs(target - amp) > 0.02;
+  setTimeout(tick, busy ? 100 : 250);   // idle: 4 fps is plenty for a slow breathe
+})();
 rSvg.style.willChange = rGlow.style.willChange = "opacity, transform";
 
 /* ---- conversation (Python -> page) ---- */
@@ -95,7 +97,7 @@ function poll() { api("stats").then(function (s) { if (!s) return;
   // Claude runs on the Mac: the hub has no transcript, so show -- rather than a fake 0
   txt("ctx", cl.ctx ? tok(cl.ctx) + " / 200K (" + Math.min(100, cl.ctx / 2000).toFixed(1) + "%)" : "-- (MAC)");
   txt("tok", cl.today ? tok(cl.today) : "-- (MAC)"); txt("uptime", upt(s.uptime || 0));
-  txt("hubtemp", vt.temp != null ? "HUB TEMP: " + Math.round(vt.temp) + "°C" : "");
+  txt("hubtemp", vt.temp != null ? "BATT TEMP: " + Math.round(vt.temp) + "°C" : "");
   txt("power", "POWER: " + (b.plug ? "ADAPTER" : b.plug === false ? "BATTERY " + b.pct + "%" : "--"));
   txt("disk", "DISK: " + s.disk_free + " GB FREE"); txt("procs", "PROCS: " + s.procs);
   txt("net", "NET ↓" + s.down + " ↑" + s.up + " KB/s");
