@@ -2731,7 +2731,8 @@ def main():
                 k += 1
                 if k % 2 == 1: _kiosk()          # every 10 s: re-take the screen if anything got in front
                 now = n()
-                if now and now != last and not set(now) <= set(last):   # a display appeared (not just one leaving)
+                new = [d for d in now if d not in last and not cg.CGDisplayIsBuiltin(d)]   # an EXTERNAL display appeared
+                if new:            # (switching away brings back the broken internal panel -> ignore that)
                     print("[display] monitor back %s -> relaunching HUD" % (now,), flush=True); time.sleep(3); os._exit(0)
                 last = now
         threading.Thread(target=_screen_watch, daemon=True).start()
