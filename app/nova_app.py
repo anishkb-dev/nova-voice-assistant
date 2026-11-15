@@ -505,7 +505,7 @@ class Api:
         for name, r in rs.items():
             if name.startswith("_"):
                 continue
-            if any(" %s " % p.lower() in text for p in r.get("phrases", [])):
+            if text.strip() == name.lower() or any(" %s " % p.lower() in text for p in r.get("phrases", [])):   # "Nova, evening" = the routine
                 return (name, r)
         return None
 
