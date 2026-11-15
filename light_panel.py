@@ -42,7 +42,7 @@ async def _strip(dev, q):
                 for d in list(LAST.values()): q.put(d)   # catch up: late/reconnected strip gets the current mode
                 while c.is_connected:
                     try:
-                        await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=False)
+                        await c.write_gatt_char(lights.CHAR, q.get_nowait(), response=True)   # confirmed: the table controller (HH-P10Y68K) dropped some unconfirmed writes
                     except queue.Empty:
                         await asyncio.sleep(0.03)
         except Exception as e:
