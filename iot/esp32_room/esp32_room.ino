@@ -95,6 +95,10 @@ void onAc(String c) {
   if (c.startsWith("rawoff")) { int k = c.length() > 7 ? c.substring(7).toInt() : 38;   // "rawoff 36": test carrier kHz
     irrecv.disableIRIn(); irsend.sendRaw(LG_OFF_RAW, sizeof(LG_OFF_RAW)/2, k); irrecv.enableIRIn(); return; }
   if (c.startsWith("send ")) { irsend.sendLG2(strtoul(c.substring(5).c_str(), nullptr, 16), 28); return; }
+  if (c.startsWith("nec ")) {   // "nec 07FD 10": NEC address (hex) + command (dec), e.g. the star projector
+    int sp = c.indexOf(' ', 4);
+    uint16_t a = strtoul(c.substring(4, sp).c_str(), nullptr, 16); uint8_t n = c.substring(sp + 1).toInt();
+    irrecv.disableIRIn(); irsend.sendNEC(irsend.encodeNEC(a, n)); irrecv.enableIRIn(); return; }
   if      (c == "on")  acs.power = true;
   else if (c == "off") acs.power = false;
   else if (c.startsWith("temp ")) { int t = c.substring(5).toInt(); if (t < 16 || t > 30) return; acs.degrees = t; acs.power = true; }

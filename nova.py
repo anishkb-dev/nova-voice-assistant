@@ -622,6 +622,16 @@ _PROJ_COL = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".projector
 _PROJ_LASER_OFF = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".projector_laser_off")
 _proj_last = {}
 
+def _proj_ir(n):
+    """Projector button n: the room ESP32's IR LED (NEC 0x07FD), Tuya blaster if the ESP32 is offline."""
+    try:
+        if _mqtt_peek(["home/room/status"]).get("home/room/status") == "online":
+            _pub(mqtt_client(), [("home/room/ac/set", "nec 07FD %d" % n)])
+            return True
+    except Exception as e:
+        print("[projector] room node failed:", str(e)[:80], flush=True)
+    return _tuya_ir(_proj_code(n))
+
 def _proj_code(n):
     from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice as C
     return C.pulses_to_base64(C.nec_to_pulses(2045, n))
@@ -636,7 +646,7 @@ def projector(action: str = "toggle") -> str:
         try: cur = int(open(_PROJ_COL).read())
         except Exception: cur = 0
         for _ in range((_PROJ_COLOURS.index(a) - cur) % len(_PROJ_COLOURS)):
-            if not _tuya_ir(_proj_code(3)): return "I couldn't reach the IR blaster, sir."
+            if not _proj_ir(3): return "I couldn't reach the IR blaster, sir."
             cur = (cur + 1) % len(_PROJ_COLOURS); open(_PROJ_COL, "w").write(str(cur)); time.sleep(0.6)
         return ("Galaxy look" if a == "nebula" else a.capitalize()) + ", sir."
     if a in ("laser on", "laser off", "laser"):
@@ -647,14 +657,14 @@ def projector(action: str = "toggle") -> str:
             return "The laser's already %s, sir." % ("on" if on else "off")
         if a == "laser" and time.time() - _proj_last.get("laser", 0) < 5:
             return "Laser %s, sir." % ("on" if on else "off")
-        if not _tuya_ir(_proj_code(15)): return "I couldn't reach the IR blaster, sir."
+        if not _proj_ir(15): return "I couldn't reach the IR blaster, sir."
         _proj_last["laser"] = time.time()
         if on: open(_PROJ_LASER_OFF, "w").close()
         else: os.remove(_PROJ_LASER_OFF)
         return "Laser %s, sir." % ("off" if on else "on")
     if a in _PROJ_BTN:
         n, msg = _PROJ_BTN[a]
-        if not _tuya_ir(_proj_code(n)): return "I couldn't reach the IR blaster, sir."
+        if not _proj_ir(n): return "I couldn't reach the IR blaster, sir."
         # ponytail: colour position is tracked, not read back; a missed IR send or the remote desyncs it, "reset" re-syncs to green
         if a in ("colour", "reset"):
             try: cur = int(open(_PROJ_COL).read())
@@ -668,7 +678,7 @@ def projector(action: str = "toggle") -> str:
     want = (not on) if a == "toggle" else (a == "on")
     if want == on and a != "toggle":
         return "The projector's already %s, sir." % a
-    if not _tuya_ir(_proj_code(10)):
+    if not _proj_ir(10):
         return "I couldn't reach the IR blaster, sir."
     if want: open(_PROJ_ON, "w").close()
     elif on: os.remove(_PROJ_ON)
