@@ -507,10 +507,8 @@ def ac(command: str) -> str:
             prev = ["off", "24"]
         revert = "off" if prev[0] == "off" else "temp " + prev[1]
         said = ac(cmd[:m.start()] + cmd[m.end():])
-        if IS_HUB:
-            threading.Timer(mins * 60, ac, args=(revert,)).start()
-        else:
-            _hub_send("later", json.dumps({"name": "ac timer", "st": {"do": "ac", "arg": revert, "after_min": mins}}))
+        # via the hub's "later" queue (even on the hub itself) so the revert survives a restart
+        _hub_send("later", json.dumps({"name": "ac timer", "st": {"do": "ac", "arg": revert, "after_min": mins}}))
         back = "off" if revert == "off" else "back to %s degrees" % prev[1]
         return "%s For %g minute%s, then %s." % (said, mins, "" if mins == 1 else "s", back)
     try:

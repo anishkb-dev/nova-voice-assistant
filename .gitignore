@@ -82,3 +82,5 @@ voice_samples/
 light_panel.log
 .away
 .auto_state.json
+.later.json
+.room_state.json

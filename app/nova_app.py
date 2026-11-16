@@ -205,6 +205,7 @@ class Api:
         threading.Thread(target=self._iot_listener, daemon=True).start()  # live climate for the HUD
         nova.SPEAK = self.speak                 # reminders fire in Daniel's voice on the room speaker
         nova.resume_reminders()                 # re-arm timed reminders saved before a restart
+        if nova.IS_HUB: self._resume_later()    # same for routine steps (goodnight's fade + AC easing)
         if not nova.IS_HUB:
             threading.Thread(target=self._volume_mirror, daemon=True).start()
         threading.Thread(target=self._health_watch, daemon=True).start()   # Telegram when hub/ESP32 drop off
@@ -584,12 +585,49 @@ class Api:
                     try: nova._hub_send("later", json.dumps({"name": name, "st": st})); continue
                     except Exception as e: print("[routine] hub unreachable, timing locally:", e, flush=True)
                 if st.get("after_min"):
-                    threading.Timer(float(st["after_min"]) * 60, lambda st=st: self._safe_step(name, st)).start()
+                    self._later(name, st)
                 else:
                     self._safe_step(name, st)
         threading.Thread(target=_bg, daemon=True).start()
         print("[routine] %s: %d steps" % (name, len(r.get("steps", []))), flush=True)
         return " ".join(x for x in said if x)
+
+    # Delayed routine steps used to live only in Timers: a hub restart at night lost goodnight's
+    # AC easing (21 -> 24 -> 25 -> 26), leaving the AC on 21 full fan till morning. Now on disk.
+    _LATER_F = os.path.expanduser("~/anish-ai/.later.json")
+    LATER_GRACE_MIN = 30          # a step overdue by more than this after a restart is dropped, not run late
+
+    def _later_edit(self, fn):
+        with self.__dict__.setdefault("_later_lock", threading.Lock()):
+            try: jobs = json.load(open(self._LATER_F))
+            except Exception: jobs = []
+            jobs = fn(jobs)
+            try: json.dump(jobs, open(self._LATER_F, "w"))
+            except Exception as e: print("[later] save failed:", e, flush=True)
+            return jobs
+
+    def _later(self, name, st, due=None):
+        """Run routine step `st` after st['after_min'] minutes; survives restarts (hub)."""
+        due = due if due is not None else round(time.time() + float(st.get("after_min", 0)) * 60, 1)
+        job = {"due": due, "name": name, "st": st}      # resumed jobs keep their saved due -> no duplicate
+        if nova.IS_HUB: self._later_edit(lambda j: j + [job] if job not in j else j)
+        def _fire():
+            time.sleep(max(0, due - time.time()))
+            if nova.IS_HUB and job not in self._later_edit(lambda j: j): return   # already handled
+            if nova.IS_HUB: self._later_edit(lambda j: [x for x in j if x != job])
+            self._safe_step(name, st)
+        threading.Thread(target=_fire, daemon=True).start()
+
+    def _resume_later(self):
+        now = time.time()
+        for job in self._later_edit(lambda j: j):
+            if now - job["due"] > self.LATER_GRACE_MIN * 60:
+                print("[later] dropped stale %s %s(%r), %.0f min overdue" % (job["name"], job["st"].get("do"),
+                      job["st"].get("arg"), (now - job["due"]) / 60), flush=True)
+                self._later_edit(lambda j: [x for x in j if x != job])
+            else:
+                print("[later] resumed %s %s(%r)" % (job["name"], job["st"].get("do"), job["st"].get("arg")), flush=True)
+                self._later(job["name"], job["st"], due=job["due"])
 
     def _safe_step(self, name, st):
         try:
@@ -625,6 +663,31 @@ class Api:
         except FileNotFoundError:
             pass
         self._pub_sleep()
+
+    # The broker keeps retained messages in RAM only: a hub reboot wiped the AC state, so the
+    # temperature rules ("if ac off/on") could never fire. The hub keeps a copy and re-publishes
+    # whatever the broker lost. ponytail: a change made while the hub was down (IR remote) isn't
+    # seen; the next AC command corrects it.
+    _ROOM_F = os.path.expanduser("~/anish-ai/.room_state.json")
+
+    def _save_room_state(self, key, val):
+        if not nova.IS_HUB: return
+        getattr(self, "_room_seen", set()).add(key)
+        try: st = json.load(open(self._ROOM_F))
+        except Exception: st = {}
+        if st.get(key) != val:
+            st[key] = val
+            try: json.dump(st, open(self._ROOM_F, "w"))
+            except Exception as e: print("[mqtt] room state save failed:", e, flush=True)
+
+    def _restore_room_state(self):
+        time.sleep(4)                                     # let the broker's own retained copies arrive first
+        try: st = json.load(open(self._ROOM_F))
+        except Exception: return
+        for key, val in st.items():
+            if key not in self._room_seen:
+                print("[mqtt] broker lost home/room/%s -> restoring %r" % (key, val), flush=True)
+                self._pub_retained("home/room/" + key, val)
 
     def _pub_sleep(self):
         self._pub_retained("home/sleep", "0" if self._auto_on else "1")
@@ -1491,6 +1554,8 @@ class Api:
                 c.subscribe("home/hub/#")          # jobs the Mac's Nova hands to the hub
                 c.subscribe("home/mac/#")          # status (retained + last-will), busy, said
                 threading.Thread(target=self._pub_sleep, daemon=True).start()   # re-announce sleep state (broker restarts drop retained)
+                self._room_seen = set()
+                threading.Thread(target=self._restore_room_state, daemon=True).start()   # same for AC + projector
                 c.publish("home/hub/status", "online", retain=True)
             else:
                 c.subscribe("home/hub/heard")      # what the hub's mic heard -> we think + answer
@@ -1580,7 +1645,7 @@ class Api:
                     self._strip_q.put(val)
                 elif key == "later":                      # a delayed routine step the Mac handed over
                     j = json.loads(val); st = j["st"]
-                    threading.Timer(float(st["after_min"]) * 60, lambda: self._safe_step(j["name"], st)).start()
+                    self._later(j["name"], st)
                     print("[hub] later %s in %s min: %s(%r)" % (j["name"], st["after_min"], st.get("do"), st.get("arg")), flush=True)
                 elif key == "display":                    # goodnight sleeps the wall screen, morning wakes it
                     subprocess.Popen(["pmset", "displaysleepnow"] if val == "off" else ["caffeinate", "-u", "-t", "2"])
@@ -1628,7 +1693,10 @@ class Api:
                 elif key == "status":    d["online"] = (val == "online")
                 elif key == "ac":                         # "on 24 cool auto lg m-1": "on" for rules, whole state for the wall
                     d["ac"], d["ac_full"] = (val.split() or [""])[0], val
-                elif key == "projector": d["projector"] = val   # Nova's tracked projector state (nova._proj_report)
+                    self._save_room_state(key, val)
+                elif key == "projector":
+                    d["projector"] = val                  # Nova's tracked projector state (nova._proj_report)
+                    self._save_room_state(key, val)
                 elif key == "telemetry":
                     t = _json.loads(val)
                     if "temp" in t:     d["temp"] = float(t["temp"])
