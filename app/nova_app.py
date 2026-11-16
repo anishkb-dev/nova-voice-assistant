@@ -659,6 +659,7 @@ class Api:
             threading.Thread(target=self._pub_retained, args=("home/hub/daystats",
                              json.dumps({k: v for k, v in s.items() if k != "_t"})), daemon=True).start()
     _auto_state = {}       # rule name -> {"last": fire ts, "armed": bool}
+    _AUTO_F = os.path.expanduser("~/anish-ai/.auto_state.json")
     _ran_today = {}        # timed routine name -> date it last ran
     _motion_end_ts = 0.0   # when the PIR last went quiet (set by _iot_listener)
 
@@ -707,6 +708,12 @@ class Api:
         try: cam_seen = os.path.getmtime("/tmp/nova_cam_seen")    # hub webcam saw movement (cam_presence.py)
         except OSError: cam_seen = 0
         last_move = t if moving else max(self._last_motion_ts, self._motion_end_ts, cam_seen)
+        empty_for = t - self.__dict__.setdefault("_seen_move", t)   # how long the room was still before this tick
+        self._seen_move = last_move
+        if not self._auto_state:                                     # rule memory survives restarts (a restart re-armed
+            try: self._auto_state.update(json.load(open(self._AUTO_F)))   # "AC on when hot" and it fired again)
+            except Exception: pass
+        before = json.dumps(self._auto_state, sort_keys=True)
         if any("light" in ru.get("if", {}) for ru in rules):         # the light is the WiZ bulb, not the dead relay K1
             import wiz
             d = dict(d, light=wiz.state())
@@ -721,8 +728,8 @@ class Api:
             if any(d.get(dev) != want for dev, want in ru.get("if", {}).items()): continue   # e.g. {"light": "off"}
             if "present_min" in ru and not asleep and t - last_move > ru["present_min"] * 60: continue   # asleep = you're in bed      # only while you're around
             if t - st["last"] < ru.get("cooldown_min", 0) * 60: continue
-            if "motion" in w:
-                fire = moving
+            if "motion" in w:                                       # after_empty_min: only on coming back, not
+                fire = moving and empty_for >= w.get("after_empty_min", 0) * 60   # on moving about in the room
             elif "no_motion_min" in w:
                 if last_move > st["last"]: st["armed"] = True        # you came back -> can fire again
                 fire = st["armed"] and not moving and t - last_move > w["no_motion_min"] * 60
@@ -743,6 +750,9 @@ class Api:
                 print("[auto] rule fired:", key, flush=True)
                 said = self._run_routine(key, {"reply": ru.get("say", ""), "steps": ru.get("steps", [])})
                 if said: self._proactive(said)
+        if json.dumps(self._auto_state, sort_keys=True) != before:
+            try: json.dump(self._auto_state, open(self._AUTO_F, "w"))
+            except Exception as e: print("[auto] state save failed:", e, flush=True)
 
     def set_camera(self, on):
         """HUD WEBCAM button: on = gesture watcher owns the camera; off = camera released (light goes out)."""

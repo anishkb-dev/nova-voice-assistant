@@ -81,3 +81,4 @@ voice_samples/
 .weekly_sent
 light_panel.log
 .away
+.auto_state.json
