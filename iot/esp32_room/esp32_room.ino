@@ -1,4 +1,5 @@
 /*  Nova Smart Room — ESP32 + DHT22 firmware
+ *  FLASH WITH: --fqbn esp32:esp32:esp32:PartitionScheme=min_spiffs  (1.9 MB app; the default 1.3 MB is ~86% full)
  *  Reads real temperature/humidity and publishes to the SAME MQTT topics as
  *  device_sim.py, so dashboard.html and Nova (iot_status) light up unchanged.
  *
