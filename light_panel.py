@@ -217,6 +217,10 @@ class H(http.server.BaseHTTPRequestHandler):
                 _voice_on.set(); threading.Thread(target=_voice_breathe, args=(tq[0],), daemon=True).start()
             elif not g("on"):
                 _voice_on.clear()
+        elif path == "/strip":                                 # one strip only, e.g. table at night: /strip?name=table&on=1
+            suf = STRIPS.get(q.get("name", [""])[0])           # NOT saved to LAST: the next all-strips command
+            for sq in [x for x in QS if suf and NAMES.get(x, "").endswith(suf)]:   # syncs both again
+                sq.put(lights.ON if g("on") else lights.OFF)
         elif path == "/raw":                                   # voice/lights.py routes raw bytes through here
             try: send(bytes.fromhex(q.get("hex", [""])[0]))
             except Exception: pass
