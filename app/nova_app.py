@@ -1581,6 +1581,7 @@ class Api:
                 c.subscribe("home/mac/stt/#")      # hub's STT fallback -> local Whisper here
                 c.subscribe("home/sleep")          # hub owns sleep mode (good night); we mirror it
                 c.subscribe("home/hub/status")     # hub Nova app alive (retained + last-will)
+                c.subscribe("home/nova/off")       # Telegram "Nova off" (hub supervisor.py) -> pause this mic too
                 if self._local_whisper is None:    # preload (~1 s) so the first fallback isn't slow
                     threading.Thread(target=self._warm_stt, daemon=True).start()
                 self._hub_link = True
@@ -1597,6 +1598,14 @@ class Api:
                 return
             if m.topic == "home/hub/status":
                 self._hub_app_on = m.payload == b"online"; return
+            if m.topic == "home/nova/off":             # only on a change, and give back the mic state you had
+                off = m.payload == b"1"
+                if off != getattr(self, "_nova_off", False):
+                    self._nova_off = off
+                    if off: self._hf_before_off = self._hf; self.set_handsfree(False)
+                    elif getattr(self, "_hf_before_off", False): self.set_handsfree(True)
+                    print("[nova] Telegram %s -> mic %s" % ("off" if off else "on", "paused" if off else "restored"), flush=True)
+                return
             if m.topic == "home/sleep":
                 if not nova.IS_HUB: self._hub_asleep = m.payload == b"1"
                 return

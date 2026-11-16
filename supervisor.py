@@ -25,7 +25,14 @@ KEYBOARD = {"keyboard": [[{"text": "📊 Status"}], [{"text": "🔴 Nova off"}, 
 RESTART_NOVA = ("Restart Nova", "pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'")
 FIXES = {"broker": ("Restart broker", "launchctl kickstart -k %s/com.nova.broker" % DOM),
          **{k: RESTART_NOVA for k in ("nova", "voice", "camera", "strips")}}
-room = {"online": None}                              # home/room/status, kept by the MQTT thread
+room = {"online": None}
+mq = {"c": None}
+
+
+def pub_off():
+    """Retained home/nova/off: the Mac's Nova pauses its mic while it's 1 (broker restarts drop it, so on connect too)."""
+    try: mq["c"] and mq["c"].publish("home/nova/off", "1" if nova_off() else "0", retain=True)
+    except Exception: pass                              # home/room/status, kept by the MQTT thread
 
 
 def tg(method, **data):
@@ -76,7 +83,7 @@ def checks():
     except Exception:
         strips = "light panel not running"
     add("strips", "LED strips (BLE)", strips, 300)
-    add("bulb", "WiZ bulb", None if wiz.state() else "not answering (wall switch off?)", 600)
+    add("bulb", "WiZ bulb", None if wiz.state() else "not answering (wall switch off?)", None)   # Status only, no alert
     batt = sh("pmset -g batt").stdout
     add("power", "Hub power", None if "AC Power" in batt else "ON BATTERY " + (batt.split("\t")[-1].split(";")[0] if "\t" in batt else ""), 60)
     free = shutil.disk_usage("/").free / 2**30
@@ -101,15 +108,24 @@ def status_text():
     return "\n".join(lines)
 
 
-def set_nova(on):
+def set_nova(on, ac_off=False):
+    try: return _set_nova(on, ac_off)
+    finally: pub_off()
+
+
+def _set_nova(on, ac_off):
     if on:
         if os.path.exists(OFF_F): os.remove(OFF_F)
         sh("launchctl enable %s/com.nova.app; launchctl bootstrap %s %s" % (DOM, DOM, PLIST))
         return "🟢 Nova is starting (about a minute)."
+    ac = ""
+    if ac_off:                                         # before Nova goes: nova.ac knows the IR + Tuya paths
+        p = sh("cd %s && %s -c 'import nova; print(nova.ac(\"off\"))'" % (HERE, sys.executable))
+        ac = "\nAC: " + ((p.stdout.strip().splitlines() or ["?"])[-1] if p.returncode == 0 else "couldn't turn it off: " + red(p.stderr)[-100:])
     open(OFF_F, "w").write(time.strftime("%F %T"))
     sh("launchctl disable %s/com.nova.app; launchctl bootout %s/com.nova.app; pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'" % (DOM, DOM))
     return ("🔴 Nova is off: no listening, camera, voice, automations, reminders or AC timers.\n"
-            "Devices stay as they are now. Tap 🟢 Nova on to bring it back.")
+            "Other devices stay as they are. Tap 🟢 Nova on to bring it back." + ac)
 
 
 # ---------------- watch loop ----------------
@@ -126,6 +142,7 @@ def watch():
             for key in list(state):
                 if key not in cur: state.pop(key)       # skipped this round (Nova off) -> forget
             for key, (label, bad, after, fix) in cur.items():
+                if after is None: continue                     # shown in Status, never alerted
                 st = state.setdefault(key, [None, False])
                 if bad:
                     st[0] = st[0] or now
@@ -150,7 +167,10 @@ def mqtt_room():
     import paho.mqtt.client as mqtt
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="nova-supervisor")
     c.username_pw_set("nova", open(os.path.join(HERE, ".mqtt_key")).read().strip())   # same sign-in as nova.mqtt_client
-    c.on_connect = lambda c, *a: c.subscribe("home/room/status")
+    def on_conn(c, *a):
+        c.subscribe("home/room/status"); pub_off()
+    c.on_connect = on_conn
+    mq["c"] = c
     def on_msg(c, u, m): room["online"] = m.payload == b"online"
     def on_disc(*a): room["online"] = None
     c.on_message, c.on_disconnect = on_msg, on_disc
@@ -180,7 +200,8 @@ def handle(up):
                 p = sh(fix[1])
                 reply = "✅ Done: %s." % fix[0] if p.returncode == 0 else "❌ %s failed: %s" % (fix[0], (p.stderr or p.stdout)[-200:])
         elif kind == "off" and time.time() - pending_off["at"] < 120:
-            reply = set_nova(False)
+            pending_off["at"] = 0
+            reply = set_nova(False, ac_off=(key == "ac"))
         elif kind == "off":
             reply = "That confirm expired. Tap 🔴 Nova off again."
         elif kind == "cancel":
@@ -198,9 +219,11 @@ def handle(up):
     elif "nova off" in t or t == "/off":
         if nova_off(): tg("sendMessage", chat_id=CHAT, text="Nova is already off.", reply_markup=json.dumps(KEYBOARD)); return
         pending_off["at"] = time.time()
-        kb = {"inline_keyboard": [[{"text": "Yes, turn Nova off", "callback_data": "off:"},
-                                   {"text": "Cancel", "callback_data": "cancel:"}]]}
-        tg("sendMessage", chat_id=CHAT, text="Turn Nova off? Listening, camera, automations and AC timers stop.",
+        kb = {"inline_keyboard": [[{"text": "Off + AC off", "callback_data": "off:ac"},
+                                   {"text": "Off, leave AC", "callback_data": "off:"}],
+                                  [{"text": "Cancel", "callback_data": "cancel:"}]]}
+        tg("sendMessage", chat_id=CHAT, text="Turn Nova off? Listening (hub and Mac), camera, automations and AC timers stop. "
+                                             "Nothing will turn the AC off for you while it's off.",
            reply_markup=json.dumps(kb))
     elif "nova on" in t or t == "/on":
         tg("sendMessage", chat_id=CHAT, text="Nova is already on." if not nova_off() and running("app/nova_app[.]py")
