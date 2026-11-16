@@ -553,6 +553,10 @@ class Api:
             if nova.IS_HUB: subprocess.Popen(["pmset", "displaysleepnow"] if arg == "off" else ["caffeinate", "-u", "-t", "2"])
             else: nova._hub_send("display", arg)
             return "display " + str(arg)
+        if do == "away":                              # leaving: no rule may turn the AC on until you're back
+            if nova.IS_HUB: self._set_away(arg in (True, "on"))
+            else: nova._hub_send("away", "on" if arg in (True, "on") else "off")
+            return "away " + str(arg)
         if do == "automations":                       # goodnight pauses sensor rules, morning/home resume them
             self._auto_on = arg in (True, "on")
             if not nova.IS_HUB: nova._hub_send("automations", "on" if self._auto_on else "off")   # they run on the hub
@@ -596,6 +600,15 @@ class Api:
     # ---- AUTOMATIONS: timed routines ("at" in routines.json) + sensor rules (automations.json) ----
     AUTOMATIONS = os.path.expanduser("~/anish-ai/automations.json")
     _ASLEEP_F = os.path.expanduser("~/anish-ai/.asleep")   # HUB ONLY: exists = good night is on; survives restarts
+    _AWAY_F = os.path.expanduser("~/anish-ai/.away")       # HUB ONLY: exists = you left; AC rules can't switch it on
+
+    def _set_away(self, on):
+        try:
+            if on: open(self._AWAY_F, "w").write(time.strftime("%Y-%m-%d %H:%M"))
+            elif os.path.exists(self._AWAY_F): os.remove(self._AWAY_F)
+            print("[hub] away", "on" if on else "off", flush=True)
+        except Exception as e: print("[hub] away flag failed:", e, flush=True)
+
     _hub_asleep = False                                     # Mac: mirror of the hub's state (retained MQTT "home/sleep")
 
     @property
@@ -700,6 +713,8 @@ class Api:
         for i, ru in enumerate(rules):                               # 2) sensor rules
             if not ru.get("enabled", True) or not self._in_window(ru.get("between"), now): continue
             if asleep and not ru.get("even_asleep"): continue           # sleep mode pauses all but even_asleep rules
+            if os.path.exists(self._AWAY_F) and any(x.get("do") == "ac" and x.get("arg") != "off" for x in ru.get("steps", [])):
+                continue                                                # you're out -> never switch the AC on
             key = ru.get("name", str(i))
             st = self._auto_state.setdefault(key, {"last": 0, "armed": True})
             w = ru.get("when", {})
@@ -1384,6 +1399,7 @@ class Api:
                 pass
         if who is not True:                               # someone else, or no face seen -> stay quiet
             print("[iot] motion, face not recognised (%s) — staying quiet" % who, flush=True); return
+        if os.path.exists(self._AWAY_F): self._set_away(False)   # it's you -> back home
         self.speak(self._greeting())
         print("[iot] welcome-back (away %.0fs, owner=%s)" % (away, who), flush=True)
 
@@ -1559,6 +1575,8 @@ class Api:
                     subprocess.Popen(["pmset", "displaysleepnow"] if val == "off" else ["caffeinate", "-u", "-t", "2"])
                 elif key == "automations":
                     self._auto_on = (val == "on"); print("[hub] automations", val, flush=True)
+                elif key == "away":
+                    self._set_away(val == "on")
                 elif key == "stop":                       # Mac's stop button / interrupt
                     self._mute_until = time.time() + 2    # drop WAV chunks still in flight
                     while self._audio_q and not self._audio_q.empty(): self._audio_q.get_nowait()
