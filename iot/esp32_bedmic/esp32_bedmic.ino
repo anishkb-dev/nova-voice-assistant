@@ -18,6 +18,7 @@ int GAIN_SHIFT = 14;                        // calibration knob: 24-bit sample >
 I2SClass i2s;
 WiFiUDP udp;
 IPAddress hub;
+void findHub();
 int32_t raw[N];
 uint8_t pkt[16 + N * 2];                    // 16-byte key, then int16 little-endian samples
 float dc = 0;
@@ -32,10 +33,17 @@ void connectWifi() {
     if (t > 50) ESP.restart();              // ~20 s stuck -> self-heal
   }
   Serial.printf(" wifi %s\n", WiFi.localIP().toString().c_str());
+  findHub();
+}
+
+// Booting while the hub was down left us streaming to a dead fallback IP for hours (2026-11-16):
+// re-resolve every 5 min, and keep the last good address when a lookup fails.
+void findHub() {
   static bool md = false;
   if (!md) md = MDNS.begin("esp32-bedmic");
   IPAddress ip = md ? MDNS.queryHost(HUB_HOST, 2000) : IPAddress();
-  if (ip != IPAddress()) hub = ip; else hub.fromString(SECRET_HUB_IP);
+  if (ip != IPAddress()) hub = ip;
+  else if (hub == IPAddress()) hub.fromString(SECRET_HUB_IP);
   Serial.printf("hub = %s\n", hub.toString().c_str());
 }
 
@@ -51,6 +59,8 @@ void setup() {
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) connectWifi();
+  static uint32_t lastFind = 0;
+  if (millis() - lastFind > 300000) { lastFind = millis(); findHub(); }   // ~2 s gap in audio every 5 min
   size_t got = i2s.readBytes((char*)raw, sizeof(raw));
   int n = got / 4;
   int16_t* out = (int16_t*)(pkt + 16);
