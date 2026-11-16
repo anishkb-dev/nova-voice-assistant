@@ -298,6 +298,17 @@ class Api:
                 return
             except Exception as e:
                 print("[speak] hub speaker unreachable, using this Mac:", e, flush=True)
+        if nova.IS_HUB:                                  # one voice at a time: a Mac reply that's playing finishes first
+            t0 = time.time()
+            while (self._clip_on or (self._audio_q and not self._audio_q.empty())) and time.time() - t0 < 30:
+                time.sleep(0.1)
+            self._talk_tok = tok = object(); self._local_talking = True
+            def _talk_done():                            # clear the flag once this speech goes quiet for 0.8 s
+                t1, quiet = time.time(), 0
+                while quiet < 4 and time.time() - t1 < 120:
+                    time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) or time.time() - t1 < 5 else quiet + 1
+                if self._talk_tok is tok: self._local_talking = False
+            threading.Thread(target=_talk_done, daemon=True).start()
         self.stop_speaking()
 
         self._speak_gen += 1
@@ -475,10 +486,15 @@ class Api:
                     self._ref_segs = (self._ref_segs + [(time.time(), echofp.wav_env(wav))])[-8:]
                 except Exception:
                     pass
+                t0 = time.time()
+                while self._local_talking and time.time() - t0 < 30: time.sleep(0.1)   # hub's own speech first
+                self._clip_on = True
                 self._say = subprocess.Popen(["afplay", path], stderr=subprocess.DEVNULL)
                 self._say.wait()
             except Exception as e:
                 print("[hub] audio play failed: %s" % e, flush=True)
+            finally:
+                self._clip_on = False
             if self._audio_q.empty():
                 self._hub_speaking = False; self._table_voice(0)
 
@@ -994,6 +1010,7 @@ class Api:
             except Exception as e:
                 print("[hf] netmic unavailable: %r" % e, flush=True); _nm = None
             _use_net = bool(_nm and _nm.alive())
+            self._netmic = _nm if _use_net else None
 
             def _mic_watch():                # source changed -> exit; launchd relaunches and recalibrates the floor
                 seen = 0
@@ -1514,6 +1531,8 @@ class Api:
     _kokoro_proc = None
     _brain_cool = {}                      # brain name -> time it's usable again (after a 429)
     _audio_q = None                       # hub: queue of Kokoro WAVs from the Mac
+    _clip_on = _local_talking = False     # hub: one voice at a time (Mac reply clip vs hub's own speech)
+    _talk_tok = _netmic = None
     _hub_speak_lock = threading.Lock()    # Mac: serialize speak() -> hub so replies never overlap
     _mute_until = 0.0                     # hub: after "Nova, stop" drop reply chunks still arriving from the Mac
     _claude_mode = True                   # Mac: talk to Claude by default ("quick mode" -> local brain)   # awake on the Wi-Fi = you're home, even if Nova isn't open
@@ -1731,16 +1750,15 @@ class Api:
         except Exception:
             return None
 
-    def _health(self, key, down, label, after=180, fix=None):
-        """Telegram once when `key` has been down `after` s, once more when it's back.
-        fix = (button text, shell command): the alert gets [Fix][Ignore] buttons and runs it only on your tap."""
+    def _health(self, key, down, label, after=180):
+        """Telegram once when `key` has been down `after` s, once more when it's back."""
         st = self._health_st.setdefault(key, [None, False])     # [down since, alerted]
         now = time.time()
         if down:
             st[0] = st[0] or now
             if not st[1] and now - st[0] > after:
                 st[1] = True; self._day["alerts"] = self._day.get("alerts", 0) + 1; msg = "⚠️ %s has been offline for %d min." % (label, (now - st[0]) // 60)
-                self._ask_fix(key, msg, *fix) if fix else self._tg_alert(msg)
+                self._tg_alert(msg)
         else:
             if st[1]: self._tg_alert("✅ %s is back online." % label)
             st[0], st[1] = None, False
@@ -1752,60 +1770,6 @@ class Api:
             guard._tg("sendMessage", data={"chat_id": open(guard.CHAT_F).read().strip(), "text": text})
         except Exception as e:
             print("[health] telegram failed:", nova.redact(e), flush=True)
-
-    # ---- maintenance: ask on Telegram, fix only when you tap Fix ----
-    _fix_pending = {}          # nonce -> (key, label, cmd)
-    _fix_poller = None
-
-    def _ask_fix(self, key, text, label, cmd):
-        import guard, secrets
-        nonce = secrets.token_hex(4)
-        self._fix_pending[nonce] = (key, label, cmd)
-        kb = {"inline_keyboard": [[{"text": "✅ " + label, "callback_data": "fix:" + nonce},
-                                   {"text": "✖ Ignore", "callback_data": "ign:" + nonce}]]}
-        try:
-            guard._tg("sendMessage", data={"chat_id": open(guard.CHAT_F).read().strip(), "text": text,
-                                           "reply_markup": json.dumps(kb)})
-        except Exception as e:
-            print("[fix] telegram failed:", nova.redact(e), flush=True); return
-        if not (self._fix_poller and self._fix_poller.is_alive()):
-            self._fix_poller = threading.Thread(target=self._fix_poll, daemon=True); self._fix_poller.start()
-
-    def _fix_poll(self):
-        """Long-poll the bot for button taps while any fix is waiting. Only taps from your own chat count."""
-        import guard
-        chat = open(guard.CHAT_F).read().strip()
-        offset = None
-        while self._fix_pending:
-            try:
-                r = guard._tg("getUpdates", data={"timeout": 15, "offset": offset or "",   # < guard._tg's 20 s HTTP timeout
-                                                  "allowed_updates": json.dumps(["callback_query"])})
-            except Exception as e:
-                print("[fix] poll:", str(e)[:80], flush=True); time.sleep(5); continue
-            for up in r.get("result", []):
-                offset = up["update_id"] + 1
-                cq = up.get("callback_query")
-                if not cq: continue
-                ok_user = str(cq.get("message", {}).get("chat", {}).get("id")) == chat and str(cq["from"]["id"]) == chat
-                kind, _, nonce = (cq.get("data") or "").partition(":")
-                job = self._fix_pending.pop(nonce, None) if ok_user else None
-                try: guard._tg("answerCallbackQuery", data={"callback_query_id": cq["id"],
-                               "text": "On it, sir." if job and kind == "fix" else ("Ignored." if job else "That request expired.")})
-                except Exception: pass
-                if not job: continue
-                key, label, cmd = job
-                if kind == "fix":
-                    try:
-                        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
-                        res = "✅ Done: %s." % label if p.returncode == 0 else "❌ %s failed: %s" % (label, (p.stderr or p.stdout).strip()[-200:])
-                    except Exception as e:
-                        res = "❌ %s failed: %s" % (label, str(e)[:200])
-                else:
-                    res = "Ignored: %s." % label
-                self._audit("maintenance", {"fix": key, "action": kind}, res)
-                try: guard._tg("editMessageText", data={"chat_id": chat, "message_id": cq["message"]["message_id"],
-                                                         "text": cq["message"].get("text", "") + "\n\n" + res})
-                except Exception: self._tg_alert(res)
 
     @staticmethod
     def _mem_report():
@@ -1861,8 +1825,11 @@ class Api:
         time.sleep(120)                                          # startup grace
         while True:
             try:
-                if nova.IS_HUB:
-                    self._health("room", not self._iot_data.get("online"), "Room ESP32")
+                if nova.IS_HUB:                                  # heartbeat for supervisor.py (it does the device checks)
+                    hf = bool(self._hf and self._hf_thread and self._hf_thread.is_alive())
+                    nm = self._netmic
+                    json.dump({"ts": time.time(), "hf": hf, "bedmic_age": (time.time() - nm.last) if nm else None},
+                              open("/tmp/nova_hb.json", "w"))
                     bad, rep = self._mem_report()
                     if bad and mem_day != time.strftime("%F"):           # at most one alert a day
                         mem_day = time.strftime("%F"); self._tg_alert("\U0001F9E0 " + rep)
@@ -1874,10 +1841,8 @@ class Api:
                     gw = self._gw_mac()
                     if self._hub_link: home_gw = gw or home_gw
                     home = home_gw is not None and gw == home_gw
-                    self._health("broker", home and not self._hub_link, "Nova hub (broker / old Mac)",
-                                 fix=("Restart broker", "ssh -o ConnectTimeout=10 nova-hub 'launchctl kickstart -k gui/$(id -u)/com.nova.broker'"))
-                    self._health("hubapp", self._hub_link and not self._hub_app_on, "Nova hub app",
-                                 fix=("Restart hub app", "ssh -o ConnectTimeout=10 nova-hub 'pkill -f app/nova_app.py'"))   # launchd relaunches it
+                    # the hub's own supervisor.py watches its apps + devices; this only covers the hub being gone
+                    self._health("broker", home and not self._hub_link, "Nova hub (broker / old Mac)")
             except Exception as e:
                 print("[health]", e, flush=True)
             time.sleep(30)

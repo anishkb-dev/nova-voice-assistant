@@ -84,3 +84,5 @@ light_panel.log
 .auto_state.json
 .later.json
 .room_state.json
+supervisor.log
+.nova_off

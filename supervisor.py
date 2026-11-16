@@ -1,0 +1,234 @@
+"""Nova supervisor (hub, launchd com.nova.supervisor). Its own process, so it keeps running while Nova is off.
+
+Watches: Nova app, voice loop, bed mic, camera, broker, room ESP32 (AC/sensors), BLE strip panel, WiZ bulb,
+hub power and disk. Telegram once when something has been down a while (with a Fix button where one exists),
+once when it's back. Bottom keyboard in the bot: Status / Nova off / Nova on.
+
+It is the ONLY getUpdates poller for the bot: two pollers steal each other's button taps.
+
+    python supervisor.py check   # print one round of checks and exit
+"""
+import json, os, shutil, socket, subprocess, sys, threading, time
+import requests
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import guard, wiz
+
+CHAT = open(guard.CHAT_F).read().strip()
+OFF_F = os.path.join(HERE, ".nova_off")              # exists = you turned Nova off (survives reboots)
+PLIST = os.path.expanduser("~/Library/LaunchAgents/com.nova.app.plist")
+DOM = "gui/%d" % os.getuid()
+KEYBOARD = {"keyboard": [[{"text": "📊 Status"}], [{"text": "🔴 Nova off"}, {"text": "🟢 Nova on"}]],
+            "resize_keyboard": True, "is_persistent": True}
+# com.nova.app runs `open -W -a NovaHub.app`: killing the job leaves the app up, so kill Nova itself (launchd relaunches it)
+RESTART_NOVA = ("Restart Nova", "pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'")
+FIXES = {"broker": ("Restart broker", "launchctl kickstart -k %s/com.nova.broker" % DOM),
+         **{k: RESTART_NOVA for k in ("nova", "voice", "camera", "strips")}}
+room = {"online": None}                              # home/room/status, kept by the MQTT thread
+
+
+def tg(method, **data):
+    """Bot call that is NOT logged to the morning read-out (guard._tg logs every message)."""
+    tok = open(guard.TOKEN_F).read().strip()
+    r = requests.post("https://api.telegram.org/bot%s/%s" % (tok, method), data=data, timeout=40)
+    r.raise_for_status()
+    return r.json()
+
+
+def red(e):
+    """Error text without the bot token (a failed Telegram call prints its URL)."""
+    return str(e).replace(open(guard.TOKEN_F).read().strip(), "<token>")[:160]
+
+
+def sh(cmd):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+
+
+def nova_off():
+    return os.path.exists(OFF_F)
+
+
+def running(pattern):
+    return sh("pgrep -f '%s'" % pattern).returncode == 0   # [.] so the pattern can't match this shell's own command line
+
+
+def heartbeat():
+    try:
+        hb = json.load(open("/tmp/nova_hb.json"))
+        return hb if time.time() - hb["ts"] < 120 else None
+    except Exception:
+        return None
+
+
+def checks():
+    """key -> (label, problem text or None, wait-before-alert s, fix (button, cmd) or None). Nova's parts skip when off."""
+    out = {}
+    def add(key, label, bad, after=180):
+        out[key] = (label, bad, after, FIXES.get(key))
+    try: socket.create_connection(("127.0.0.1", 1883), timeout=2).close(); broker = None
+    except OSError: broker = "not answering on :1883"
+    add("broker", "MQTT broker", broker, 120)
+    add("room", "Room ESP32 (AC + sensors)", None if room["online"] else "offline", 300)
+    try:
+        p = requests.get("http://127.0.0.1:8099/state", timeout=3).json()
+        strips = None if p.get("connected") else "strips not connected"
+    except Exception:
+        strips = "light panel not running"
+    add("strips", "LED strips (BLE)", strips, 300)
+    add("bulb", "WiZ bulb", None if wiz.state() else "not answering (wall switch off?)", 600)
+    batt = sh("pmset -g batt").stdout
+    add("power", "Hub power", None if "AC Power" in batt else "ON BATTERY " + (batt.split("\t")[-1].split(";")[0] if "\t" in batt else ""), 60)
+    free = shutil.disk_usage("/").free / 2**30
+    add("disk", "Hub disk", None if free > 3 else "%.1f GB free" % free, 0)
+    if not nova_off():
+        app = running("app/nova_app[.]py")
+        add("nova", "Nova app", None if app else "not running", 120)
+        if app:
+            hb = heartbeat()
+            add("voice", "Voice (listening)", None if hb and hb["hf"] else ("not listening" if hb else "Nova not responding"), 180)
+            if hb and not os.path.exists(os.path.join(HERE, ".bedmic_off")):
+                age = hb.get("bedmic_age")
+                add("bedmic", "Bed mic", None if age is not None and age < 30 else "silent, Nova fell back to the USB mic (check the mic ESP32 power)", 300)
+            add("camera", "Camera (presence)", None if running("cam_presence[.]py") else "not running", 300)
+    return out
+
+
+def status_text():
+    lines = ["🔴 Nova is OFF (supervisor still watching)" if nova_off() else "🟢 Nova is ON"]
+    for label, bad, _, _ in checks().values():
+        lines.append(("❌ %s: %s" % (label, bad)) if bad else "✅ " + label)
+    return "\n".join(lines)
+
+
+def set_nova(on):
+    if on:
+        if os.path.exists(OFF_F): os.remove(OFF_F)
+        sh("launchctl enable %s/com.nova.app; launchctl bootstrap %s %s" % (DOM, DOM, PLIST))
+        return "🟢 Nova is starting (about a minute)."
+    open(OFF_F, "w").write(time.strftime("%F %T"))
+    sh("launchctl disable %s/com.nova.app; launchctl bootout %s/com.nova.app; pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'" % (DOM, DOM))
+    return ("🔴 Nova is off: no listening, camera, voice, automations, reminders or AC timers.\n"
+            "Devices stay as they are now. Tap 🟢 Nova on to bring it back.")
+
+
+# ---------------- watch loop ----------------
+state = {}       # key -> [down since, alerted]
+
+
+def watch():
+    time.sleep(90)                                    # boot grace: Nova takes ~1 min to come up
+    while True:
+        try:
+            if nova_off() and running("app/nova_app[.]py"):   # e.g. right after a reboot: keep it off
+                set_nova(False)
+            now, cur = time.time(), checks()
+            for key in list(state):
+                if key not in cur: state.pop(key)       # skipped this round (Nova off) -> forget
+            for key, (label, bad, after, fix) in cur.items():
+                st = state.setdefault(key, [None, False])
+                if bad:
+                    st[0] = st[0] or now
+                    if not st[1] and now - st[0] >= after:
+                        st[1] = True
+                        msg = "⚠️ %s: %s" % (label, bad)
+                        if fix:
+                            kb = {"inline_keyboard": [[{"text": "🔧 " + fix[0], "callback_data": "fix:" + key},
+                                                       {"text": "✖ Ignore", "callback_data": "ign:" + key}]]}
+                            guard._tg("sendMessage", data={"chat_id": CHAT, "text": msg, "reply_markup": json.dumps(kb)})
+                        else:
+                            guard.send_text(msg)
+                else:
+                    if st[1]: guard.send_text("✅ %s is OK again." % label)
+                    st[0], st[1] = None, False
+        except Exception as e:
+            print("[watch]", red(e), flush=True)
+        time.sleep(60)
+
+
+def mqtt_room():
+    import paho.mqtt.client as mqtt
+    c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="nova-supervisor")
+    c.username_pw_set("nova", open(os.path.join(HERE, ".mqtt_key")).read().strip())   # same sign-in as nova.mqtt_client
+    c.on_connect = lambda c, *a: c.subscribe("home/room/status")
+    def on_msg(c, u, m): room["online"] = m.payload == b"online"
+    def on_disc(*a): room["online"] = None
+    c.on_message, c.on_disconnect = on_msg, on_disc
+    while True:
+        try:
+            c.connect("127.0.0.1", 1883, 30); c.loop_forever(retry_first_connection=True)
+        except Exception as e:
+            print("[mqtt]", e, flush=True)
+        room["online"] = None; time.sleep(10)
+
+
+# ---------------- Telegram buttons ----------------
+pending_off = {"at": 0}
+
+
+def handle(up):
+    if "callback_query" in up:
+        cq = up["callback_query"]
+        if str(cq["from"]["id"]) != CHAT: return
+        kind, _, key = (cq.get("data") or "").partition(":")
+        msg = cq.get("message", {})
+        reply = "Ignored."
+        if kind == "fix":
+            fix = FIXES.get(key)
+            if not fix or (fix is RESTART_NOVA and nova_off()): reply = "Nova is off; tap 🟢 Nova on instead."
+            else:
+                p = sh(fix[1])
+                reply = "✅ Done: %s." % fix[0] if p.returncode == 0 else "❌ %s failed: %s" % (fix[0], (p.stderr or p.stdout)[-200:])
+        elif kind == "off" and time.time() - pending_off["at"] < 120:
+            reply = set_nova(False)
+        elif kind == "off":
+            reply = "That confirm expired. Tap 🔴 Nova off again."
+        elif kind == "cancel":
+            reply = "OK, Nova stays on."
+        try: tg("answerCallbackQuery", callback_query_id=cq["id"])
+        except Exception: pass
+        try: tg("editMessageText", chat_id=CHAT, message_id=msg["message_id"], text=msg.get("text", "") + "\n\n" + reply)
+        except Exception: tg("sendMessage", chat_id=CHAT, text=reply)
+        return
+    m = up.get("message") or {}
+    if str(m.get("chat", {}).get("id")) != CHAT: return     # only you
+    t = (m.get("text") or "").lower()
+    if "status" in t:
+        tg("sendMessage", chat_id=CHAT, text=status_text(), reply_markup=json.dumps(KEYBOARD))
+    elif "nova off" in t or t == "/off":
+        if nova_off(): tg("sendMessage", chat_id=CHAT, text="Nova is already off.", reply_markup=json.dumps(KEYBOARD)); return
+        pending_off["at"] = time.time()
+        kb = {"inline_keyboard": [[{"text": "Yes, turn Nova off", "callback_data": "off:"},
+                                   {"text": "Cancel", "callback_data": "cancel:"}]]}
+        tg("sendMessage", chat_id=CHAT, text="Turn Nova off? Listening, camera, automations and AC timers stop.",
+           reply_markup=json.dumps(kb))
+    elif "nova on" in t or t == "/on":
+        tg("sendMessage", chat_id=CHAT, text="Nova is already on." if not nova_off() and running("app/nova_app[.]py")
+           else set_nova(True), reply_markup=json.dumps(KEYBOARD))
+    else:
+        tg("sendMessage", chat_id=CHAT, text="Buttons: 📊 Status, 🔴 Nova off, 🟢 Nova on.", reply_markup=json.dumps(KEYBOARD))
+
+
+def poll():
+    offset = None
+    while True:
+        try:
+            r = tg("getUpdates", timeout=25, offset=offset or "",
+                   allowed_updates=json.dumps(["message", "callback_query"]))
+            for up in r.get("result", []):
+                offset = up["update_id"] + 1
+                try: handle(up)
+                except Exception as e: print("[tg] handle:", red(e), flush=True)
+        except Exception as e:
+            print("[tg] poll:", red(e), flush=True)
+            time.sleep(10)
+
+
+if __name__ == "__main__":
+    threading.Thread(target=mqtt_room, daemon=True).start()
+    if sys.argv[1:] == ["check"]:
+        time.sleep(3); print(status_text()); sys.exit()
+    threading.Thread(target=watch, daemon=True).start()
+    try: tg("sendMessage", chat_id=CHAT, text="🛡 Nova supervisor running.", reply_markup=json.dumps(KEYBOARD))
+    except Exception as e: print("[tg] hello failed", flush=True)
+    poll()
