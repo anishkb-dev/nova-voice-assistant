@@ -29,7 +29,11 @@ WAKE_RE = re.compile(
     # ponytail: stopgap until the wake-word model is retrained on voice_samples/wake.
     r"|^\W*no(?:\s+(?:a|law))?\b(?=\W+(?:good\s*night|good\s*morning)\b)"      # "No a good night" = "Nova, good night"
     r"|^\W*no\s+law\W+(?=(?:what|what's|whats|how|when|where|who|is|are|can|could|will|"
-    r"turn|switch|play|stop|set|open|tell|call|lights?|ac|remind)\b)",
+    r"turn|switch|play|stop|set|open|tell|call|lights?|ac|remind)\b)"
+    # 2026-11-16: the rewired bed mic + local STT hear "Nova, what time is it" as "No, what time is it?".
+    # Plain "No," only counts before a device command or a time/weather/temp question (TV rarely says those).
+    r"|^\W*no\W+(?=(?:what(?:'s|\s+is)?\s+(?:the\s+)?(?:time|weather|temp(?:erature)?)|"
+    r"turn|switch|set|dim|play|pause|stop|lights?|bulb|ac|projector|remind)\b)",
     re.IGNORECASE)
 
 # barge-in / interrupt words — spoken over Nova to make it stop talking
