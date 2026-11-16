@@ -722,6 +722,7 @@ class Api:
             if asleep and not ru.get("even_asleep"): continue           # sleep mode pauses all but even_asleep rules
             if os.path.exists(self._AWAY_F) and any(x.get("do") == "ac" and x.get("arg") != "off" for x in ru.get("steps", [])):
                 continue                                                # you're out -> never switch the AC on
+            if ru.get("skip_when_away") and os.path.exists(self._AWAY_F): continue
             key = ru.get("name", str(i))
             st = self._auto_state.setdefault(key, {"last": 0, "armed": True})
             w = ru.get("when", {})
