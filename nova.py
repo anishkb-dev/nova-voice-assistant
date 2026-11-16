@@ -580,13 +580,14 @@ def ensure_panel():
                      stdout=open(os.path.expanduser("~/anish-ai/light_panel.log"), "a"), stderr=subprocess.STDOUT)
     return True
 
-def lights(command: str) -> str:
-    """Control the BLE LED strip (local Bluetooth). command e.g. 'on','off','blue','warm','brightness 60'."""
+def lights(command: str, mirror: bool = True) -> str:
+    """Control the BLE LED strip (local Bluetooth). command e.g. 'on','off','blue','warm','brightness 60'.
+    mirror=False (routine steps): strips only; the ceiling bulb keeps what the routine set it to."""
     _dev("lights", command)
     import os, sys
     sys.path.insert(0, os.path.expanduser("~/anish-ai"))
     if not IS_HUB:   # the strip is Bluetooth -> only the hub (next to it) can reach it
-        try: _hub_send("lights", command)   # ponytail: no ack from the hub; add a reply topic if it matters
+        try: _hub_send("lights" if mirror else "strips", command)   # ponytail: no ack from the hub; add a reply topic if it matters
         except Exception as e: return f"Couldn't reach the hub for the lights: {e}"
         return f"Lights {command}, sir."
     if ensure_panel(): time.sleep(6)
@@ -594,7 +595,7 @@ def lights(command: str) -> str:
     said = _lights(command)          # the panel sends it to every strip (bed + table)
     try:                             # ceiling bulb follows the same mode (colour/warm/party/on/off); routines set its brightness themselves
         import wiz
-        if not re.search(r"bright|dim|speed", command.lower()) and wiz.parse(command):
+        if mirror and not re.search(r"bright|dim|speed", command.lower()) and wiz.parse(command):
             threading.Thread(target=wiz.bulb, args=(command,), daemon=True).start()
     except Exception as e:
         print("[lights] bulb mirror:", e, flush=True)

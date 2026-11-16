@@ -555,6 +555,8 @@ class Api:
     def _routine_step(self, st):
         do, arg = st.get("do"), st.get("arg")
         if do in ("bulb", "lights"): arg = self._time_cap(arg)
+        if do == "lights": return nova.lights(str(arg), mirror=False)   # routines set the bulb themselves: the mirror
+                                                     # turned it back on after goodnight's bulb-off (2026-11-16)
         if do == "mic":    return str(self.set_handsfree(arg in (True, "on")))
         if do == "camera": return str(self.set_camera(arg in (True, "on")))
         if do == "bulb":                              # WiZ ceiling bulb (wiz.py), reachable from the Mac and the hub
@@ -1663,14 +1665,15 @@ class Api:
                                 time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) else quiet + 1
                         finally: self._hub_speaking = False; self._table_voice(0)
                     threading.Thread(target=_say_here, daemon=True).start()
-                elif key == "lights":
+                elif key in ("lights", "strips"):          # strips = a routine step: strips only, no bulb mirror
                     if not getattr(self, "_strip_q", None):          # one worker = strip commands run in arrival order
                         import queue; self._strip_q = queue.Queue()
                         def _strip_worker():
                             while True:
-                                v = self._strip_q.get(); print("[hub] lights", v, "->", nova.lights(v), flush=True)
+                                k, v = self._strip_q.get()
+                                print("[hub] %s" % k, v, "->", nova.lights(v, mirror=(k == "lights")), flush=True)
                         threading.Thread(target=_strip_worker, daemon=True).start()
-                    self._strip_q.put(val)
+                    self._strip_q.put((key, val))
                 elif key == "later":                      # a delayed routine step the Mac handed over
                     j = json.loads(val); st = j["st"]
                     self._later(j["name"], st)
