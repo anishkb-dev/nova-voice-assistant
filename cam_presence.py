@@ -12,6 +12,9 @@ import collections, os, signal, subprocess, sys, time
 
 SEEN_FILE = "/tmp/nova_cam_seen"  # mtime = last time the camera saw movement; content = that change %
 MOVE_PCT = 0.1                    # % pixels changed between 1 s frames = someone there (empty room reads 0.00)
+FACE_EVERY = 5                    # s between face checks: sitting still (laptop on the bed) barely moves pixels,
+                                  # but a visible face still means "someone's here" (YuNet, ~90 ms at 320x240)
+FACE_MODEL = os.path.expanduser("~/anish-ai/models/yunet.onnx")
 MAC_CAM = 0                       # "MacBook Air Camera"
 
 
@@ -65,8 +68,17 @@ def moved_pct(prev, cur):
     return float((cv2.absdiff(cur, prev) > 12).mean() * 100)
 
 
+def _seen(note):
+    try:
+        with open(SEEN_FILE, "w") as fh: fh.write(note)
+    except Exception: pass
+
+
 def run():
     import cv2
+    det, last_face = None, 0
+    try: det = cv2.FaceDetectorYN.create(FACE_MODEL, "", (320, 240), 0.6) if os.path.exists(FACE_MODEL) else None
+    except Exception as e: print("face presence off:", e, flush=True)
     def open_cam():
         idx = pick_camera()
         if idx is None:
@@ -104,9 +116,13 @@ def run():
         if prev is not None:
             pct = moved_pct(prev, g); pcts.append(round(pct, 2))
             if pct >= MOVE_PCT:
-                try:
-                    with open(SEEN_FILE, "w") as fh: fh.write("%.2f" % pct)
-                except Exception: pass
+                _seen("%.2f" % pct)
+        if det is not None and time.time() - last_face >= FACE_EVERY:
+            last_face = time.time()
+            try:
+                small = cv2.resize(frame, (320, 240)); det.setInputSize((320, 240))
+                if det.detect(small)[1] is not None: _seen("face")
+            except Exception: pass
         prev = g
         time.sleep(1)
     if cap is not None:
