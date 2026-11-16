@@ -25,6 +25,7 @@ KEYBOARD = {"keyboard": [[{"text": "📊 Status"}], [{"text": "🔴 Nova off"}, 
 RESTART_NOVA = ("Restart Nova", "pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'")
 FIXES = {"broker": ("Restart broker", "launchctl kickstart -k %s/com.nova.broker" % DOM),
          **{k: RESTART_NOVA for k in ("nova", "voice", "camera", "strips")}}
+MICS = {"bedmic": ("Bed mic", "esp32-bedmic.local")}   # add ("Table mic", "esp32-room.local") once it's wired
 room = {"online": None}
 mq = {"c": None}
 
@@ -95,8 +96,11 @@ def checks():
             hb = heartbeat()
             add("voice", "Voice (listening)", None if hb and hb["hf"] else ("not listening" if hb else "Nova not responding"), 300)
             if hb and not os.path.exists(os.path.join(HERE, ".bedmic_off")):
-                age = hb.get("bedmic_age")
-                add("bedmic", "Bed mic", None if age is not None and age < 30 else "silent, Nova fell back to the USB mic (check the mic ESP32 power)", 300)
+                for key, (label, host) in MICS.items():
+                    try: ip = socket.gethostbyname(host)
+                    except OSError: ip = None
+                    add(key, label, None if ip in hb.get("mics", []) else
+                        ("no audio from %s" % ip if ip else "%s not on Wi-Fi (power?)" % host), 300)
             add("camera", "Camera (presence)", None if running("cam_presence[.]py") else "not running", 300)
     return out
 

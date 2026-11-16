@@ -21,6 +21,8 @@
 #include <IRac.h>
 #include <IRrecv.h>
 #include <IRutils.h>   // learn mode: VS1838B OUT -> D14, GND -> G, VCC -> 3V (NOT 5V)      // LG AC over IR: D13 -> 1k -> 2N2222 base; 5V -> 47R -> IR LED -> collector
+#include <ESP_I2S.h>    // table mic: INMP441 -> UDP :5005 on the hub (app/netmic.py), same format as esp32_bedmic
+#include <WiFiUdp.h>
 #include "secrets.h"   // copy secrets.h.example -> secrets.h and fill in your values (git-ignored)
 
 // ---- credentials come from secrets.h (git-ignored) ----
@@ -53,6 +55,18 @@ const int  PIR_PIN = 34;
 bool motionState = false;
 
 // --- LG AC over IR (replaces the Tuya cloud blaster). IR is one-way: we keep the state ourselves. ---
+// Table mic (INMP441): VDD -> 3V pin (NOT 5V), GND -> G, L/R -> G, SCK -> D18, WS -> D19, SD -> D21.
+const bool MIC_ON = true;                  // false = no mic wired -> don't stream 32 KB/s of silence
+const int  MIC_SCK = 18, MIC_WS = 19, MIC_SD = 21, MIC_N = 512;   // 32 ms per packet @ 16 kHz
+int GAIN_SHIFT = 14;                       // calibration knob (as bedmic): lower = louder, raise if speech clips
+I2SClass i2s;
+WiFiUDP udp;
+IPAddress hubIP;                           // = the broker (hub), set by pickBroker
+bool micOk = false;
+int32_t micRaw[MIC_N];
+uint8_t micPkt[16 + MIC_N * 2];
+float micDc = 0;
+
 const int IR_PIN = 13;
 IRac irac(IR_PIN);
 const uint16_t LG_OFF_RAW[60] = {2932,9783,437,1616,437,586,437,586,437,586,437,1616,437,586,437,586,437,586,437,1616,437,1616,437,586,437,586,437,586,437,586,437,586,437,586,437,586,437,586,437,586,437,586,437,586,437,1616,437,586,437,1616,437,586,437,586,437,586,437,1616,437,64464};   // learned via Tuya blaster
@@ -157,6 +171,8 @@ void pickBroker() {
   static bool mdnsUp = false;
   if (!mdnsUp) mdnsUp = MDNS.begin("esp32-room");
   IPAddress ip = mdnsUp ? MDNS.queryHost(BROKER_HOST, 2000) : IPAddress();
+  hubIP = ip != IPAddress() ? ip : (hubIP != IPAddress() ? hubIP : IPAddress());
+  if (hubIP == IPAddress()) hubIP.fromString(BROKER_IP);
   if (ip != IPAddress()) { mqtt.setServer(ip, BROKER_PORT); Serial.printf("broker %s.local = %s\n", BROKER_HOST, ip.toString().c_str()); }
   else                   { mqtt.setServer(BROKER_IP, BROKER_PORT); Serial.printf("mDNS miss -> fallback %s\n", BROKER_IP); }
 }
@@ -188,6 +204,21 @@ void connectMqtt() {
   }
 }
 
+void streamMic() {
+  size_t got = i2s.readBytes((char*)micRaw, sizeof(micRaw));
+  int n = got / 4;
+  if (n <= 0) return;
+  int16_t* out = (int16_t*)(micPkt + 16);
+  for (int i = 0; i < n; i++) {
+    float s = (float)(micRaw[i] >> 8);        // 24-bit sample in the top of the 32-bit slot
+    micDc += 0.001f * (s - micDc);            // DC blocker
+    out[i] = (int16_t)constrain((s - micDc) / (float)(1 << (GAIN_SHIFT - 8)), -32768.0f, 32767.0f);
+  }
+  udp.beginPacket(hubIP, 5005);
+  udp.write(micPkt, 16 + n * 2);
+  udp.endPacket();
+}
+
 void setup() {
   irsend.begin();
   Serial.begin(115200);
@@ -202,6 +233,12 @@ void setup() {
   digitalWrite(FAN_PIN,   relayLevel(false));
   digitalWrite(PLUG_PIN,  relayLevel(false));
   mqtt.setCallback(onMqtt);
+  if (MIC_ON) {                                 // a mic problem must never take the room node (AC, fan, sensors) down
+    memcpy(micPkt, SECRET_MIC_KEY, 16);
+    i2s.setPins(MIC_SCK, MIC_WS, -1, MIC_SD);
+    micOk = i2s.begin(I2S_MODE_STD, 16000, I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
+    Serial.println(micOk ? "table mic on" : "table mic: I2S init failed -> mic off, rest of the node runs");
+  }
   connectWifi();
   connectMqtt();
 }
@@ -230,6 +267,8 @@ void loop() {
     mqtt.publish(topic, m ? "1" : "0", true);   // retained so new subscribers get the current state
     Serial.printf("motion -> %d\n", m);
   }
+
+  if (micOk && hubIP != IPAddress()) streamMic();   // blocks ~32 ms per packet: also paces this loop
 
   static unsigned long last = 0;
   if (millis() - last < PUBLISH_MS) return;
