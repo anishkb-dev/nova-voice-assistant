@@ -86,7 +86,7 @@ def checks():
         add("nova", "Nova app", None if app else "not running", 120)
         if app:
             hb = heartbeat()
-            add("voice", "Voice (listening)", None if hb and hb["hf"] else ("not listening" if hb else "Nova not responding"), 180)
+            add("voice", "Voice (listening)", None if hb and hb["hf"] else ("not listening" if hb else "Nova not responding"), 300)
             if hb and not os.path.exists(os.path.join(HERE, ".bedmic_off")):
                 age = hb.get("bedmic_age")
                 add("bedmic", "Bed mic", None if age is not None and age < 30 else "silent, Nova fell back to the USB mic (check the mic ESP32 power)", 300)
