@@ -492,11 +492,14 @@ def dev_last():
     except Exception: return {}
 
 
-def ac(command: str) -> str:
+def ac(command: str, routine: bool = False) -> str:
     """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10); Tuya blaster if the ESP32 is offline.
     command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
     _dev("ac", command)
     cmd = (command or "").lower().strip()
+    if not routine and cmd not in ("", "status"):     # you changed it yourself -> the hub drops pending scheduled AC
+        try: _hub_send("ac_manual", str(time.time()))   # steps (goodnight's 26 overrode a manual 21, 2026-11-17)
+        except Exception: pass
     # "temp 21 for 5 min" -> do it, then put the AC back the way it was after N minutes
     m = re.search(r"\s*\bfor\s+(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?)\b", cmd)
     if m:

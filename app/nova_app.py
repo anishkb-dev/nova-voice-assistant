@@ -555,6 +555,7 @@ class Api:
     def _routine_step(self, st):
         do, arg = st.get("do"), st.get("arg")
         if do in ("bulb", "lights"): arg = self._time_cap(arg)
+        if do == "ac":     return nova.ac(str(arg), routine=True)   # scheduled steps don't cancel each other
         if do == "lights": return nova.lights(str(arg), mirror=False)   # routines set the bulb themselves: the mirror
                                                      # turned it back on after goodnight's bulb-off (2026-11-16)
         if do == "mic":    return str(self.set_handsfree(arg in (True, "on")))
@@ -1674,6 +1675,12 @@ class Api:
                                 print("[hub] %s" % k, v, "->", nova.lights(v, mirror=(k == "lights")), flush=True)
                         threading.Thread(target=_strip_worker, daemon=True).start()
                     self._strip_q.put((key, val))
+                elif key == "ac_manual":                  # you set the AC yourself: pending AC steps made before that are dropped
+                    t = float(val)                        # (their sleeping timers find the job gone and skip)
+                    old = lambda x: x["st"].get("do") == "ac" and x["due"] - float(x["st"].get("after_min", 0)) * 60 < t - 1
+                    dropped = []
+                    self._later_edit(lambda j: [x for x in j if not (old(x) and not dropped.append(x))])
+                    if dropped: print("[hub] manual AC -> dropped %d scheduled AC step(s)" % len(dropped), flush=True)
                 elif key == "later":                      # a delayed routine step the Mac handed over
                     j = json.loads(val); st = j["st"]
                     self._later(j["name"], st)
