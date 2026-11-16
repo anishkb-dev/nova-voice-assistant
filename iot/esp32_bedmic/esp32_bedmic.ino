@@ -6,6 +6,7 @@
 #include <WiFiUdp.h>
 #include <ESPmDNS.h>
 #include <ESP_I2S.h>
+#include <ArduinoOTA.h>  // wireless updates: arduino-cli upload --port esp32-bedmic.local (password = SECRET_OTA_PASS)
 #include "secrets.h"
 
 const int PIN_SCK = 33, PIN_WS = 25, PIN_SD = 32;
@@ -55,9 +56,14 @@ void setup() {
     Serial.println("I2S init failed -> check wiring"); delay(2000); ESP.restart();
   }
   connectWifi();
+  ArduinoOTA.setHostname("esp32-bedmic");              // also its mDNS name; must match the MDNS.begin name
+  ArduinoOTA.setPassword(SECRET_OTA_PASS);
+  ArduinoOTA.setMdnsEnabled(false);             // the sketch already runs mDNS under this name
+  ArduinoOTA.begin();
 }
 
 void loop() {
+  ArduinoOTA.handle();                          // wireless update check (~free when idle)
   if (WiFi.status() != WL_CONNECTED) connectWifi();
   static uint32_t lastFind = 0;
   if (millis() - lastFind > 300000) { lastFind = millis(); findHub(); }   // ~2 s gap in audio every 5 min

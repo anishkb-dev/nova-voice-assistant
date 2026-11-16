@@ -24,6 +24,7 @@
 #include <IRutils.h>   // learn mode: VS1838B OUT -> D14, GND -> G, VCC -> 3V (NOT 5V)      // LG AC over IR: D13 -> 1k -> 2N2222 base; 5V -> 47R -> IR LED -> collector
 #include <ESP_I2S.h>    // table mic: INMP441 -> UDP :5005 on the hub (app/netmic.py), same format as esp32_bedmic
 #include <WiFiUdp.h>
+#include <ArduinoOTA.h>  // wireless updates: arduino-cli upload --port esp32-room.local (password = SECRET_OTA_PASS)
 #include "secrets.h"   // copy secrets.h.example -> secrets.h and fill in your values (git-ignored)
 
 // ---- credentials come from secrets.h (git-ignored) ----
@@ -242,9 +243,14 @@ void setup() {
   }
   connectWifi();
   connectMqtt();
+  ArduinoOTA.setHostname("esp32-room");              // also its mDNS name; must match the MDNS.begin name
+  ArduinoOTA.setPassword(SECRET_OTA_PASS);
+  ArduinoOTA.setMdnsEnabled(false);             // the sketch already runs mDNS under this name
+  ArduinoOTA.begin();
 }
 
 void loop() {
+  ArduinoOTA.handle();                          // wireless update check (~free when idle)
   if (irrecv.decode(&irres)) {                  // a remote pressed near the receiver -> report what it sent
     if (irres.decode_type != decode_type_t::UNKNOWN || irres.rawlen > 60) {
       char t[48], v[160];
