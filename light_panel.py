@@ -77,6 +77,29 @@ def send(data):
     for q in QS:
         q.put(data)
 
+# ---------- table strip: driven by the room ESP32 (DO -> D32) since 2026-11-18, not by its laggy BLE controller ----------
+class TableQ:
+    """Stands in for a strip queue: decodes the ELK frames everything already sends and publishes the
+    resulting colour to home/room/strip/set (instant, so listen mode stays in step with the bed)."""
+    def __init__(self):
+        import paho.mqtt.client as mqtt
+        try: self.c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        except AttributeError: self.c = mqtt.Client()
+        self.c.username_pw_set("nova", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".mqtt_key")).read().strip())
+        self.c.connect_async("localhost"); self.c.loop_start()
+        self.on, self.rgb, self.bri = True, (255, 150, 60), 100
+        for f in list(LAST.values()): self.put(f)
+    def put(self, d):
+        if not d or len(d) < 4 or d[1] == 6: return                 # wake marker / clock handshake
+        if   d[2] == 4: self.on = d[3] == 0xff
+        elif d[2] == 5: self.rgb = tuple(d[4:7])
+        elif d[2] == 1: self.bri = d[3]
+        else: return                                                 # ponytail: app effects/speed ignored -> keeps its colour
+        r, g, b = [int(x * self.bri / 100) for x in self.rgb] if self.on else (0, 0, 0)
+        self.c.publish("home/room/strip/set", "%d %d %d" % (r, g, b))
+    def qsize(self): return 0
+    def empty(self): return True
+
 # ---------- BLE: one always-on link per MELK strip, renewed every LINK_MAX_S ----------
 # A link held open for minutes went stale on the table controller (reported connected, writes ignored), and
 # per-burst links made the table lag (it reconnects slowly). Renewing a live link every 15 s avoids both.
@@ -118,7 +141,8 @@ async def _ble_loop():
     known, tasks = set(), []
     while True:
         for d in await BleakScanner.discover(timeout=8):
-            if (d.name or "").upper().startswith(("MELK", "ELK")) and d.address not in known:
+            if (d.name or "").upper().startswith(("MELK", "ELK")) and d.address not in known \
+                    and not (d.name or "").endswith(STRIPS["table"]):   # table = ESP32 now (TableQ)
                 known.add(d.address); q = queue.Queue()
                 QS.append(q); NAMES[q] = d.name or ""; tasks.append(asyncio.ensure_future(_strip(d, q)))
                 print("BLE strip found:", d.name, flush=True)
@@ -157,9 +181,8 @@ def _listen_loop():
         r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, LISTEN_FLOOR + (1 - LISTEN_FLOOR) * ema)]
         # straight to the queues, NOT send() (listen colours must not replace LAST). Lockstep: a new colour goes to
         # both strips together once both are ready, so they match; after 1 s a stuck/disconnected strip is skipped.
-        lq = [sq for sq in QS if not NAMES.get(sq, "").endswith(STRIPS["table"])]   # table: own IR music mode instead
-        ready = [sq for sq in lq if sq.empty()]
-        if ready and (len(ready) == len(lq) or time.time() - last > 1.0):
+        ready = [sq for sq in QS if sq.empty()]
+        if ready and (len(ready) == len(QS) or time.time() - last > 1.0):
             for sq in ready: sq.put(Fast(lights._rgb(r, g, b)))
             last = time.time()
         time.sleep(0.05)
@@ -378,6 +401,7 @@ setInterval(async()=>{try{const s=await (await fetch("/state")).json();
 
 
 def main():
+    tq = TableQ(); QS.append(tq); NAMES[tq] = "ESP32 table " + STRIPS["table"]
     threading.Thread(target=_start_ble, daemon=True).start()
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     srv = socketserver.ThreadingTCPServer(("0.0.0.0", PORT), H)

@@ -76,6 +76,19 @@ const uint16_t LG_OFF_RAW[60] = {2932,9783,437,1616,437,586,437,586,437,586,437,
 IRsend irsend(IR_PIN);            // exact learned LG2 frames: "send 88C0051"
 stdAc::state_t acs;                 // power/mode/temp/fan sent as one full LG frame
 const int IR_RX_PIN = 14;
+
+// Table LED strip (3-wire addressable, WS2812-style): DO -> 390R -> D32, strip GND -> G; strip powered by its USB plug.
+// home/room/strip/set "r g b" (0-255) | "off". Replaced the strip's laggy BLE controller 2026-11-18.
+const int STRIP_PIN = 32, STRIP_N = 150;   // calibration knob: STRIP_N >= real LED count (extra = harmless)
+rmt_data_t stripBits[STRIP_N * 24];
+void stripFill(uint8_t r, uint8_t g, uint8_t b) {
+  uint32_t grb = (uint32_t)g << 16 | (uint32_t)r << 8 | b;   // WS2812 wants G,R,B; swap here if colours come out wrong
+  for (int i = 0; i < STRIP_N * 24; i++) {
+    bool one = grb & (1UL << (23 - i % 24));                 // 100 ns ticks: 0 = 0.4/0.8 us, 1 = 0.8/0.4 us
+    stripBits[i] = { (uint16_t)(one ? 8 : 4), 1, (uint16_t)(one ? 4 : 8), 0 };
+  }
+  rmtWrite(STRIP_PIN, stripBits, STRIP_N * 24, RMT_WAIT_FOR_EVER);
+}
 IRrecv irrecv(IR_RX_PIN, 1024, 50, true);   // big buffer: AC frames are long
 decode_results irres;
 
@@ -143,6 +156,7 @@ void onMqtt(char* topic, byte* payload, unsigned int len) {
   if (a < 6 || b < 0) return;
   String dev = tp.substring(a, b);
   if (dev == "ac") { c.trim(); c.toLowerCase(); onAc(c); return; }
+  if (dev == "strip") { int r = 0, g = 0, b = 0; if (c != "off") sscanf(cmd, "%d %d %d", &r, &g, &b); stripFill(r, g, b); return; }
   bool *st; int pin;
   if      (dev == "light") { st = &lightOn; pin = LIGHT_PIN; }
   else if (dev == "fan")   { st = &fanOn;   pin = FAN_PIN;   }
@@ -235,6 +249,7 @@ void setup() {
   digitalWrite(LIGHT_PIN, relayLevel(false));   // start all relays OFF (before anything can switch)
   digitalWrite(FAN_PIN,   relayLevel(false));
   digitalWrite(PLUG_PIN,  relayLevel(false));
+  rmtInit(STRIP_PIN, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000);   // table strip data line, 100 ns ticks
   mqtt.setCallback(onMqtt);
   if (MIC_ON) {                                 // a mic problem must never take the room node (AC, fan, sensors) down
     pinMode(MIC_PWR, OUTPUT); digitalWrite(MIC_PWR, HIGH); delay(100);   // power the mic (~1.4 mA) before I2S starts

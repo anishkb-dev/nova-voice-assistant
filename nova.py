@@ -89,34 +89,12 @@ def _fetch(src):
     vid, _, title = ((r.stdout or "").strip().splitlines() or ["\t"])[0].partition("\t")
     return title or "that", vid, files[0]
 
-# Table strip IR remote (24-key "LED Controller", NEC address 239), learned with the Tuya blaster 2026-11-17.
-# Its Bluetooth ignores fast streams, so during music it runs its own sound-reactive mode instead.
-TABLE_IR = {"on": 2, "off": 3, "music": 20, "music2": 21}
-
-def table_ir(btn):
-    """Press a table-strip remote button via the room node's IR LEDs (Tuya blaster if the node is offline)."""
-    n = TABLE_IR[btn]
-    try:
-        if _mqtt_peek(["home/room/status"]).get("home/room/status") == "online":
-            _pub(mqtt_client(), [("home/room/ac/set", "nec EF00 %d" % n)]); return True   # 239 = 0x00EF, byte-swapped
-    except Exception as e:
-        print("[table] room node failed:", str(e)[:80], flush=True)
-    from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice as C
-    return _tuya_ir(C.pulses_to_base64(C.nec_to_pulses(239, n)))
-
 def _panel_listen(on):
-    """While music plays: bed strip follows it (light panel listen mode), table strip runs its own music mode (IR).
-    After: the panel replays the saved state to both; if that was off, the table also gets IR off. Hub only."""
+    """Bed + table strips follow the music (light panel's listen mode) while it plays; back to normal after. Hub only."""
     if not IS_HUB: return
     import urllib.request
     try: urllib.request.urlopen("http://localhost:8099/listen?on=%d" % on, timeout=3)
     except Exception: swallowed()                             # panel not running -> lights just stay as they are
-    try:
-        if on: table_ir("on"); time.sleep(0.5); table_ir("music")
-        else:
-            st = json.loads(urllib.request.urlopen("http://localhost:8099/state", timeout=3).read())
-            if "OFF" in str(st.get("strips", {}).get("table", "")).upper(): table_ir("off")
-    except Exception: swallowed()
 
 def _start(title, vid, path):
     """Play a fetched file (fade-in, MUSIC_VOL); when it ends on its own, the next song follows."""
