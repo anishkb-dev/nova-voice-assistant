@@ -86,3 +86,6 @@ light_panel.log
 .room_state.json
 supervisor.log
 .nova_off
+.version
+.dev_last.json
+.wiz_ip

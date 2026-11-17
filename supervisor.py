@@ -110,6 +110,8 @@ def status_text():
     lines = ["🔴 Nova is OFF (supervisor still watching)" if nova_off() else "🟢 Nova is ON"]
     for label, bad, _, _ in checks().values():
         lines.append(("❌ %s: %s" % (label, bad)) if bad else "✅ " + label)
+    try: lines.append("🏷 " + open(os.path.join(HERE, ".version")).read().strip())   # written by deploy.sh
+    except OSError: lines.append("🏷 version unknown (not deployed with deploy.sh)")
     return "\n".join(lines)
 
 
