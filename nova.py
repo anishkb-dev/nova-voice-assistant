@@ -33,7 +33,7 @@ def run_command(command: str) -> str:
     except subprocess.TimeoutExpired:
         return "Command timed out after 30s."
 
-_player = None            # the running mpv process, if any
+_player = None            # the running afplay (music) process, if any
 _TRACK = "/tmp/nova_track"
 
 def _ytdlp() -> str:
@@ -68,12 +68,31 @@ def play_music(query: str) -> str:
         err = (r.stderr or "").strip().splitlines()
         return f"Couldn't fetch '{query}'. {err[-1][:200] if err else 'No result.'}"
     title = ((r.stdout or "").strip().splitlines() or [query])[0]
-    # play a bit below full so the mic can still hear "Hey Nova" over the music
-    cmd = (["mpv", "--no-video", "--really-quiet", "--volume=60", files[0]] if shutil.which("mpv")
-           else ["afplay", "-v", "0.6", files[0]])          # hub has no Homebrew -> built-in afplay
-    _player = subprocess.Popen(cmd,
+    try: track = _fade_in(files[0])
+    except Exception: swallowed(); track = files[0]          # no fade beats no music
+    # afplay on both machines (the hub has no Homebrew/mpv); below full so the mics still hear "Nova" over it
+    _player = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return f"Now playing: {title}"
+
+MUSIC_VOL = 0.4      # calibration knob: music level relative to the speaker's volume (user: "always 40%")
+MUSIC_FADE_S = 3.0   # fade-in length
+
+def _fade_in(src, secs=MUSIC_FADE_S):
+    """Decode to WAV with macOS's built-in afconvert and ramp the first `secs` up from silence (afplay can't fade)."""
+    import wave, array
+    wav = _TRACK + ".wav"
+    subprocess.run(["afconvert", "-f", "WAVE", "-d", "LEI16", src, wav], check=True, capture_output=True, timeout=60)
+    with wave.open(wav) as w:
+        p = w.getparams(); data = bytearray(w.readframes(p.nframes))
+    n = min(p.nframes, int(secs * p.framerate)) * p.nchannels      # interleaved samples in the ramp
+    a = array.array("h", bytes(data[:n * 2]))
+    for i in range(n):
+        a[i] = int(a[i] * (i / n) ** 2)                              # squared ramp: sounds even to the ear
+    data[:n * 2] = a.tobytes()
+    with wave.open(wav, "wb") as w:
+        w.setparams(p); w.writeframes(bytes(data))
+    return wav
 
 def music_playing() -> bool:
     return bool(_player and _player.poll() is None) or \
