@@ -77,37 +77,37 @@ def send(data):
     for q in QS:
         q.put(data)
 
-# ---------- BLE: a fresh connection per burst of commands, one per MELK strip ----------
-# A link held open for minutes went stale on the table controller (reported connected, writes ignored),
-# while a fresh connection always worked. So: connect when there's work, send the app's clock handshake
-# plus the full current state (LAST), keep the link while commands keep coming, drop it after 3 s idle.
-# ponytail: ~1-2 s connect lag on the first command after idle; fine for voice, music-listen stays connected.
+# ---------- BLE: one always-on link per MELK strip, renewed every LINK_MAX_S ----------
+# A link held open for minutes went stale on the table controller (reported connected, writes ignored), and
+# per-burst links made the table lag (it reconnects slowly). Renewing a live link every 15 s avoids both.
+# ponytail: the strips are always held, so the phone app can't connect while the panel runs; close the panel to use it.
 async def _strip(dev, q):
+    """Always connected: commands go out at once (the table reconnects slowly, so per-burst links made it lag).
+    The link is renewed every LINK_MAX_S (the table's link goes stale = writes ignored). Saved state (LAST) is
+    replayed only on the first link and after an error, so a renewal never undoes the remote/IR music mode."""
     from bleak import BleakClient
+    fresh = True
     while True:
         try:
-            while q.empty(): await asyncio.sleep(0.05)
             async with BleakClient(dev, timeout=20) as c:
                 _LIVE.add(dev.address)
                 # in listen mode a reconnect must not flash the saved colour (LAST) between listen frames
-                for d in [lights._clock()] + ([lights.ON] if STATE["listen"] else list(LAST.values())):
+                for d in [lights._clock()] + (([lights.ON] if STATE["listen"] else list(LAST.values())) if fresh else []):
                     await c.write_gatt_char(lights.CHAR, d, response=True); await asyncio.sleep(0.15)
-                idle = born = time.time()
-                # listen mode never idles, so cap the link's age: the table's link goes stale (writes ignored)
-                while time.time() - idle < 3 and time.time() - born < LINK_MAX_S:
+                fresh, born = False, time.time()
+                while time.time() - born < LINK_MAX_S:
                     try:
                         d = q.get_nowait()
-                        if d:                                            # b"" = retry wake-up marker
+                        if d:                                            # b"" = old wake-up marker, ignore
                             fast = isinstance(d, Fast)                   # listen frame -> shorter gap
                             # always confirmed: the table controller IGNORES unconfirmed writes (bed accepts them), 2026-11-17
                             await c.write_gatt_char(lights.CHAR, d, response=True)
                             await asyncio.sleep(FAST_GAP if fast else 0.15)   # the table controller needs the gap
-                        idle = time.time()
                     except queue.Empty:
                         await asyncio.sleep(0.03)
         except Exception as e:
             print("BLE %s: %s (retry in 2s)" % (dev.name, str(e)[:70]), flush=True)
-            q.put(b"")                                        # retry: wake the loop to resend LAST
+            fresh = True
             await asyncio.sleep(2)
         _LIVE.discard(dev.address)
 
@@ -129,7 +129,7 @@ def _start_ble():
 
 # ---------- music-reactive listen mode ----------
 class Fast(bytes): """a listen-mode frame: sent with the shorter FAST_GAP"""
-LINK_MAX_S = 15     # calibration knob: reconnect a busy strip this often (stale-link fix); ~1-2 s gap each time
+LINK_MAX_S = 15     # calibration knob: renew each strip's link this often (stale-link fix); ~1-2 s gap each time
 FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
 LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
 def _listen_loop():
