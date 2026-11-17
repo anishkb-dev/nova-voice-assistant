@@ -59,7 +59,7 @@ def _voice_breathe(q):
             lv = 0.15 + 0.85 * (0.5 - 0.5 * math.cos(t))   # 15% -> 100% -> 15%, ~1.5 s per breath
             q.put(lights._rgb(*[int(c * lv) for c in NOVA_RGB])); t += 0.6
         time.sleep(0.12)
-    for f in list(LAST.values()): q.put(f)
+    for f in _replay(): q.put(f)
 _LIVE = set()
 
 LAST = {}    # current power/mode/brightness/speed packets -> replayed to a strip when it (re)connects
@@ -68,56 +68,67 @@ _LAST_F = os.path.expanduser("~/anish-ai/.panel_last.json")   # survives restart
 try: LAST.update({(k if k == "mode" else int(k)): bytes.fromhex(v) for k, v in json.load(open(_LAST_F)).items()})
 except Exception: pass
 
+def _replay():
+    """Saved state to resend to a strip, minus any effect frame (the panel animates effects itself)."""
+    return [f for f in LAST.values() if len(f) < 4 or f[2] != 3]
+
 def send(data):
     if len(data) > 3:   # ELK packet byte 2 = type: 4 power, 5 colour, 3 effect (colour/effect = one "mode"), 1 brightness, 2 speed
         k = "mode" if data[2] in (3, 5) else data[2]
         LAST.pop(k, None); LAST[k] = data
         try: json.dump({str(k): v.hex() for k, v in LAST.items()}, open(_LAST_F, "w"))
         except Exception: pass
+    if len(data) > 3 and data[2] == 3: return              # effect: _effect_loop plays it on both strips
     for q in QS:
         q.put(data)
 
 # ---------- table strip: driven by the room ESP32 (DO -> D32) since 2026-11-18, not by its laggy BLE controller ----------
 class TableQ:
     """Stands in for a strip queue: decodes the ELK frames everything already sends and publishes the
-    resulting colour to home/room/strip/set (instant, so listen mode stays in step with the bed).
-    App effects are imitated here (whole-strip jump / strobe / fade), timed by the effect speed."""
-    SEVEN = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255), (255, 255, 255)]
-    JUMP = {5: SEVEN[:3], 3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to step through
+    resulting colour to home/room/strip/set (instant, so listen mode stays in step with the bed)."""
     def __init__(self):
         import paho.mqtt.client as mqtt
         try: self.c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         except AttributeError: self.c = mqtt.Client()
         self.c.username_pw_set("nova", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".mqtt_key")).read().strip())
         self.c.connect_async("localhost"); self.c.loop_start()
-        self.on, self.rgb, self.bri, self.eff, self.speed = True, (255, 150, 60), 100, None, 50
-        for f in list(LAST.values()): self.put(f)
-        threading.Thread(target=self._anim, daemon=True).start()
-    def _out(self, rgb):
-        r, g, b = [int(x * self.bri / 100) for x in rgb] if self.on else (0, 0, 0)
-        self.c.publish("home/room/strip/set", "%d %d %d" % (r, g, b))
+        self.on, self.rgb, self.bri = True, (255, 150, 60), 100
+        for f in _replay(): self.put(f)
     def put(self, d):
         if not d or len(d) < 4 or d[1] == 6: return                 # wake marker / clock handshake
         if   d[2] == 4: self.on = d[3] == 0xff
-        elif d[2] == 5: self.rgb, self.eff = tuple(d[4:7]), None    # a colour (incl. listen frames) ends an effect
+        elif d[2] == 5: self.rgb = tuple(d[4:7])
         elif d[2] == 1: self.bri = d[3]
-        elif d[2] == 3: self.eff = d[3]; return                     # the animator takes over
-        elif d[2] == 2: self.speed = d[3]; return
-        else: return
-        if self.eff is None or not self.on: self._out(self.rgb)
-    def _anim(self):
-        import colorsys
-        t, h = 0, 0.0
-        while True:
-            e, step = self.eff, 0.15 + 1.35 * (1 - self.speed / 100)   # calibration knob: 1.5 s (slow) .. 0.15 s (fast)
-            if e is None or not self.on: time.sleep(0.1); continue
-            if e in self.JUMP:  cs = self.JUMP[e]; self._out(cs[t % len(cs)]); time.sleep(step)
-            elif e == 196:      self._out(self.SEVEN[t // 2 % 7] if t % 2 == 0 else (0, 0, 0)); time.sleep(step / 3)   # strobe
-            else:                                                    # fade/breathe/flow...: smooth rainbow
-                h = (h + 0.05 / (step * 7)) % 1; self._out(tuple(int(x * 255) for x in colorsys.hsv_to_rgb(h, 1, 1))); time.sleep(0.05)
-            t += 1
+        else: return                                                 # effect/speed: _effect_loop sends colours instead
+        r, g, b = [int(x * self.bri / 100) for x in self.rgb] if self.on else (0, 0, 0)
+        self.c.publish("home/room/strip/set", "%d %d %d" % (r, g, b))
     def qsize(self): return 0
     def empty(self): return True
+
+# ---------- effects: played by the panel on BOTH strips (same colour stream), not by the bed's own controller ----------
+# The bed's built-in effects can't be matched by the ESP32 table, so the panel animates both, listen-mode style.
+SEVEN = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255), (255, 255, 255)]
+JUMP = {5: SEVEN[:3], 3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to step through
+
+def _effect_loop():
+    """Runs forever; animates whenever LAST says an effect is on (so restarts, listen exit etc. resume it)."""
+    t, hue, nxt = 0, 0.0, 0.0
+    while True:
+        m, sp = LAST.get("mode"), LAST.get(2)
+        if not (m is not None and m[2] == 3 and LAST.get(4) == lights.ON and not STATE["listen"]):
+            time.sleep(0.1); continue
+        e, step = m[3], 0.2 + 1.3 * (1 - (sp[3] if sp else 50) / 100)   # calibration knob: 1.5 s (slow) .. 0.2 s (fast)
+        if time.time() < nxt: time.sleep(0.03); continue
+        if e in JUMP:  rgb, wait = JUMP[e][t % len(JUMP[e])], step
+        elif e == 196: rgb, wait = (SEVEN[t // 2 % 7] if t % 2 == 0 else (0, 0, 0)), max(0.2, step / 3)   # strobe
+        else:                                                          # fade/breathe/flow...: smooth rainbow
+            hue = (hue + 0.15 / (step * 7)) % 1; rgb, wait = tuple(int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1, 1)), 0.15
+        # lockstep like listen mode: wait until every strip has sent the last frame (the bed's BLE is the slow one)
+        if any(not sq.empty() for sq in QS) and time.time() - nxt < 1.0: time.sleep(0.03); continue
+        skip = [sq for sq in QS if _voice_on.is_set() and NAMES.get(sq, "").endswith(VOICE_STRIP)]
+        for sq in QS:
+            if sq not in skip: sq.put(Fast(lights._rgb(*rgb)))
+        t += 1; nxt = time.time() + wait
 
 # ---------- BLE: one always-on link per MELK strip, renewed every LINK_MAX_S ----------
 # A link held open for minutes went stale on the table controller (reported connected, writes ignored), and
@@ -134,7 +145,7 @@ async def _strip(dev, q):
             async with BleakClient(dev, timeout=20) as c:
                 _LIVE.add(dev.address)
                 # in listen mode a reconnect must not flash the saved colour (LAST) between listen frames
-                for d in [lights._clock()] + (([lights.ON] if STATE["listen"] else list(LAST.values())) if fresh else []):
+                for d in [lights._clock()] + (([lights.ON] if STATE["listen"] else _replay()) if fresh else []):
                     await c.write_gatt_char(lights.CHAR, d, response=True); await asyncio.sleep(0.15)
                 fresh, born = False, time.time()
                 while time.time() - born < LINK_MAX_S:
@@ -209,7 +220,7 @@ def _listen_loop():
     except Exception: pass
     pa.terminate()
     for sq in QS:                                          # back to how the lights were (incl. off)
-        for f in list(LAST.values()): sq.put(f)
+        for f in _replay(): sq.put(f)
     print("listen stopped")
 
 def _start_listen():
@@ -421,6 +432,7 @@ setInterval(async()=>{try{const s=await (await fetch("/state")).json();
 
 def main():
     tq = TableQ(); QS.append(tq); NAMES[tq] = "ESP32 table " + STRIPS["table"]
+    threading.Thread(target=_effect_loop, daemon=True).start()
     threading.Thread(target=_start_ble, daemon=True).start()
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     srv = socketserver.ThreadingTCPServer(("0.0.0.0", PORT), H)
