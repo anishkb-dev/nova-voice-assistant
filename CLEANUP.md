@@ -28,3 +28,14 @@ Each fix: what changed, why, consequences checked, how to undo.
 - **Consequences checked:** only real key/mouse input counts — a video playing on the Mac does NOT keep the room "occupied". Carrying the laptop to another room keeps the room "occupied" for up to 90 min (lights/AC stay on longer than they should). The walk-in welcome won't fire while you're typing (correct: you never left). Needs the **Mac's Nova restarted** to start pinging; until then nothing changes.
 - Tests: typing blocks lights-off; typing 200 min after the room last saw you does not.
 - **Undo:** set `MAC_PRESENCE_MAX = 0`.
+
+## Fix 6 — automation conflicts
+- **"AC off when cool": 21° → 20°** (re-arms above 22°, was 23°). It used to switch the AC off whenever you set it to 21° yourself and the room got there.
+- **"AC off when the room is empty": only 07:00–23:30.** At night it could switch the AC off while you slept without saying goodnight (sleeping = no motion).
+- **Goodnight: projector off after 60 min** (new delayed step).
+- **Consequences checked:**
+  - Room can now get down to 20° before the AC turns itself off (more cooling, more power).
+  - If you leave the room at night without saying "I'm leaving", the AC stays on until 07:30.
+  - Projector off is an IR *toggle* tracked by Nova: if you switch it off with the physical remote after goodnight, the 60-min step would switch it back **on**. The morning routine's "projector off" now just finds it already off.
+  - JSON is read live — no restart needed; tests still pass.
+- **Undo:** edit the numbers back in automations.json / delete the step in routines.json.
