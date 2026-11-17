@@ -111,7 +111,7 @@ JUMP = {3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to st
 # party (5): long colour bands scroll along the strip; any one spot sees blue -> green -> red, ~2.3 s each at speed 27.
 WIPE = {5: [(0, 0, 255), (0, 255, 0), (255, 0, 0)]}
 BAND = 24   # calibration knob: LEDs per colour band on the table (48 looked too long vs the bed, 2026-11-18)
-GAP = 3     # calibration knob: dark LEDs between bands (the bed has a gap; ~12% of a band on camera)
+GAP = 8     # calibration knob: dark LEDs between bands (3 looked too small vs the bed, 2026-11-18)
 
 def _effect_loop():
     """Runs forever; animates whenever LAST says an effect is on (so restarts, listen exit etc. resume it)."""
