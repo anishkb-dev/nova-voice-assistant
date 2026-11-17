@@ -101,7 +101,8 @@ async def _strip(dev, q):
                         if d:                                            # b"" = old wake-up marker, ignore
                             fast = isinstance(d, Fast)                   # listen frame -> shorter gap
                             # always confirmed: the table controller IGNORES unconfirmed writes (bed accepts them), 2026-11-17
-                            await c.write_gatt_char(lights.CHAR, d, response=True)
+                            t0 = time.time(); await c.write_gatt_char(lights.CHAR, d, response=True)
+                            if time.time() - t0 > 0.5: print("BLE %s: slow write %.1fs, %d queued" % (dev.name, time.time() - t0, q.qsize()), flush=True)
                             await asyncio.sleep(FAST_GAP if fast else 0.15)   # the table controller needs the gap
                     except queue.Empty:
                         await asyncio.sleep(0.03)
