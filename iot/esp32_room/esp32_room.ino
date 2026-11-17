@@ -57,9 +57,10 @@ const int  PIR_PIN = 34;
 bool motionState = false;
 
 // --- LG AC over IR (replaces the Tuya cloud blaster). IR is one-way: we keep the state ourselves. ---
-// Table mic (INMP441): VDD -> 3V pin (NOT 5V), GND -> G, L/R -> G, SCK -> D18, WS -> D19, SD -> D21.
+// Table mic (INMP441): VDD -> D23 S-pin (GPIO set HIGH = 3.3V; the one 3V pin feeds the DHT22, V-rail is 5V),
+//   GND -> G, L/R -> G, SCK -> D18, WS -> D19, SD -> D21.
 const bool MIC_ON = true;                  // false = no mic wired -> don't stream 32 KB/s of silence
-const int  MIC_SCK = 18, MIC_WS = 19, MIC_SD = 21, MIC_N = 512;   // 32 ms per packet @ 16 kHz
+const int  MIC_PWR = 23, MIC_SCK = 18, MIC_WS = 19, MIC_SD = 21, MIC_N = 512;   // 32 ms per packet @ 16 kHz
 int GAIN_SHIFT = 14;                       // calibration knob (as bedmic): lower = louder, raise if speech clips
 I2SClass i2s;
 WiFiUDP udp;
@@ -236,6 +237,7 @@ void setup() {
   digitalWrite(PLUG_PIN,  relayLevel(false));
   mqtt.setCallback(onMqtt);
   if (MIC_ON) {                                 // a mic problem must never take the room node (AC, fan, sensors) down
+    pinMode(MIC_PWR, OUTPUT); digitalWrite(MIC_PWR, HIGH); delay(100);   // power the mic (~1.4 mA) before I2S starts
     memcpy(micPkt, SECRET_MIC_KEY, 16);
     i2s.setPins(MIC_SCK, MIC_WS, -1, MIC_SD);
     micOk = i2s.begin(I2S_MODE_STD, 16000, I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
