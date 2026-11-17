@@ -100,12 +100,12 @@ void stripShow(const uint32_t* px) {                          // per-LED version
   rmtWrite(STRIP_PIN, stripBits, STRIP_N * 24, RMT_WAIT_FOR_EVER);
 }
 
-// "wipe MS c1 c2 ..." (hex RRGGBB): copy of the bed controller's party effect, filmed 2026-11-18 —
-// each colour sweeps in from LED 0 over 60% of MS (no gap, filmed again), then holds. "r g b" stops it.
-uint32_t wipeC[8], stripPx[STRIP_N]; int wipeN = 0; uint32_t wipeMs = 2400, wipeT0 = 0;
-const int WIPE_GAP = 0;                                       // calibration knob: dark band at the front (LEDs); bed has none
+// "scroll MS LEN c1 c2 ..." (hex RRGGBB): copy of the bed controller's party effect, filmed 2026-11-18 —
+// bands of LEN LEDs per colour scroll along the strip continuously, one band passing a point every MS. "r g b" stops it.
+uint32_t wipeC[8], stripPx[STRIP_N]; int wipeN = 0, wipeLen = 48; uint32_t wipeMs = 2300, wipeT0 = 0;
 void wipeStart(String a) {
-  int sp = a.indexOf(' '); wipeMs = max(200L, a.substring(0, sp).toInt()); wipeN = 0;
+  int sp = a.indexOf(' '); wipeMs = max(200L, a.substring(0, sp).toInt());
+  int sp2 = a.indexOf(' ', sp + 1); wipeLen = max(1L, a.substring(sp + 1, sp2).toInt()); sp = sp2; wipeN = 0;
   while (sp > 0 && wipeN < 8) { int nx = a.indexOf(' ', sp + 1); wipeC[wipeN++] = strtoul(a.substring(sp + 1, nx < 0 ? a.length() : nx).c_str(), nullptr, 16); sp = nx; }
   wipeT0 = millis();
 }
@@ -113,11 +113,12 @@ void wipeTick() {
   static uint32_t last = 0;
   if (!wipeN || millis() - last < 25) return;                 // ~40 fps
   last = millis();
-  uint32_t t = millis() - wipeT0; int k = (t / wipeMs) % wipeN;
-  float f = (t % wipeMs) / (0.6f * wipeMs);                   // 0..1 = sweep, >1 = hold
-  int front = f >= 1 ? STRIP_N + WIPE_GAP : (int)(f * (STRIP_N + WIPE_GAP));
-  for (int i = 0; i < STRIP_N; i++)
-    stripPx[i] = i < front - WIPE_GAP ? wipeC[k] : i < front ? 0 : wipeC[(k + wipeN - 1) % wipeN];
+  float shift = (millis() - wipeT0) * (float)wipeLen / wipeMs;  // LEDs moved so far
+  int span = wipeLen * wipeN;
+  for (int i = 0; i < STRIP_N; i++) {
+    int p = ((int)(i - shift) % span + span) % span;           // bands move away from LED 0
+    stripPx[i] = wipeC[p / wipeLen];
+  }
   stripShow(stripPx);
 }
 IRrecv irrecv(IR_RX_PIN, 1024, 50, true);   // big buffer: AC frames are long
@@ -188,7 +189,7 @@ void onMqtt(char* topic, byte* payload, unsigned int len) {
   String dev = tp.substring(a, b);
   if (dev == "ac") { c.trim(); c.toLowerCase(); onAc(c); return; }
   if (dev == "strip") {
-    if (c.startsWith("wipe ")) { wipeStart(c.substring(5)); return; }
+    if (c.startsWith("scroll ")) { wipeStart(c.substring(7)); return; }
     if (c == "count") { wipeN = 0; for (int i = 0; i < STRIP_N; i++) stripPx[i] = i % 50 == 0 ? 0xff0000 : i % 10 == 0 ? 0xffffff : 0; stripShow(stripPx); return; }
     int r = 0, g = 0, b = 0; if (c != "off") sscanf(cmd, "%d %d %d", &r, &g, &b); wipeN = 0; stripFill(r, g, b); return; }
   bool *st; int pin;
