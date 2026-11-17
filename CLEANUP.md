@@ -44,3 +44,10 @@ Each fix: what changed, why, consequences checked, how to undo.
 - **What:** the backup stop only killed `mpv`; the hub plays music with `afplay`, so a song left playing by a Nova restart couldn't be stopped. Now it matches the track file (`/tmp/nova_track.*`) for both "is music playing" and "stop".
 - **Consequences checked:** Nova's own voice also uses `afplay` but never plays `nova_track`, so speech isn't cut (a blanket `pkill afplay` would have). Saying stop while a song is still downloading now also cancels the download (it matches the same file name) — intended.
 - **Undo:** revert the two lines in nova.py `music_playing` / `stop_music`.
+
+## Fix 7 — dead files deleted
+- **Deleted** (nothing referenced them; checked with `git grep`): old UIs `app/nova_hud.html`, `nova_stitch.html`, `index.html`, `index_reactor.html`, `index_scifi_backup.html`, `index_stitch_backup.html`, `index_stark.html`, `index_processor.html`, Stitch design sources `app/stitch_v3/`, `app/stitch_wall/`, `stitch_wall_prompt.md`, `design.md`, and the old `jarvis_run.log` (100 KB, Jarvis era, untracked).
+- Same files removed from the hub (deploy.sh only adds/updates, never deletes).
+- **Kept on purpose:** `nova_v3.html` (Mac UI), `nova_wall.html` (hub wall), `car_control.html` + `nova_vision.html` (RC car chat owns them), `Modelfile` / `Nova.Modelfile` (recipes for the local "nova" Ollama model — needed to rebuild it).
+- **Consequences checked:** the light panel's "/index.html" is its own built-in page, not app/index.html. Nova loads only nova_v3.html / nova_wall.html.
+- **Undo:** `git checkout <commit before this> -- <file>` — everything is in git history.

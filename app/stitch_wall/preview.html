@@ -1,9 +1,0 @@
-<!doctype html><meta charset="utf-8"><title>Nova Wall preview</title>
-<style>html,body{margin:0;height:100%;background:#050302}iframe{border:0;width:100%;height:100%}</style>
-<iframe id="f" src="/nova_wall.html"></iframe>
-<script>/* sample data only: fakes window.pywebview so the HUD shows numbers outside Nova */
-var f=document.getElementById('f');f.onload=function(){var W=f.contentWindow,t=0;
-W.pywebview={api:{stats:function(){t++;return Promise.resolve({cpu:20+t%15,cores:[30,12,45,8,60,5,9,14,2,33].map(function(c){return (c+t*7)%90}),mem:71,mem_gb:11.4,mem_tot:16,swap:12,claude:{ctx:65142,today:0,calls:0},disk_free:26,procs:412,load:2.1,top:{name:'WindowServer'},up:12,down:Math.round(Math.random()*900),bat:{pct:64,plug:true},uptime:200000,wifi:{ssid:'HomeNet',signal:78,up:true},vitals:{integrity:96,temp:51.2,voltage:12.6,status:'NOMINAL'},iot:{fresh:true,temp:24.8,humidity:62,motion:t%6==0},car:{online:true,fresh:true,rssi:-58,throttle:'stop',steer:'center',ts:Date.now()/1000-2}})},
-hud:function(){return Promise.resolve({hub:true,bulb:'on'})},wall:function(){return Promise.resolve({wx:{temp:'22',cond:'Partly cloudy',hi:'27',lo:'18',rain:20,wind:'9',dir:'ENE',place:'Bengaluru'},dev:{ac:['temp 21',0],lights:['orange',0],projector:['off',0]},next:['FREELANCE ONLINE','10:30'],night:location.hash=='#night'})},chat:function(s){return Promise.resolve({reply:'(preview) You said: '+s})},drive:function(){return Promise.resolve()},stop_speaking:function(){return Promise.resolve()}}};
-W.dispatchEvent(new W.Event('pywebviewready'));W.novaVolume(40,false);W.novaHeard('turn on the bulb');W.novaSay('Bulb on, sir.');
-setInterval(function(){W.novaLevel(Math.random()*.8)},120);};</script>
