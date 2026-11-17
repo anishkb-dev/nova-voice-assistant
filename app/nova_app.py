@@ -42,6 +42,7 @@ BARGE_RMS = 400   # loudness floor for frame-level barge-in: your speech clears 
 
 # Tiered brain: Claude -> Groq -> local Qwen (falls through on any error / quota).
 CLAUDE_MODEL = "claude-sonnet-5"   # smartest primary tier: vast knowledge + reasoning (Haiku was faster but shallower)
+MAC_PRESENCE_MAX = 90 * 60   # calibration knob: how long Mac typing alone keeps the room "occupied"
 GROQ_MODEL = "openai/gpt-oss-120b"   # primary: ~0.6s, solid tool calls (needs reasoning_effort=low, set in _brain_openai)
 GROQ_ALT_MODEL = "qwen/qwen3.8-27b"   # 2nd per-model budget; was primary but hit 429 + flaky tool_use_failed
 MLX_MODEL = "mlx-community/Qwen3-8B-4bit"   # private brain: runs on the M4 GPU via ~/anish-ai/.mlx (mlx_lm server)
@@ -208,6 +209,7 @@ class Api:
         if nova.IS_HUB: self._resume_later()    # same for routine steps (goodnight's fade + AC easing)
         if not nova.IS_HUB:
             threading.Thread(target=self._volume_mirror, daemon=True).start()
+            threading.Thread(target=self._presence_ping, daemon=True).start()
         threading.Thread(target=self._health_watch, daemon=True).start()   # Telegram when hub/ESP32 drop off
         if not nova.IS_HUB:                     # scan every new download before it's opened (filecheck.py)
             threading.Thread(target=self._downloads_watch, daemon=True).start()
@@ -452,6 +454,18 @@ class Api:
             type(self)._local_whisper = type(self)._local_whisper or WhisperModel("small.en", device="cpu", compute_type="int8", cpu_threads=8)
         except Exception as e:
             print("[stt] local whisper unavailable:", e, flush=True)
+
+    def _presence_ping(self):
+        """Mac: typing/mouse in the last 90 s -> tell the hub you're here, so the empty-room rules don't switch
+        the lights/AC off while you sit still at the desk (the camera only sees movement). Cleanup fix 2, 2026-11-17."""
+        while True:
+            time.sleep(60)
+            try:
+                o = subprocess.run(["ioreg", "-c", "IOHIDSystem"], capture_output=True, text=True, timeout=5).stdout
+                idle = int(re.search(r'"HIDIdleTime" = (\d+)', o).group(1)) / 1e9
+                if idle < 90: nova._hub_send("present", str(time.time()))
+            except Exception as e:
+                print("[presence] ping failed:", str(e)[:60], flush=True)
 
     def _volume_mirror(self):
         """Keep the hub speaker (Nova's voice) at the Mac's volume — keys, Nova, anything; muted = 0."""
@@ -789,7 +803,10 @@ class Api:
             print("[auto] morning motion -> automations resumed", flush=True)
         try: cam_seen = os.path.getmtime("/tmp/nova_cam_seen")    # hub webcam saw movement (cam_presence.py)
         except OSError: cam_seen = 0
-        last_move = t if moving else max(self._last_motion_ts, self._motion_end_ts, cam_seen)
+        seen = max(self._last_motion_ts, self._motion_end_ts, cam_seen)
+        mac = getattr(self, "_mac_active_ts", 0)   # typing at the Mac counts, but only within 90 min of the room
+        # sensors seeing you: it's a laptop, it may have left the room with you (ponytail: mmWave sensor is the real fix)
+        last_move = t if moving else max(seen, mac if mac - seen < MAC_PRESENCE_MAX else 0)
         empty_for = t - self.__dict__.setdefault("_seen_move", t)   # how long the room was still before this tick
         self._seen_move = last_move
         if not self._auto_state:                                     # rule memory survives restarts (a restart re-armed
@@ -1675,6 +1692,8 @@ class Api:
                                 print("[hub] %s" % k, v, "->", nova.lights(v, mirror=(k == "lights")), flush=True)
                         threading.Thread(target=_strip_worker, daemon=True).start()
                     self._strip_q.put((key, val))
+                elif key == "present":                    # Mac keyboard/mouse in use (see _presence_ping)
+                    self._mac_active_ts = float(val)
                 elif key == "ac_manual":                  # you set the AC yourself: pending AC steps made before that are dropped
                     t = float(val)                        # (their sleeping timers find the job gone and skip)
                     old = lambda x: x["st"].get("do") == "ac" and x["due"] - float(x["st"].get("after_min", 0)) * 60 < t - 1
