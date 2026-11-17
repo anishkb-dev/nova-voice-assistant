@@ -1,7 +1,15 @@
 #!/bin/zsh
-# NovaMac.app: launches the Mac's Nova as its own app, so macOS ties the mic/camera permission to "Nova"
-# instead of Terminal. Started by launchd (com.nova.mac), which also brings it back after a crash or a
-# deliberate self-restart (exit 3 = mic switch). Cleanup fix 5, 2026-11-17.
+# NovaMac.app: launches the Mac's Nova as its own app ("Nova" in the Dock, Cmd-Tab, menu bar; its own permissions).
+# Started by launchd (com.nova.mac), which brings it back after a crash or a self-restart (exit 3). Cleanup fix 5, 2026-11-17.
+# Python runs from a copy inside this bundle (Contents/MacOS/NovaPython) - that is what makes macOS call the process
+# "Nova" instead of "Python". The copy is tied to one Homebrew Python version, so it's refreshed whenever brew upgrades.
 export PATH=/opt/homebrew/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+HERE=${0:A:h}
+SRC=$(/opt/homebrew/bin/python3.14 -c 'import sys, os; print(os.path.join(sys.base_prefix, "Resources/Python.app/Contents/MacOS/Python"))')
+if ! cmp -s "$SRC" "$HERE/NovaPython"; then
+  cp "$SRC" "$HERE/NovaPython" && codesign --force --sign - "$HERE/../.." 2>/dev/null
+  echo "[launcher] refreshed NovaPython from $SRC"
+fi
 cd $HOME/anish-ai/app
-exec /opt/homebrew/bin/python3.14 nova_app.py >> $HOME/anish-ai/app/nova.log 2>&1
+if [ -x "$HERE/NovaPython" ]; then exec "$HERE/NovaPython" nova_app.py >> $HOME/anish-ai/app/nova.log 2>&1; fi
+exec /opt/homebrew/bin/python3.14 nova_app.py >> $HOME/anish-ai/app/nova.log 2>&1   # fallback: shows as "Python"

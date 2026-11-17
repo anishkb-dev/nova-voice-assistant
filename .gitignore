@@ -89,3 +89,4 @@ supervisor.log
 .version
 .dev_last.json
 .wiz_ip
+iot/NovaMac.app/Contents/MacOS/NovaPython
