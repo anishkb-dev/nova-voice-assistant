@@ -79,7 +79,7 @@ const int IR_RX_PIN = 14;
 
 // Table LED strip (3-wire addressable, WS2812-style): DO -> 390R -> D32, strip GND -> G; strip powered by its USB plug.
 // home/room/strip/set "r g b" (0-255) | "off". Replaced the strip's laggy BLE controller 2026-11-18.
-const int STRIP_PIN = 32, STRIP_N = 150;   // calibration knob: STRIP_N >= real LED count (extra = harmless)
+const int STRIP_PIN = 32, STRIP_N = 145;   // calibration knob: real LED count, 141-149 (counted 2026-11-18); the wipe sweeps exactly this many
 rmt_data_t stripBits[STRIP_N * 24];
 void stripFill(uint8_t r, uint8_t g, uint8_t b) {
   uint32_t grb = (uint32_t)g << 16 | (uint32_t)r << 8 | b;   // WS2812 wants G,R,B; swap here if colours come out wrong
@@ -189,7 +189,7 @@ void onMqtt(char* topic, byte* payload, unsigned int len) {
   if (dev == "ac") { c.trim(); c.toLowerCase(); onAc(c); return; }
   if (dev == "strip") {
     if (c.startsWith("wipe ")) { wipeStart(c.substring(5)); return; }
-    if (c == "count") { wipeN = 0; for (int i = 0; i < STRIP_N; i++) stripPx[i] = i == 0 ? 0xff0000 : i % 10 == 0 ? 0xffffff : 0; stripShow(stripPx); return; }
+    if (c == "count") { wipeN = 0; for (int i = 0; i < STRIP_N; i++) stripPx[i] = i % 50 == 0 ? 0xff0000 : i % 10 == 0 ? 0xffffff : 0; stripShow(stripPx); return; }
     int r = 0, g = 0, b = 0; if (c != "off") sscanf(cmd, "%d %d %d", &r, &g, &b); wipeN = 0; stripFill(r, g, b); return; }
   bool *st; int pin;
   if      (dev == "light") { st = &lightOn; pin = LIGHT_PIN; }
