@@ -96,8 +96,9 @@ async def _strip(dev, q):
                     try:
                         d = q.get_nowait()
                         if d:                                            # b"" = retry wake-up marker
-                            fast = isinstance(d, Fast)                   # listen frames: a lost one is replaced 0.1 s later
-                            await c.write_gatt_char(lights.CHAR, d, response=not fast)   # commands stay confirmed
+                            fast = isinstance(d, Fast)                   # listen frame -> shorter gap
+                            # always confirmed: the table controller IGNORES unconfirmed writes (bed accepts them), 2026-11-17
+                            await c.write_gatt_char(lights.CHAR, d, response=True)
                             await asyncio.sleep(FAST_GAP if fast else 0.15)   # the table controller needs the gap
                         idle = time.time()
                     except queue.Empty:
@@ -125,7 +126,7 @@ def _start_ble():
     asyncio.run(_ble_loop())
 
 # ---------- music-reactive listen mode ----------
-class Fast(bytes): """a listen-mode frame: sent unconfirmed (speed over certainty)"""
+class Fast(bytes): """a listen-mode frame: sent with the shorter FAST_GAP"""
 FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
 LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
 def _listen_loop():
