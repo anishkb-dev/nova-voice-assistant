@@ -70,3 +70,8 @@ Each fix: what changed, why, consequences checked, how to undo.
 - New icon (amber HUD rings + star): `NovaMac.app/Contents/Resources/nova.icns`, and the Mac's Dock icon is set at runtime from `app/nova_icon.png` (the process is Python.app, so the bundle icon alone doesn't reach the Dock).
 - **Undo:** drag Nova-old-jarvis.app back from the Trash.
 - **Name fix:** the app showed as "Python" (the running program was Homebrew's Python.app). The launcher now runs a copy of the Python binary from inside the bundle (`Contents/MacOS/NovaPython`, git-ignored), so macOS shows **"Nova"** in the Dock, Cmd-Tab and menu bar. The copy is tied to one Python version: the launcher compares it with Homebrew's on every start and re-copies + re-signs after a `brew upgrade`; if the copy can't run it falls back to plain python3.14 (shows "Python" again, still works).
+
+## Wall screen asks for the password after waking — DDC monitor-off TRIED, doesn't work here
+- Cause: the hub locks the screen 300 s after display sleep (`sysadminctl -screenLock` delay 300); goodnight / "wallpaper off" sleep the display, so the morning / I'm-home wake shows the login screen.
+- Tried switching the Samsung S24D300 off over DDC/CI instead (no macOS sleep → no lock): wrote a small IOKit tool, built on the hub. All 3 framebuffer I2C buses refuse the transaction (`e00002e6`) — the 2015 Air's video path (mini-DP/Thunderbolt → HDMI) doesn't pass DDC. Tool deleted (no dead code left).
+- Remaining fix: `ssh -t nova-hub 'sysadminctl -screenLock off -password -'` (user runs it; needs the hub password). Trade-off: anyone physically at the hub's keyboard is logged in. FileVault still asks after a reboot.
