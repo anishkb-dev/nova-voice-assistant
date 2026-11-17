@@ -12,10 +12,10 @@ CHANGED=$(git ls-files | rsync -aic -e "ssh -o LogLevel=ERROR" $DRY --files-from
 echo "${CHANGED:-(nothing changed)}"
 [ -n "$DRY" ] && exit 0
 VER="$(git log -1 --format='%h %s' | tr -d "'\\" | cut -c1-60) ($(date '+%d %b %H:%M'))"
-ssh "$HUB" "echo '$VER' > ~/anish-ai/.version"
+ssh -o LogLevel=ERROR "$HUB" "echo '$VER' > ~/anish-ai/.version"
 [ -z "$CHANGED" ] && exit 0
 
-hub() { ssh "$HUB" "$1" 2>&1 | grep -v -i "quantum\|store now\|upgraded" || true; }
+hub() { ssh -o LogLevel=ERROR "$HUB" "$1" 2>&1 | grep -v -i "quantum\|store now\|upgraded" || true; }
 if echo "$CHANGED" | grep -q '^supervisor\.py$'; then
   hub 'launchctl kickstart -k gui/$(id -u)/com.nova.supervisor'; echo "restarted supervisor"
 fi
