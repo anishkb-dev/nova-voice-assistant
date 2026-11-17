@@ -89,6 +89,13 @@ def _fetch(src):
     vid, _, title = ((r.stdout or "").strip().splitlines() or ["\t"])[0].partition("\t")
     return title or "that", vid, files[0]
 
+def _panel_listen(on):
+    """Bed + table strips follow the music (light panel's listen mode) while it plays; back to normal after. Hub only."""
+    if not IS_HUB: return
+    import urllib.request
+    try: urllib.request.urlopen("http://localhost:8099/listen?on=%d" % on, timeout=3)
+    except Exception: swallowed()                             # panel not running -> lights just stay as they are
+
 def _start(title, vid, path):
     """Play a fetched file (fade-in, MUSIC_VOL); when it ends on its own, the next song follows."""
     global _player
@@ -98,10 +105,12 @@ def _start(title, vid, path):
     _player = p = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if vid: _played.add(vid)
+    _panel_listen(1)
     g = _gen
     def after():
         if p.wait() == 0 and g == _gen:      # 0 = played to the end (stop/skip kill it -> negative)
-            print("[music] next:", _next(g), flush=True)
+            r = _next(g); print("[music] next:", r, flush=True)
+            if not r.startswith(("Now playing", "replaced")): _panel_listen(0)   # queue ran out
     threading.Thread(target=after, daemon=True).start()
     return "Now playing: " + title
 
@@ -136,8 +145,21 @@ def _next(g=None):
 
 _last_vid = [""]   # radio seed: the song that played most recently
 
+# Music always plays on the hub speaker (user, 2026-11-17): the Mac's brain hands every music call to the hub,
+# which runs the same function locally (nova_app hub key "music") and speaks any failure itself.
+_MUSIC_REMOTE = lambda: not IS_HUB
+_remote_on = [False]
+
+def _music_remote(fn, **kw):
+    _hub_send("music", json.dumps({"fn": fn, "kw": kw}))
+    _remote_on[0] = fn != "stop_music"
+    return {"play_music": "Playing %s on the hub speaker." % kw.get("query", ""),
+            "play_playlist": "Playing %s on the hub speaker." % ("that playlist" if kw.get("url") else "your playlist"),
+            "next_song": "Skipping to the next song.", "stop_music": "Music stopped."}[fn]
+
 def play_music(query: str) -> str:
     """Play a song by name (YouTube Music, free, no account); more like it follows automatically. Replaces anything playing."""
+    if _MUSIC_REMOTE(): return _music_remote("play_music", query=query)
     with _mlock:
         stop_music(); g = _gen
         # YouTube Music's "songs" tab first (official audio, not live/cover videos), plain YouTube if that finds nothing
@@ -153,6 +175,7 @@ def play_music(query: str) -> str:
 
 def play_playlist(url: str = "", shuffle: bool = False) -> str:
     """Play a YouTube / YouTube Music playlist song by song. No url = the user's own playlist (MY_PLAYLIST)."""
+    if _MUSIC_REMOTE(): return _music_remote("play_playlist", url=url, shuffle=shuffle)
     url = (url or MY_PLAYLIST).strip()
     if not url:
         return "I don't have your playlist link yet — send it to me (public or unlisted)."
@@ -169,6 +192,7 @@ def play_playlist(url: str = "", shuffle: bool = False) -> str:
 
 def next_song() -> str:
     """Skip to the next song (the playlist's next, or a similar song)."""
+    if _MUSIC_REMOTE(): return _music_remote("next_song")
     global _gen
     with _mlock:
         _gen += 1                            # the killed song must not advance a second time
@@ -176,12 +200,15 @@ def next_song() -> str:
         return _next()
 
 def music_playing() -> bool:
+    if _MUSIC_REMOTE(): return _remote_on[0]   # our last word to the hub (a queue that ran out isn't seen; harmless)
     return bool(_player and _player.poll() is None) or \
         subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0   # afplay of a track
 
 def stop_music() -> str:
     """Stop the music (and the queue / autoplay)."""
+    if _MUSIC_REMOTE(): return _music_remote("stop_music")
     global _player, _gen
+    _panel_listen(0)
     _gen += 1; _queue.clear()               # no lock: must not wait behind a download; a pending fetch sees _gen and quits
     if _player and _player.poll() is None:
         _player.terminate()

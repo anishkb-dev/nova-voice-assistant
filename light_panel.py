@@ -145,11 +145,14 @@ def _listen_loop():
         ema = 0.6 * ema + 0.4 * level                      # smooth the loudness
         hue = (hue + 0.006 + ema * 0.04) % 1.0             # hue drifts, faster when louder
         r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, max(0.08, ema))]
-        send(lights._rgb(r, g, b))
+        for sq in QS:                                      # straight to the strips, NOT send(): listen colours must not
+            if sq.qsize() < 2: sq.put(lights._rgb(r, g, b))   # replace the saved state (LAST) it returns to
         time.sleep(0.05)
     try: st.close()
     except Exception: pass
     pa.terminate()
+    for sq in QS:                                          # back to how the lights were (incl. off)
+        for f in list(LAST.values()): sq.put(f)
     print("listen stopped")
 
 def _start_listen():
@@ -157,6 +160,7 @@ def _start_listen():
     if STATE["listen"]:
         return
     STATE["listen"] = True
+    for sq in QS: sq.put(lights.ON)                        # lights off -> on for the music (restored after)
     _listen_thread = threading.Thread(target=_listen_loop, daemon=True)
     _listen_thread.start()
 

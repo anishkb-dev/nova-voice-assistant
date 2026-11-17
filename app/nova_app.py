@@ -449,6 +449,13 @@ class Api(Voice, Brain, Automations):
                     print("[hub] stop", flush=True)
                 elif key == "volume":
                     print("[hub] volume", val, "->", nova.set_volume(val), flush=True)
+                elif key == "music":                      # the Mac's brain: music always plays on this speaker
+                    def _music_here(j=json.loads(val)):
+                        r = getattr(nova, j["fn"])(**j["kw"])
+                        print("[hub] music %s -> %s" % (j["fn"], r[:100]), flush=True)
+                        if not r.startswith(("Now playing", "Music stopped", "Nothing was", "Cancelled", "replaced")):
+                            nova._hub_send("say", r)      # tell him why (no fetch, private playlist...)
+                    threading.Thread(target=_music_here, daemon=True).start()
                 return
             if m.topic.startswith("home/car/"):          # ---- RC car ----
                 cd = self._car_data
