@@ -96,8 +96,9 @@ async def _strip(dev, q):
                     try:
                         d = q.get_nowait()
                         if d:                                            # b"" = retry wake-up marker
-                            await c.write_gatt_char(lights.CHAR, d, response=True)   # confirmed writes
-                            await asyncio.sleep(0.15)                    # the table controller needs the gap
+                            fast = isinstance(d, Fast)                   # listen frames: a lost one is replaced 0.1 s later
+                            await c.write_gatt_char(lights.CHAR, d, response=not fast)   # commands stay confirmed
+                            await asyncio.sleep(FAST_GAP if fast else 0.15)   # the table controller needs the gap
                         idle = time.time()
                     except queue.Empty:
                         await asyncio.sleep(0.03)
@@ -124,6 +125,8 @@ def _start_ble():
     asyncio.run(_ble_loop())
 
 # ---------- music-reactive listen mode ----------
+class Fast(bytes): """a listen-mode frame: sent unconfirmed (speed over certainty)"""
+FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
 LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
 def _listen_loop():
     try:
@@ -135,7 +138,7 @@ def _listen_loop():
         st = pa.open(rate=16000, channels=1, format=pyaudio.paInt16, input=True, frames_per_buffer=1024)
     except Exception as e:
         print("mic open failed:", e); STATE["listen"] = False; pa.terminate(); return
-    hue, ema = 0.0, 0.0
+    hue, ema, last = 0.0, 0.0, 0.0
     while STATE["listen"]:
         try:
             buf = np.frombuffer(st.read(1024, exception_on_overflow=False), dtype=np.int16).astype(np.float32)
@@ -147,8 +150,12 @@ def _listen_loop():
         hue = (hue + 0.006 + ema * 0.04) % 1.0             # hue drifts, faster when louder
         # floor 30%: the table controller shows very dim colours as OFF (at 8% it looked dead, 2026-11-17)
         r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, LISTEN_FLOOR + (1 - LISTEN_FLOOR) * ema)]
-        for sq in QS:                                      # straight to the strips, NOT send(): listen colours must not
-            if sq.empty(): sq.put(lights._rgb(r, g, b))    # replace LAST; empty = each strip at its own pace (table is slow)
+        # straight to the queues, NOT send() (listen colours must not replace LAST). Lockstep: a new colour goes to
+        # both strips together once both are ready, so they match; after 1 s a stuck/disconnected strip is skipped.
+        ready = [sq for sq in QS if sq.empty()]
+        if ready and (len(ready) == len(QS) or time.time() - last > 1.0):
+            for sq in ready: sq.put(Fast(lights._rgb(r, g, b)))
+            last = time.time()
         time.sleep(0.05)
     try: st.close()
     except Exception: pass
