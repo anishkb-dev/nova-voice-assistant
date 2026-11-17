@@ -250,7 +250,7 @@ class Api:
             with open(self.MEM_PATH, "w") as f:
                 json.dump(self.memory, f, indent=2)
         except Exception:
-            pass
+            nova.swallowed()
 
     def _load_convo(self):
         try:
@@ -264,7 +264,7 @@ class Api:
             with open(self.CONVO_PATH, "w") as f:
                 json.dump(self.messages[-12:], f)
         except Exception:
-            pass
+            nova.swallowed()
 
     def remember(self, fact):
         """Store a durable fact about the user for future sessions."""
@@ -354,7 +354,7 @@ class Api:
                 if gen == self._speak_gen:
                     self._say = subprocess.Popen(["say", "-v", "Daniel", "-r", "184", spoken])
             except Exception:
-                pass
+                nova.swallowed()
             return
 
         if len(chunks) > 1:                           # remaining chunks: synth + play in the background
@@ -374,7 +374,7 @@ class Api:
                     try:
                         prev.wait()
                     except Exception:
-                        pass
+                        nova.swallowed()
                     if gen != self._speak_gen:
                         return
                     self._say = _play(f, chunks[i])
@@ -388,7 +388,7 @@ class Api:
         try:   # port open = server alive. (An HTTP GET hung while it was busy synthesizing -> false "down"
             socket.create_connection(("127.0.0.1", 8089), timeout=0.3).close(); return True   # -> edge-tts talked over Daniel)
         except Exception:
-            pass
+            nova.swallowed()
         if not (self._kokoro_proc and self._kokoro_proc.poll() is None):
             self._kokoro_proc = subprocess.Popen(
                 [os.path.expanduser("~/anish-ai/.mlx/bin/python"), os.path.expanduser("~/anish-ai/tts_server.py")],
@@ -479,7 +479,7 @@ class Api:
                 if lvl != last:
                     nova._hub_send("volume", lvl); last = lvl
             except Exception:
-                pass
+                nova.swallowed()
             time.sleep(2)   # ponytail: polled, ~2 s lag; no CoreAudio listener needed
 
     def _hub_audio_player(self):
@@ -499,7 +499,7 @@ class Api:
                 try:                                 # voice fingerprint: remember what we play + when (echofp)
                     self._ref_segs = (self._ref_segs + [(time.time(), echofp.wav_env(wav))])[-8:]
                 except Exception:
-                    pass
+                    nova.swallowed()
                 t0 = time.time()
                 while self._local_talking and time.time() - t0 < 30: time.sleep(0.1)   # hub's own speech first
                 self._clip_on = True
@@ -517,7 +517,7 @@ class Api:
         def go():
             import urllib.request
             try: urllib.request.urlopen("http://localhost:8099/voice?on=%d" % on, timeout=3)
-            except Exception: pass                   # panel not running -> nothing to animate
+            except Exception: nova.swallowed()                   # panel not running -> nothing to animate
         threading.Thread(target=go, daemon=True).start()
 
     def stop_speaking(self):
@@ -526,7 +526,7 @@ class Api:
             if self._say and self._say.poll() is None:
                 self._say.terminate()
         except Exception:
-            pass
+            nova.swallowed()
         subprocess.run(["pkill", "-x", "afplay"], capture_output=True)
         subprocess.run(["killall", "say"], capture_output=True)
         if not nova.IS_HUB:
@@ -811,7 +811,7 @@ class Api:
         self._seen_move = last_move
         if not self._auto_state:                                     # rule memory survives restarts (a restart re-armed
             try: self._auto_state.update(json.load(open(self._AUTO_F)))   # "AC on when hot" and it fired again)
-            except Exception: pass
+            except Exception: nova.swallowed()
         before = json.dumps(self._auto_state, sort_keys=True)
         if any("light" in ru.get("if", {}) for ru in rules):         # the light is the WiZ bulb, not the dead relay K1
             import wiz
@@ -933,7 +933,7 @@ class Api:
         try:
             webview.windows[0].evaluate_js(code)
         except Exception:
-            pass
+            nova.swallowed()
 
     def _placeholder(self, msg):
         self._js('var b=document.getElementById("box"); if(b) b.placeholder=' + json.dumps(msg) + ';')
@@ -988,13 +988,13 @@ class Api:
         try:
             self._select_input_mic()             # pick the mic (USB lavalier preferred); never blocks startup
         except Exception:
-            pass
+            nova.swallowed()
         def _warm_nr():                          # pre-compile noisereduce's numba JIT so the 1st reply isn't slow
             try:
                 import noisereduce as _nr
                 _nr.reduce_noise(y=np.zeros(16000, np.float32), sr=16000, stationary=True)
             except Exception:
-                pass
+                nova.swallowed()
         threading.Thread(target=_warm_nr, daemon=True).start()
         try:
             import pyaudio
@@ -1097,7 +1097,7 @@ class Api:
                 import noisereduce as _nr            # room/AC noise so Whisper reads a quiet mic correctly
                 p = _nr.reduce_noise(y=p, sr=RATE, stationary=True, prop_decrease=0.85).astype(np.float32)
             except Exception:
-                pass
+                nova.swallowed()
             r0 = float(np.sqrt(np.mean(p ** 2))) or 1.0   # then amplify to Whisper's sweet spot, no clip
             pk = float(np.abs(p).max()) or 1.0
             p = np.clip(p * min(2000.0 / r0, 30000.0 / pk), -32768, 32767).astype(np.int16)
@@ -1111,7 +1111,7 @@ class Api:
                 open("/tmp/nova_stt/%d.wav" % int(time.time() * 1000), "wb").write(wav_bytes)
                 for old in sorted(os.listdir("/tmp/nova_stt"))[:-20]: os.unlink("/tmp/nova_stt/" + old)
             except Exception:
-                pass
+                nova.swallowed()
 
             txt = ""
             # 1) LOCAL Whisper base.en (sherpa-onnx, ~1 s on the hub): no network, no quota, no limits
@@ -1195,7 +1195,7 @@ class Api:
             try:                                       # drop Nova's voice + the beep from the buffer
                 while stream.get_read_available() >= FRAME: stream.read(FRAME, exception_on_overflow=False)
             except Exception:
-                pass
+                nova.swallowed()
             ans = transcribe(record_command(floor, hang_ms=hang_ms, start_ms=4000)) or ""
             print("[hf] answer=%r" % ans, flush=True)
             return ans
@@ -1253,7 +1253,7 @@ class Api:
         try:
             calib = json.load(open(os.path.expanduser("~/anish-ai/voice_calib.json")))
         except Exception:
-            pass
+            nova.swallowed()
         if calib.get("mic") and calib["mic"].lower() not in str(dev_name).lower():
             calib = {}                           # calibrated on a different mic -> its levels don't apply here
         if calib.get("trigger"):
@@ -1381,7 +1381,7 @@ class Api:
                         try:
                             while not self._audio_q.empty(): self._audio_q.get_nowait()
                         except Exception:
-                            pass
+                            nova.swallowed()
                         self.stop_speaking(); self._hub_speaking = False
                         nova._hub_send("heard", "__stop__")   # Mac: stop synthesizing the rest
                         rest = (heard[wm.end():] if wm else heard if you and not sw else "").strip(" ,.?!").lower()
@@ -1407,7 +1407,7 @@ class Api:
                             while stream.get_read_available() >= FRAME:
                                 stream.read(FRAME, exception_on_overflow=False)
                         except Exception:
-                            pass
+                            nova.swallowed()
                         ring.clear()
                     self._placeholder("Listening… — just talk, no need to say Nova")
                     got = ""; _end = time.time() + 20   # listen ~20s for a follow-up (no wake word needed)
@@ -1456,7 +1456,7 @@ class Api:
             try:
                 stream.stop_stream(); stream.close(); pa.terminate()
             except Exception:
-                pass
+                nova.swallowed()
 
     WELCOME_GAP = 300   # seconds of no motion that counts as "away" -> greet on return
 
@@ -1497,7 +1497,7 @@ class Api:
             gesture_was_on = nova.gesture_control("stop").startswith("Gesture control off")  # free the Lapcare
             time.sleep(1.2)                              # let the camera actually release
         except Exception:
-            pass
+            nova.swallowed()
         try:
             import face_id
             who = face_id.is_owner(timeout=3.0)          # True=you, False=someone else, None=no face/not enrolled
@@ -1507,7 +1507,7 @@ class Api:
             try:
                 nova.gesture_control("start")          # hand the camera back to gesture control
             except Exception:
-                pass
+                nova.swallowed()
         if who is not True:                               # someone else, or no face seen -> stay quiet
             print("[iot] motion, face not recognised (%s) — staying quiet" % who, flush=True); return
         if os.path.exists(self._AWAY_F): self._set_away(False)   # it's you -> back home
@@ -1732,7 +1732,7 @@ class Api:
                         cd["online"] = True
                     cd["ts"] = time.time()
                 except Exception:
-                    pass
+                    nova.swallowed()
                 return
             d = self._iot_data
             try:
@@ -1909,7 +1909,7 @@ class Api:
                 if time.time() - float(raw[1]) < 1.2:   # written in the last ~1s => gesture active
                     v, fresh = int(raw[0]), True
             except Exception:
-                pass
+                nova.swallowed()
             tick += 1
             if not fresh and tick % 6 == 0:             # ~every 300ms when idle
                 rv, rm = self._read_volume()
@@ -1938,7 +1938,7 @@ class Api:
                 if mt: temp = int(mt.group(1)) / 100.0
                 if mv: volt = int(mv.group(1)) / 1000.0
             except Exception:
-                pass
+                nova.swallowed()
             cache = (now, temp, volt)
             self._vit_bat = cache
         _, temp, volt = cache
@@ -1975,7 +1975,7 @@ class Api:
             if b:
                 bat = {"pct": round(b.percent), "plug": bool(b.power_plugged)}
         except Exception:
-            pass
+            nova.swallowed()
         try:
             load1 = round(os.getloadavg()[0], 2)
         except Exception:
@@ -1990,7 +1990,7 @@ class Api:
             if best:
                 top = {"name": best[0][:16], "cpu": round(best[1] / ncore)}
         except Exception:
-            pass
+            nova.swallowed()
 
         return {"cpu": round(cpu), "cores": [round(c) for c in cores], "ncore": ncore,
                 "mem": round(mem.percent), "mem_gb": round((mem.total - mem.available) / 1024**3, 1),   # matches mem.percent (macOS "used" undercounts)
@@ -2018,7 +2018,7 @@ class Api:
         try:
             b = psutil.sensors_battery()
             if b: bat = {"pct": round(b.percent), "plug": bool(b.power_plugged)}
-        except Exception: pass
+        except Exception: nova.swallowed()
         return {"iot": {**self._iot_data, "fresh": (now - self._iot_data["ts"]) < 12}, "bat": bat,
                 "hub": True if nova.IS_HUB else getattr(self, "_hub_app_on", None), "bulb": getattr(self, "_bulb", None), "bulb_desc": getattr(self, "_bulb_desc", None)}
 
@@ -2045,13 +2045,13 @@ class Api:
                     h, m = map(int, r["at"].split(":")); at = t.replace(hour=h, minute=m, second=0)
                     if at <= t: at += datetime.timedelta(days=1)
                     if not nxt or at < nxt[1]: nxt = (k, at)
-        except Exception: pass
+        except Exception: nova.swallowed()
         lr = getattr(self, "_last_routine", None)
         strips = None
         try:
             import urllib.request
             strips = json.load(urllib.request.urlopen("http://localhost:8099/state", timeout=0.3)).get("strips")
-        except Exception: pass
+        except Exception: nova.swallowed()
         return {"wx": getattr(self, "_wx", None), "dev": nova.dev_last(), "strips": strips,
                 "ac": self._iot_data.get("ac_full"), "projector": self._iot_data.get("projector"),
                 "next": [nxt[0].replace("_", " ").upper(), nxt[1].strftime("%H:%M")] if nxt else None,
@@ -2080,7 +2080,7 @@ class Api:
                     info["signal"] = max(0, min(100, round((int(m.group(1)) + 90) / 60 * 100)))
                     info["up"] = True
         except Exception:
-            pass
+            nova.swallowed()
         self._wifi_cache, self._wifi_t = info, now
         return info
 
@@ -2122,7 +2122,7 @@ class Api:
                     except OSError: pass
                     try:                                   # token bar: conversation size back to zero
                         import json as _j; _u = nova.claude_usage(); _u["ctx"] = 0; _j.dump(_u, open(nova.CLAUDE_USAGE, "w"))
-                    except Exception: pass
+                    except Exception: nova.swallowed()
                     reply = "Fresh Claude conversation started, sir."
                 else:
                     self.speak("One moment, sir.")
@@ -2299,7 +2299,7 @@ class Api:
         try:
             urllib.request.urlopen(MLX_URL + "/models", timeout=1); return True
         except Exception:
-            pass
+            nova.swallowed()
         # GPU memory can't swap: loading with too little free RAM froze the whole Mac (2026-11-08).
         if psutil.virtual_memory().available < 7 * 2**30:
             print("[private] refusing to load MLX: only %.1f GB free" % (psutil.virtual_memory().available / 2**30), flush=True)
@@ -2529,7 +2529,7 @@ class Api:
             except OSError:
                 pass
         except Exception:
-            pass
+            nova.swallowed()
 
     def _run_tool(self, fn, args):
         result = self._exec_tool(fn, args)
@@ -2650,7 +2650,7 @@ class Api:
             with open(self.VPROFILE_PATH) as f:
                 base.update(json.load(f))
         except Exception:
-            pass
+            nova.swallowed()
         return base
 
     def _save_vprofile(self):
@@ -2660,7 +2660,7 @@ class Api:
             with open(self.VPROFILE_PATH, "w") as f:
                 json.dump(vp, f)
         except Exception:
-            pass
+            nova.swallowed()
 
     def _vp_learn(self, text):
         """After a successful command, learn your words (builds a personal vocabulary) + adapt timing."""
@@ -2768,7 +2768,7 @@ class Api:
                     elif t >= 19:
                         self._alerted["cold"] = False
             except Exception:
-                pass
+                nova.swallowed()
 
     def _proactive(self, text):
         if not self._auto_on:                              # asleep (good night paused automations): don't speak up unasked
@@ -2852,7 +2852,7 @@ def main():
         try:
             if ON_SENSES: api.set_handsfree(True)   # START LISTENING FIRST — never let a later step block it
         except Exception:
-            pass
+            nova.swallowed()
         if nova.IS_HUB:       # timed routines, sensor rules + room guard live on the hub only (else they'd fire twice)
             threading.Thread(target=api._automation_loop, daemon=True).start()
             threading.Thread(target=nova.ensure_panel, daemon=True).start()   # strips' BLE server, survives hub reboots
@@ -2863,12 +2863,12 @@ def main():
             if v.isdigit() and int(v) < 25:
                 subprocess.run(["osascript", "-e", "set volume output volume 55"], capture_output=True, timeout=5)
         except Exception:
-            pass
+            nova.swallowed()
         try:
             time.sleep(1.5)
             if not nova.IS_HUB: api.status_brief()   # NOVA-style spoken boot report (the Mac talks, not the hub)
         except Exception:
-            pass
+            nova.swallowed()
         threading.Thread(target=api._monitor, daemon=True).start()   # proactive alerts
     if HEADLESS and not DISPLAY:   # hub (broken screen): no window; UI calls fail soft, confirm dialogs auto-deny
         _autostart()

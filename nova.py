@@ -155,6 +155,16 @@ def notify(title: str, message: str = "") -> str:
     subprocess.run(["osascript", "-e", f'display notification "{m}" with title "{t}"'], capture_output=True)
     return "Notification shown."
 
+
+_IGNORED = {}
+def swallowed():
+    """Log an exception we deliberately ignore - once per place+message per hour, so a loop can't flood the log.
+    Replaces silent `except Exception: pass` (cleanup fix 9, 2026-11-17)."""
+    e, f = sys.exc_info()[1], sys._getframe(1)
+    k = "%s:%s:%d %s" % (os.path.basename(f.f_code.co_filename), f.f_code.co_name, f.f_lineno, repr(e)[:150])
+    if time.time() - _IGNORED.get(k, 0) > 3600:
+        _IGNORED[k] = time.time(); print("[ignored]", k, flush=True)
+
 SPEAK = None   # nova_app sets this to its speak() -> reminders talk as Daniel on the room speaker
 
 def _remind_line(msg):
@@ -173,14 +183,14 @@ def _remind_line(msg):
         if 5 < len(line) < 200:
             return line
     except Exception:
-        pass
+        swallowed()
     return "Pardon me, sir. A reminder: %s." % msg.rstrip(". ")
 
 def _speak_reminder(msg):
     text = _remind_line(msg)
     if SPEAK:
         try: SPEAK(text); return
-        except Exception: pass
+        except Exception: swallowed()
     subprocess.run(["say", "-v", "Daniel", text], capture_output=True)   # no app running -> Mac voice
 
 _REM_F = os.path.expanduser("~/anish-ai/.reminders.json")   # pending timed reminders; survive restarts
@@ -490,7 +500,7 @@ def _dev(name, cmd):
         cmd = "%s %d%%" % (d.get("lights_mode", "on"), d.get("lights_bri", 100))
     d[name] = [cmd, time.time()]
     try: json.dump(d, open(DEV_FILE, "w"))
-    except Exception: pass
+    except Exception: swallowed()
 
 def dev_last():
     try: return json.load(open(DEV_FILE))
@@ -504,7 +514,7 @@ def ac(command: str, routine: bool = False) -> str:
     cmd = (command or "").lower().strip()
     if not routine and cmd not in ("", "status"):     # you changed it yourself -> the hub drops pending scheduled AC
         try: _hub_send("ac_manual", str(time.time()))   # steps (goodnight's 26 overrode a manual 21, 2026-11-17)
-        except Exception: pass
+        except Exception: swallowed()
     # "temp 21 for 5 min" -> do it, then put the AC back the way it was after N minutes
     m = re.search(r"\s*\bfor\s+(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?)\b", cmd)
     if m:
@@ -583,7 +593,7 @@ def ensure_panel():
     Runs as a child of hub Nova so it inherits NovaHub.app's Bluetooth permission (a launchd job wouldn't)."""
     import urllib.request, subprocess
     try: urllib.request.urlopen("http://localhost:8099/state", timeout=0.4); return False
-    except Exception: pass
+    except Exception: swallowed()
     subprocess.Popen([sys.executable, os.path.expanduser("~/anish-ai/light_panel.py")], start_new_session=True,
                      stdout=open(os.path.expanduser("~/anish-ai/light_panel.log"), "a"), stderr=subprocess.STDOUT)
     return True
@@ -639,7 +649,7 @@ def _tuya_ir(code):
             r = ir.set_value(201, json.dumps({"control": "send_ir", "head": "", "key1": "1" + code, "type": 0}))
             if not (isinstance(r, dict) and r.get("Error")): return True
         except Exception:
-            pass
+            swallowed()
         if attempt == 0:                                     # unreachable -> scan for its new IP, save it
             ip = (tinytuya.find_device(d["id"]) or {}).get("ip")
             if ip and ip != d["ip"]:
@@ -748,7 +758,7 @@ def iot_status() -> str:
         val = m.payload.decode()
         if key == "telemetry":                       # sim sends a JSON blob
             try: data.update(_json.loads(val))
-            except Exception: pass
+            except Exception: swallowed()
         elif val != "":                              # real ESP32 sends per-topic values
             data[key] = val
     c = mqtt_client()
@@ -873,7 +883,7 @@ def _session_ctx():
                 n = sum(u.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"))
                 _ctx_cache = (mt, n); return n
     except Exception:
-        pass
+        swallowed()
     return 0
 
 def claude(message: str, new: bool = False) -> str:
@@ -1005,7 +1015,7 @@ def design(prompt: str) -> str:
     try:
         subprocess.run(["open", path], check=False)       # macOS: open in default browser
     except Exception:
-        pass
+        swallowed()
     return "Done, sir — I designed that and opened it in your browser. Saved to nova_designs, via %s." % r.get("provider", "?")
 
 def _osa(script, timeout=25):
@@ -1092,7 +1102,7 @@ def _overnight_telegram(max_items=6):
         except Exception as e:
             print("[wake] hub telegram log unavailable:", e, flush=True)
     try: open(_TG_READ_F, "w").write(str(time.time()))
-    except Exception: pass
+    except Exception: swallowed()
     return _tg_spoken(sorted(rows, key=lambda r: r["ts"]), max_items)
 
 
@@ -1296,7 +1306,7 @@ def _safe_warm():
     try:
         ollama.chat(model=MODEL, messages=[{"role": "user", "content": "hi"}], keep_alive="30m")
     except Exception:
-        pass
+        swallowed()
 
 def main():
     C, DIM, R = "\033[38;5;44m", "\033[2m", "\033[0m"
