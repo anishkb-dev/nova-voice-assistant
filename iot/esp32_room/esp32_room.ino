@@ -89,6 +89,37 @@ void stripFill(uint8_t r, uint8_t g, uint8_t b) {
   }
   rmtWrite(STRIP_PIN, stripBits, STRIP_N * 24, RMT_WAIT_FOR_EVER);
 }
+void stripShow(const uint32_t* px) {                          // per-LED version: px[i] = 0xRRGGBB
+  for (int i = 0; i < STRIP_N; i++) {
+    uint32_t c = px[i], grb = (c & 0x00ff00) << 8 | (c & 0xff0000) >> 8 | (c & 0xff);
+    for (int k = 0; k < 24; k++) {
+      bool one = grb & (1UL << (23 - k));
+      stripBits[i * 24 + k] = { (uint16_t)(one ? 8 : 4), 1, (uint16_t)(one ? 4 : 8), 0 };
+    }
+  }
+  rmtWrite(STRIP_PIN, stripBits, STRIP_N * 24, RMT_WAIT_FOR_EVER);
+}
+
+// "wipe MS c1 c2 ..." (hex RRGGBB): copy of the bed controller's party effect, filmed 2026-11-18 —
+// each colour sweeps in from LED 0 over 60% of MS with a dark gap at its front, then holds. "r g b" stops it.
+uint32_t wipeC[8], stripPx[STRIP_N]; int wipeN = 0; uint32_t wipeMs = 2400, wipeT0 = 0;
+const int WIPE_GAP = STRIP_N / 8;                             // calibration knob: dark band at the front (LEDs)
+void wipeStart(String a) {
+  int sp = a.indexOf(' '); wipeMs = max(200L, a.substring(0, sp).toInt()); wipeN = 0;
+  while (sp > 0 && wipeN < 8) { int nx = a.indexOf(' ', sp + 1); wipeC[wipeN++] = strtoul(a.substring(sp + 1, nx < 0 ? a.length() : nx).c_str(), nullptr, 16); sp = nx; }
+  wipeT0 = millis();
+}
+void wipeTick() {
+  static uint32_t last = 0;
+  if (!wipeN || millis() - last < 25) return;                 // ~40 fps
+  last = millis();
+  uint32_t t = millis() - wipeT0; int k = (t / wipeMs) % wipeN;
+  float f = (t % wipeMs) / (0.6f * wipeMs);                   // 0..1 = sweep, >1 = hold
+  int front = f >= 1 ? STRIP_N + WIPE_GAP : (int)(f * (STRIP_N + WIPE_GAP));
+  for (int i = 0; i < STRIP_N; i++)
+    stripPx[i] = i < front - WIPE_GAP ? wipeC[k] : i < front ? 0 : wipeC[(k + wipeN - 1) % wipeN];
+  stripShow(stripPx);
+}
 IRrecv irrecv(IR_RX_PIN, 1024, 50, true);   // big buffer: AC frames are long
 decode_results irres;
 
@@ -150,13 +181,16 @@ void onAc(String c) {
 
 // home/room/<dev>/set  with payload on|off|toggle  (published by Nova + the dashboard)
 void onMqtt(char* topic, byte* payload, unsigned int len) {
-  char cmd[24] = {0}; memcpy(cmd, payload, len < 23 ? len : 23);
+  char cmd[96] = {0}; memcpy(cmd, payload, len < 95 ? len : 95);
   String tp = topic, c = cmd;
   int a = tp.indexOf("/room/") + 6, b = tp.indexOf("/set");
   if (a < 6 || b < 0) return;
   String dev = tp.substring(a, b);
   if (dev == "ac") { c.trim(); c.toLowerCase(); onAc(c); return; }
-  if (dev == "strip") { int r = 0, g = 0, b = 0; if (c != "off") sscanf(cmd, "%d %d %d", &r, &g, &b); stripFill(r, g, b); return; }
+  if (dev == "strip") {
+    if (c.startsWith("wipe ")) { wipeStart(c.substring(5)); return; }
+    if (c == "count") { wipeN = 0; for (int i = 0; i < STRIP_N; i++) stripPx[i] = i == 0 ? 0xff0000 : i % 10 == 0 ? 0xffffff : 0; stripShow(stripPx); return; }
+    int r = 0, g = 0, b = 0; if (c != "off") sscanf(cmd, "%d %d %d", &r, &g, &b); wipeN = 0; stripFill(r, g, b); return; }
   bool *st; int pin;
   if      (dev == "light") { st = &lightOn; pin = LIGHT_PIN; }
   else if (dev == "fan")   { st = &fanOn;   pin = FAN_PIN;   }
@@ -282,6 +316,7 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) connectWifi();
   if (!mqtt.connected()) connectMqtt();
   mqtt.loop();
+  wipeTick();
 
   // Motion: read every loop (not just every 2s) and publish the instant it changes -> instant HUD/Nova update.
   bool m = digitalRead(PIR_PIN) == HIGH;

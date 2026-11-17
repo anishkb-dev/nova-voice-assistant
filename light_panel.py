@@ -106,7 +106,10 @@ class TableQ:
 
 # ---------- effects: the bed runs its controller's built-in effect; the panel imitates it on the ESP32 table ----------
 SEVEN = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255), (255, 255, 255)]
-JUMP = {5: SEVEN[:3], 3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to step through
+JUMP = {3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to step through (not yet filmed on the bed)
+# Filmed on the bed (Mac camera, 2026-11-18) and copied in the ESP32 firmware ("wipe"): effect id -> colour order.
+# party (5): each colour sweeps along the strip with a dark gap at its front, ~2.4 s per colour at speed 27.
+WIPE = {5: [(0, 0, 255), (0, 255, 0), (255, 0, 0)]}
 
 def _effect_loop():
     """Runs forever; animates whenever LAST says an effect is on (so restarts, listen exit etc. resume it)."""
@@ -114,8 +117,17 @@ def _effect_loop():
     while True:
         m, sp = LAST.get("mode"), LAST.get(2)
         if not (m is not None and m[2] == 3 and LAST.get(4) == lights.ON and not STATE["listen"]):
-            time.sleep(0.1); continue
+            _effect_loop.sent = None; time.sleep(0.1); continue
         e, step = m[3], 0.2 + 1.3 * (1 - (sp[3] if sp else 50) / 100)   # calibration knob: 1.5 s (slow) .. 0.2 s (fast)
+        if e in WIPE:                                                  # the ESP32 animates it; send the command once
+            b = LAST[1][3] if LAST.get(1) else 100
+            ms = int(2400 * (110 - (sp[3] if sp else 27)) / 83)        # calibration knob: 2400 ms at speed 27 (filmed)
+            cmd = "wipe %d " % ms + " ".join("%02x%02x%02x" % tuple(int(c * b / 100) for c in rgb) for rgb in WIPE[e])
+            if cmd != _effect_loop.sent or _voice_on.is_set():
+                for sq in QS:
+                    if isinstance(sq, TableQ) and not _voice_on.is_set(): sq.c.publish("home/room/strip/set", cmd)
+                _effect_loop.sent = None if _voice_on.is_set() else cmd
+            time.sleep(0.2); continue
         if time.time() < nxt: time.sleep(0.03); continue
         if e in JUMP:  rgb, wait = JUMP[e][t % len(JUMP[e])], step
         elif e == 196: rgb, wait = (SEVEN[t // 2 % 7] if t % 2 == 0 else (0, 0, 0)), max(0.2, step / 3)   # strobe
@@ -124,7 +136,10 @@ def _effect_loop():
         if not _voice_on.is_set():
             for sq in QS:
                 if isinstance(sq, TableQ): sq.put(Fast(lights._rgb(*rgb)))
+        _effect_loop.sent = None
         t += 1; nxt = time.time() + wait
+
+_effect_loop.sent = None   # last "wipe" command sent to the table
 
 # ---------- BLE: one always-on link per MELK strip, renewed every LINK_MAX_S ----------
 # A link held open for minutes went stale on the table controller (reported connected, writes ignored), and
