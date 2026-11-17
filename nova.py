@@ -64,7 +64,7 @@ def _fade_in(src, secs=MUSIC_FADE_S):
     return wav
 
 MUSIC_AUTOPLAY = True   # when the queue runs out, keep going with YouTube Music's radio for the last song
-MY_PLAYLIST = ""        # user's YouTube Music playlist link (public/unlisted) for "play my playlist"
+MY_PLAYLIST = "https://music.youtube.com/playlist?list=PLHhDPWA2A4bU"   # "Spotify Liked Songs" (unlisted) for "play my playlist"
 _queue = []             # [(url, title)] still to play
 _played = set()         # video ids played this session (radio skips them)
 _gen = 0                # bumped by every play/stop: a finished song only advances if nothing replaced it
