@@ -101,7 +101,8 @@ def checks():
                     except OSError: ip = None
                     add(key, label, None if ip in hb.get("mics", []) else
                         ("no audio from %s" % ip if ip else "%s not on Wi-Fi (power?)" % host), 300)
-            add("camera", "Camera (presence)", None if running("cam_presence[.]py") else "not running", 300)
+            if not os.path.exists(os.path.join(HERE, ".asleep")):   # goodnight turns the camera off on purpose
+                add("camera", "Camera (presence)", None if running("cam_presence[.]py") else "not running", 300)
     return out
 
 
