@@ -69,8 +69,8 @@ try: LAST.update({(k if k == "mode" else int(k)): bytes.fromhex(v) for k, v in j
 except Exception: pass
 
 def _replay():
-    """Saved state to resend to a strip, minus any effect frame (the panel animates effects itself)."""
-    return [f for f in LAST.values() if len(f) < 4 or f[2] != 3]
+    """Saved state to resend to a strip (TableQ ignores effect frames; _effect_loop animates the table)."""
+    return list(LAST.values())
 
 def send(data):
     if len(data) > 3:   # ELK packet byte 2 = type: 4 power, 5 colour, 3 effect (colour/effect = one "mode"), 1 brightness, 2 speed
@@ -78,7 +78,6 @@ def send(data):
         LAST.pop(k, None); LAST[k] = data
         try: json.dump({str(k): v.hex() for k, v in LAST.items()}, open(_LAST_F, "w"))
         except Exception: pass
-    if len(data) > 3 and data[2] == 3: return              # effect: _effect_loop plays it on both strips
     for q in QS:
         q.put(data)
 
@@ -105,8 +104,7 @@ class TableQ:
     def qsize(self): return 0
     def empty(self): return True
 
-# ---------- effects: played by the panel on BOTH strips (same colour stream), not by the bed's own controller ----------
-# The bed's built-in effects can't be matched by the ESP32 table, so the panel animates both, listen-mode style.
+# ---------- effects: the bed runs its controller's built-in effect; the panel imitates it on the ESP32 table ----------
 SEVEN = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255), (255, 255, 255)]
 JUMP = {5: SEVEN[:3], 3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to step through
 
@@ -123,11 +121,9 @@ def _effect_loop():
         elif e == 196: rgb, wait = (SEVEN[t // 2 % 7] if t % 2 == 0 else (0, 0, 0)), max(0.2, step / 3)   # strobe
         else:                                                          # fade/breathe/flow...: smooth rainbow
             hue = (hue + 0.15 / (step * 7)) % 1; rgb, wait = tuple(int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1, 1)), 0.15
-        # lockstep like listen mode: wait until every strip has sent the last frame (the bed's BLE is the slow one)
-        if any(not sq.empty() for sq in QS) and time.time() - nxt < 1.0: time.sleep(0.03); continue
-        skip = [sq for sq in QS if _voice_on.is_set() and NAMES.get(sq, "").endswith(VOICE_STRIP)]
-        for sq in QS:
-            if sq not in skip: sq.put(Fast(lights._rgb(*rgb)))
+        if not _voice_on.is_set():
+            for sq in QS:
+                if isinstance(sq, TableQ): sq.put(Fast(lights._rgb(*rgb)))
         t += 1; nxt = time.time() + wait
 
 # ---------- BLE: one always-on link per MELK strip, renewed every LINK_MAX_S ----------
