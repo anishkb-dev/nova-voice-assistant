@@ -75,3 +75,10 @@ Each fix: what changed, why, consequences checked, how to undo.
 - Cause: the hub locks the screen 300 s after display sleep (`sysadminctl -screenLock` delay 300); goodnight / "wallpaper off" sleep the display, so the morning / I'm-home wake shows the login screen.
 - Tried switching the Samsung S24D300 off over DDC/CI instead (no macOS sleep → no lock): wrote a small IOKit tool, built on the hub. All 3 framebuffer I2C buses refuse the transaction (`e00002e6`) — the 2015 Air's video path (mini-DP/Thunderbolt → HDMI) doesn't pass DDC. Tool deleted (no dead code left).
 - Remaining fix: `ssh -t nova-hub 'sysadminctl -screenLock off -password -'` (user runs it; needs the hub password). Trade-off: anyone physically at the hub's keyboard is logged in. FileVault still asks after a reboot.
+
+## Fix 9 — ignored errors are logged instead of vanishing
+- **What:** all 51 `except Exception: pass` in nova.py / nova_app.py now call `swallowed()`, which prints `[ignored] file:function:line Error(...)` — **once per place+message per hour**, so an error inside a fast loop can't flood the log.
+- **First run found:** the HUD's "top process" scan crashed on the first protected process (`kernel_task`) every time — it never worked. Fixed (skip processes we can't read). Also: the Mac's Wi-Fi panel sometimes times out reading `system_profiler` (kept logged); the hub has no Claude session file (normal → now not logged).
+- **Consequences checked:** behaviour is unchanged — same exceptions are still ignored, they're just visible. Cost only happens when an exception actually occurs. Expect a few new `[ignored]` lines; each one is either a hidden bug (fix it) or an expected case (narrow the `except`).
+- **Undo:** replace `swallowed()` with `pass`.
+- Also: hub screen lock turned **off** by the user (`sysadminctl -screenLock off`), so the wall screen wakes to the HUD, not the login window.

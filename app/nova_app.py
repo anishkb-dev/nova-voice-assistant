@@ -1984,7 +1984,8 @@ class Api:
         try:
             best = None
             for p in psutil.process_iter(["name"]):
-                c = p.cpu_percent()
+                try: c = p.cpu_percent()
+                except (psutil.AccessDenied, psutil.NoSuchProcess): continue   # kernel_task etc. aborted the whole scan
                 if best is None or c > best[1]:
                     best = (p.info.get("name") or "?", c)
             if best:

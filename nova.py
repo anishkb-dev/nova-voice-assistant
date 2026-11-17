@@ -882,6 +882,8 @@ def _session_ctx():
                 except Exception: continue
                 n = sum(u.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"))
                 _ctx_cache = (mt, n); return n
+    except FileNotFoundError:
+        pass                                   # no Claude session yet (normal on the hub)
     except Exception:
         swallowed()
     return 0
