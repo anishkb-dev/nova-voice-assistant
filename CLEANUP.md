@@ -64,3 +64,8 @@ Each fix: what changed, why, consequences checked, how to undo.
   - If the permission prompt is missed/denied, macOS gives silent audio (rms=1) instead of an error — check System Settings → Privacy → Microphone → Nova.
 - **Undo:** `nova-stop`, delete `~/Library/LaunchAgents/com.nova.mac.plist`, start it from Terminal as before.
 - **Result (16:40):** running under launchd as "Nova" (`com.nova.mac`), window up, room data live. No mic prompt appeared — by design the Mac's Nova doesn't use the mic (`ON_SENSES` is hub-only; the hub mics do the listening), so the old "must start from Terminal" rule no longer applies. Restart = `nova-restart`.
+
+## Old Nova.app removed + icon
+- `~/Applications/Nova.app` (Jarvis-era launcher, bundle id com.svpreme.jarvis, logged to app/jarvis.log) **moved to Trash** as `Nova-old-jarvis.app`, and its login item "Jarvis" removed. It started at every login and raced the new launcher (source of the repeated "another instance is already running" lines).
+- New icon (amber HUD rings + star): `NovaMac.app/Contents/Resources/nova.icns`, and the Mac's Dock icon is set at runtime from `app/nova_icon.png` (the process is Python.app, so the bundle icon alone doesn't reach the Dock).
+- **Undo:** drag Nova-old-jarvis.app back from the Trash.
