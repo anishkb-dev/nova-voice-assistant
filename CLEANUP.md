@@ -39,3 +39,8 @@ Each fix: what changed, why, consequences checked, how to undo.
   - Projector off is an IR *toggle* tracked by Nova: if you switch it off with the physical remote after goodnight, the 60-min step would switch it back **on**. The morning routine's "projector off" now just finds it already off.
   - JSON is read live — no restart needed; tests still pass.
 - **Undo:** edit the numbers back in automations.json / delete the step in routines.json.
+
+## Fix 8 — "stop the music" works after a restart on the hub too
+- **What:** the backup stop only killed `mpv`; the hub plays music with `afplay`, so a song left playing by a Nova restart couldn't be stopped. Now it matches the track file (`/tmp/nova_track.*`) for both "is music playing" and "stop".
+- **Consequences checked:** Nova's own voice also uses `afplay` but never plays `nova_track`, so speech isn't cut (a blanket `pkill afplay` would have). Saying stop while a song is still downloading now also cancels the download (it matches the same file name) — intended.
+- **Undo:** revert the two lines in nova.py `music_playing` / `stop_music`.

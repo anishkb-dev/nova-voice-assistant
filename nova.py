@@ -77,7 +77,7 @@ def play_music(query: str) -> str:
 
 def music_playing() -> bool:
     return bool(_player and _player.poll() is None) or \
-        subprocess.run(["pgrep", "-x", "mpv"], capture_output=True).returncode == 0
+        subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0   # mpv or afplay
 
 def stop_music() -> str:
     """Stop any music that is currently playing."""
@@ -86,7 +86,8 @@ def stop_music() -> str:
         _player.terminate()
         _player = None
         return "Music stopped."
-    subprocess.run(["pkill", "-x", "mpv"], capture_output=True)  # backstop for stray players
+    # backstop for a player left by a restart: match the track file, so Nova's own speech (also afplay) survives
+    if subprocess.run(["pkill", "-f", "nova_track[.]"], capture_output=True).returncode == 0: return "Music stopped."
     return "Nothing was playing."
 
 def set_volume(level: int) -> str:
