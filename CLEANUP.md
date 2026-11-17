@@ -82,3 +82,15 @@ Each fix: what changed, why, consequences checked, how to undo.
 - **Consequences checked:** behaviour is unchanged — same exceptions are still ignored, they're just visible. Cost only happens when an exception actually occurs. Expect a few new `[ignored]` lines; each one is either a hidden bug (fix it) or an expected case (narrow the `except`).
 - **Undo:** replace `swallowed()` with `pass`.
 - Also: hub screen lock turned **off** by the user (`sysadminctl -screenLock off`), so the wall screen wakes to the HUD, not the login window.
+
+## Fix 10 — nova_app.py split into 5 files (code moved verbatim)
+- `app/nova_app.py` (2,890 lines) →
+  - `nova_common.py` (184) — the constants + module helpers that were above `class Api` (WAKE_RE, model names, DIRECT_CMD, TO_NOVA…)
+  - `nova_voice.py` (934) — `class Voice`: speak, local voice, STT, hands-free mic loop, mic select, voice profile
+  - `nova_brain.py` (496) — `class Brain`: chat, LLM tiers, tools, confirm + audit
+  - `nova_automations.py` (312) — `class Automations`: routines, delayed steps, sensor rules, sleep/away flags
+  - `nova_app.py` (996) — `class Api(Voice, Brain, Automations)`: __init__, devices/MQTT listener, health, HUD/wall data, main()
+- Done by a script that cut the file by method name — no line was retyped.
+- **Checks:** every original line is present exactly once (only file headers + `class Api(...)` changed); no undefined names in any file (symtable scan); the new `Api` has exactly the same attributes/methods with the same types as the old one; automations test + netmic self-check pass; both machines restarted on it.
+- **Consequences:** nothing calls Nova's code from outside except `test_automations.py` (still works through `nova_app.Api`). File names are `nova_*` so they can't shadow a library module. Future edits: search all `app/nova_*.py`, not just nova_app.py.
+- **Undo:** `git revert` this commit (single commit) + `./deploy.sh`; then delete the 4 `app/nova_*.py` files on the hub by hand (deploy never deletes).
