@@ -106,7 +106,7 @@ STT_PROMPT = ("Nova, projector, laser, nebula, stars, galaxy, rainbow, aqua, dim
 STT_FIXES = {"noa": "Nova", "noah": "Nova", "noali": "Nova", "nuaal": "Nova", "nava": "Nova", "leaser": "laser", "lazer": "laser", "leasers": "lasers", "lazers": "lasers", "nebular": "nebula"}
 
 TOOL_HINTS = [   # (regex on the latest user turns, extra tools)
-    (r"music|song|play|pause|spotify|track", {"play_music", "stop_music", "mute"}),
+    (r"music|song|play|pause|spotify|track|skip|next", {"play_music", "stop_music", "play_playlist", "next_song", "mute"}),
     (r"remind|calendar|meeting|schedule|event|appointment|timer|alarm|tomorrow|notify", {"set_reminder", "create_reminder", "create_calendar_event", "notify"}),
     (r"message|text |whatsapp|imessage|send", {"send_imessage", "send_whatsapp"}),
     (r"screen|screenshot|look at|what.?s this", {"take_screenshot", "look"}),

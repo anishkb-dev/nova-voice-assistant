@@ -44,37 +44,6 @@ def _ytdlp() -> str:
             return p
     return "yt-dlp"
 
-def play_music(query: str) -> str:
-    """Download the top YouTube audio result and play it locally (free, no account). Replaces anything playing."""
-    global _player
-    stop_music()
-    for f in glob.glob(_TRACK + ".*"):
-        try: os.remove(f)
-        except OSError: pass
-    # YouTube Music's "songs" tab first (official audio, not live/cover videos), plain YouTube if that finds nothing
-    ytm = "https://music.youtube.com/search?q=" + urllib.parse.quote_plus(query) + "#songs"
-    for src in (ytm, f"ytsearch1:{query}"):
-        try:
-            r = subprocess.run(
-                [_ytdlp(), "-f", "bestaudio[ext=m4a]/bestaudio", "--playlist-items", "1", "--no-update",
-                 "-o", _TRACK + ".%(ext)s", "--force-overwrites",
-                 "--print", "%(title)s", "--no-simulate", src],
-                capture_output=True, text=True, timeout=90)
-        except subprocess.TimeoutExpired:
-            return "Timed out fetching the track — check your internet connection."
-        files = glob.glob(_TRACK + ".*")
-        if files: break
-    if not files:
-        err = (r.stderr or "").strip().splitlines()
-        return f"Couldn't fetch '{query}'. {err[-1][:200] if err else 'No result.'}"
-    title = ((r.stdout or "").strip().splitlines() or [query])[0]
-    try: track = _fade_in(files[0])
-    except Exception: swallowed(); track = files[0]          # no fade beats no music
-    # afplay on both machines (the hub has no Homebrew/mpv); below full so the mics still hear "Nova" over it
-    _player = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return f"Now playing: {title}"
-
 MUSIC_VOL = 0.4      # calibration knob: music level relative to the speaker's volume (user: "always 40%")
 MUSIC_FADE_S = 3.0   # fade-in length
 
@@ -94,13 +63,126 @@ def _fade_in(src, secs=MUSIC_FADE_S):
         w.setparams(p); w.writeframes(bytes(data))
     return wav
 
+MUSIC_AUTOPLAY = True   # when the queue runs out, keep going with YouTube Music's radio for the last song
+MY_PLAYLIST = ""        # user's YouTube Music playlist link (public/unlisted) for "play my playlist"
+_queue = []             # [(url, title)] still to play
+_played = set()         # video ids played this session (radio skips them)
+_gen = 0                # bumped by every play/stop: a finished song only advances if nothing replaced it
+_mlock = threading.RLock()
+
+def _fetch(src):
+    """Download one track from src (a search/watch URL) to _TRACK.*; returns (title, id) or an error string."""
+    for f in glob.glob(_TRACK + ".*"):
+        try: os.remove(f)
+        except OSError: pass
+    try:
+        r = subprocess.run([_ytdlp(), "-f", "bestaudio[ext=m4a]/bestaudio", "--playlist-items", "1", "--no-update",
+                            "-o", _TRACK + ".%(ext)s", "--force-overwrites",
+                            "--print", "%(id)s\t%(title)s", "--no-simulate", src],
+                           capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        return "Timed out fetching the track — check your internet connection."
+    files = glob.glob(_TRACK + ".*")
+    if not files:
+        err = (r.stderr or "").strip().splitlines()
+        return err[-1][:200] if err else "No result."
+    vid, _, title = ((r.stdout or "").strip().splitlines() or ["\t"])[0].partition("\t")
+    return title or "that", vid, files[0]
+
+def _start(title, vid, path):
+    """Play a fetched file (fade-in, MUSIC_VOL); when it ends on its own, the next song follows."""
+    global _player
+    try: track = _fade_in(path)
+    except Exception: swallowed(); track = path              # no fade beats no music
+    # afplay on both machines (the hub has no Homebrew/mpv); below full so the mics still hear "Nova" over it
+    _player = p = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if vid: _played.add(vid)
+    g = _gen
+    def after():
+        if p.wait() == 0 and g == _gen:      # 0 = played to the end (stop/skip kill it -> negative)
+            print("[music] next:", _next(g), flush=True)
+    threading.Thread(target=after, daemon=True).start()
+    return "Now playing: " + title
+
+def _flat(url, items="1-200"):
+    """[(watch url, title)] of a playlist/radio without downloading anything."""
+    r = subprocess.run([_ytdlp(), "--no-update", "--flat-playlist", "--playlist-items", items,
+                        "--print", "%(id)s\t%(title)s", url], capture_output=True, text=True, timeout=60)
+    out = []
+    for line in r.stdout.splitlines():
+        vid, _, title = line.partition("\t")
+        if vid: out.append(("https://music.youtube.com/watch?v=" + vid, title))
+    return out
+
+def _next(g=None):
+    """Play the next queued song; queue empty -> radio of the last song (MUSIC_AUTOPLAY). Skips unplayable songs."""
+    with _mlock:
+        g = _gen if g is None else g
+        for _ in range(5):                   # a few removed/blocked songs in a row, then give up
+            if not _queue and MUSIC_AUTOPLAY and _played:
+                last = _last_vid[0]
+                _queue.extend(x for x in _flat("https://music.youtube.com/watch?v=%s&list=RDAMVM%s" % (last, last), "2-15")
+                              if x[0].rsplit("=", 1)[1] not in _played)
+            if not _queue: return "Queue finished."
+            url, title = _queue.pop(0)
+            if g != _gen: return "replaced"   # stopped / replaced while we worked
+            got = _fetch(url)
+            if g != _gen: return "replaced"
+            if isinstance(got, tuple):
+                _last_vid[0] = got[1] or _last_vid[0]
+                return _start(got[0] or title, *got[1:])
+        return "Couldn't play the next songs."
+
+_last_vid = [""]   # radio seed: the song that played most recently
+
+def play_music(query: str) -> str:
+    """Play a song by name (YouTube Music, free, no account); more like it follows automatically. Replaces anything playing."""
+    with _mlock:
+        stop_music(); g = _gen
+        # YouTube Music's "songs" tab first (official audio, not live/cover videos), plain YouTube if that finds nothing
+        ytm = "https://music.youtube.com/search?q=" + urllib.parse.quote_plus(query) + "#songs"
+        for src in (ytm, f"ytsearch1:{query}"):
+            got = _fetch(src)
+            if isinstance(got, tuple): break
+        if not isinstance(got, tuple):
+            return f"Couldn't fetch '{query}'. {got}"
+        if g != _gen: return "Cancelled."         # "stop" came while it downloaded
+        _last_vid[0] = got[1]
+        return _start(*got)
+
+def play_playlist(url: str = "", shuffle: bool = False) -> str:
+    """Play a YouTube / YouTube Music playlist song by song. No url = the user's own playlist (MY_PLAYLIST)."""
+    url = (url or MY_PLAYLIST).strip()
+    if not url:
+        return "I don't have your playlist link yet — send it to me (public or unlisted)."
+    with _mlock:
+        stop_music()
+        items = _flat(url)
+        if not items:
+            return "I couldn't open that playlist — it may be private or the link is incomplete."
+        if shuffle:
+            import random; random.shuffle(items)
+        _queue.extend(items)
+        r = _next()
+        return "%s (%d songs in the playlist)" % (r, len(items)) if r.startswith("Now") else r
+
+def next_song() -> str:
+    """Skip to the next song (the playlist's next, or a similar song)."""
+    global _gen
+    with _mlock:
+        _gen += 1                            # the killed song must not advance a second time
+        if _player and _player.poll() is None: _player.terminate()
+        return _next()
+
 def music_playing() -> bool:
     return bool(_player and _player.poll() is None) or \
-        subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0   # mpv or afplay
+        subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0   # afplay of a track
 
 def stop_music() -> str:
-    """Stop any music that is currently playing."""
-    global _player
+    """Stop the music (and the queue / autoplay)."""
+    global _player, _gen
+    _gen += 1; _queue.clear()               # no lock: must not wait behind a download; a pending fetch sees _gen and quits
     if _player and _player.poll() is None:
         _player.terminate()
         _player = None
@@ -1151,7 +1233,7 @@ def wake_brief() -> str:
 
 
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
-         "play_music": play_music, "stop_music": stop_music, "run_command": run_command,
+         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "run_command": run_command,
          "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
          "notify": notify, "set_reminder": set_reminder, "system_status": system_status,
          "read_webpage": read_webpage, "create_reminder": create_reminder,
@@ -1181,6 +1263,14 @@ TOOLS = [
             "query": {"type": "string", "description": "Song / artist / album to play, e.g. '500 Miles'"}}, "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "stop_music", "description": "Stop the music that is currently playing.",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "play_playlist", "description": "Play a playlist song by song. No url = the user's own playlist ('play my playlist').",
+        "parameters": {"type": "object", "properties": {
+            "url": {"type": "string", "description": "YouTube / YouTube Music playlist link; empty for the user's playlist"},
+            "shuffle": {"type": "boolean", "description": "true if the user asked for shuffle"}}}}},
+    {"type": "function", "function": {
+        "name": "next_song", "description": "Skip to the next song ('next', 'skip this song').",
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
         "name": "set_volume", "description": "Set the Mac output volume, 0 to 100.",
