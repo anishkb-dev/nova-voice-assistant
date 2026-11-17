@@ -124,7 +124,8 @@ def _effect_loop():
         e, step = m[3], 0.2 + 1.3 * (1 - (sp[3] if sp else 50) / 100)   # calibration knob: 1.5 s (slow) .. 0.2 s (fast)
         if e in WIPE:                                                  # the ESP32 animates it; send the command once
             b = LAST[1][3] if LAST.get(1) else 100
-            ms = int(2300 * (110 - (sp[3] if sp else 27)) / 83)        # calibration knob: 2300 ms per band at speed 27 (filmed)
+            v = sp[3] if sp else 27                                    # calibration knob: 2300 ms per band at speed 27 (filmed),
+            ms = int(2300 - (v - 27) * 1300 / 73)                      # 1000 ms at speed 100 (judged by eye vs the bed)
             # bands move away from LED 0, so a spot sees them in reverse list order -> reverse to get blue, green, red
             cmd = "scroll %d %d %d " % (ms, BAND, GAP) + " ".join("%02x%02x%02x" % tuple(int(c * b / 100) for c in rgb) for rgb in WIPE[e][::-1])
             if cmd != _effect_loop.sent or _voice_on.is_set():
