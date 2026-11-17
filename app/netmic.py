@@ -13,6 +13,7 @@ class NetMic:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("", port))
         self.bufs, self.seen, self.last, self.cv = {}, {}, 0.0, threading.Condition()   # per sender IP
+        self.lvl = {}                       # per sender IP: [quietest, loudest] frame level since levels() was last called
         threading.Thread(target=self._rx, daemon=True).start()
 
     def _rx(self):
@@ -52,6 +53,8 @@ class NetMic:
                     continue                # this mic is a bit behind -> it joins next frame
                 chunk = bytes(b[:n * 2]); del b[:n * 2]
                 e = sum(abs(v) for v in array.array("h", chunk)[::8])
+                m = e / max(1, len(chunk) // 16)  # mean |sample| (every 8th of len/2 samples)
+                lv = self.lvl.setdefault(ip, [m, m]); lv[0] = min(lv[0], m); lv[1] = max(lv[1], m)
                 if e > best_e:
                     best, best_e = chunk, e
             live = [self.bufs[ip] for ip in self.live(1.0) if ip in self.bufs]
@@ -60,6 +63,13 @@ class NetMic:
                 for b in live:
                     if len(b) > low: del b[:len(b) - low]
             return best
+
+    def levels(self):
+        """{ip: (floor, peak)} mean |sample| per frame since the last call. Peak 0 = the mic streams pure silence (wiring)."""
+        with self.cv:
+            out = {ip: (round(a), round(b)) for ip, (a, b) in self.lvl.items()}
+            self.lvl = {}
+        return out
 
     def stop_stream(self):
         pass
@@ -86,4 +96,6 @@ if __name__ == "__main__":                  # self-check: loopback a keyed packe
     s.sendto(KEY + array.array("h", [6] * 1280).tobytes(), ("127.0.0.1", 5099))  # only mic 1 talks now
     time.sleep(0.1)
     assert set(array.array("h", m.read(1280))) == {6}                             # silent mic 2 doesn't block
+    lv = m.levels(); assert lv["10.0.0.2"] == (900, 900) and lv["127.0.0.1"] == (5, 7), lv   # per-mic floor + peak
+    assert m.levels() == {}                                                       # reset after reading
     print("netmic ok")

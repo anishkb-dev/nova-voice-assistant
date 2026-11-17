@@ -598,7 +598,8 @@ class Api(Voice, Brain, Automations):
                 if nova.IS_HUB:                                  # heartbeat for supervisor.py (it does the device checks)
                     hf = bool(self._hf and self._hf_thread and self._hf_thread.is_alive())
                     nm = self._netmic
-                    json.dump({"ts": time.time(), "hf": hf, "mics": nm.live() if nm else []},   # IPs of streaming ESP32 mics
+                    json.dump({"ts": time.time(), "hf": hf, "mics": nm.live() if nm else [],   # IPs of streaming ESP32 mics
+                               "lvl": nm.levels() if nm else {}},          # {ip: (floor, peak)} over the last 30 s
                               open("/tmp/nova_hb.json", "w"))
                     bad, rep = self._mem_report()
                     if bad and mem_day != time.strftime("%F"):           # at most one alert a day
