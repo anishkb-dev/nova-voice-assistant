@@ -51,3 +51,15 @@ Each fix: what changed, why, consequences checked, how to undo.
 - **Kept on purpose:** `nova_v3.html` (Mac UI), `nova_wall.html` (hub wall), `car_control.html` + `nova_vision.html` (RC car chat owns them), `Modelfile` / `Nova.Modelfile` (recipes for the local "nova" Ollama model — needed to rebuild it).
 - **Consequences checked:** the light panel's "/index.html" is its own built-in page, not app/index.html. Nova loads only nova_v3.html / nova_wall.html.
 - **Undo:** `git checkout <commit before this> -- <file>` — everything is in git history.
+
+## Fix 5 — the Mac's Nova runs as its own app (no Terminal needed)
+- **What:** `~/Applications/NovaMac.app` (ad-hoc signed; copy in `iot/NovaMac.app`) runs `nova_app.py` with Homebrew Python 3.14 and logs to `app/nova.log`. LaunchAgent `com.nova.mac` (`iot/com.nova.mac.plist` → `~/Library/LaunchAgents/`) starts it at login and brings it back ~20 s after it exits.
+- macOS ties the mic/camera permission to **"Nova"** (asked once) instead of Terminal — so it can be restarted without you, including by me after a change.
+- Terminal aliases in `~/.zshrc`: `nova-restart`, `nova-stop`, `nova-start`, `nova-log`.
+- **Consequences checked:**
+  - It restarts after *any* exit — closing Nova's window brings it back in 20 s. To really stop it: `nova-stop`.
+  - Nova's own "switch mics" self-restart (exit 3) used to leave it dead in Terminal; now it comes back by itself.
+  - Only one Nova can run (`.nova.lock`): the Terminal copy must be quit first, or the app copy exits and retries every 20 s.
+  - Output goes to `app/nova.log` instead of the Terminal window (`nova-log` to watch).
+  - If the permission prompt is missed/denied, macOS gives silent audio (rms=1) instead of an error — check System Settings → Privacy → Microphone → Nova.
+- **Undo:** `nova-stop`, delete `~/Library/LaunchAgents/com.nova.mac.plist`, start it from Terminal as before.
