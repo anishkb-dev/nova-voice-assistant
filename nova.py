@@ -2,7 +2,7 @@
 """Nova v1 — text assistant on the local Qwen (anish-ai) with tool-calling 'hands'.
 Run:  python3 ~/anish-ai/nova.py      (needs Ollama running; it usually is)
 Quit: type 'exit' or Ctrl-C."""
-import subprocess, sys, json, datetime, os, glob, time, threading, re, shutil, ollama
+import urllib.parse, subprocess, sys, json, datetime, os, glob, time, threading, re, shutil, ollama
 
 MODEL = "nova"
 
@@ -51,15 +51,19 @@ def play_music(query: str) -> str:
     for f in glob.glob(_TRACK + ".*"):
         try: os.remove(f)
         except OSError: pass
-    try:
-        r = subprocess.run(
-            [_ytdlp(), "-f", "bestaudio[ext=m4a]/bestaudio", "--no-playlist",
-             "-o", _TRACK + ".%(ext)s", "--force-overwrites",
-             "--print", "%(title)s", "--no-simulate", f"ytsearch1:{query}"],
-            capture_output=True, text=True, timeout=90)
-    except subprocess.TimeoutExpired:
-        return "Timed out fetching the track — check your internet connection."
-    files = glob.glob(_TRACK + ".*")
+    # YouTube Music's "songs" tab first (official audio, not live/cover videos), plain YouTube if that finds nothing
+    ytm = "https://music.youtube.com/search?q=" + urllib.parse.quote_plus(query) + "#songs"
+    for src in (ytm, f"ytsearch1:{query}"):
+        try:
+            r = subprocess.run(
+                [_ytdlp(), "-f", "bestaudio[ext=m4a]/bestaudio", "--playlist-items", "1", "--no-update",
+                 "-o", _TRACK + ".%(ext)s", "--force-overwrites",
+                 "--print", "%(title)s", "--no-simulate", src],
+                capture_output=True, text=True, timeout=90)
+        except subprocess.TimeoutExpired:
+            return "Timed out fetching the track — check your internet connection."
+        files = glob.glob(_TRACK + ".*")
+        if files: break
     if not files:
         err = (r.stderr or "").strip().splitlines()
         return f"Couldn't fetch '{query}'. {err[-1][:200] if err else 'No result.'}"
