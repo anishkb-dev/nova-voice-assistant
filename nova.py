@@ -158,7 +158,7 @@ def play_playlist(url: str = "", shuffle: bool = False) -> str:
         return "I don't have your playlist link yet — send it to me (public or unlisted)."
     with _mlock:
         stop_music()
-        items = _flat(url)
+        items = _flat(url, "1-2000")          # whole playlist (the user's has 430)
         if not items:
             return "I couldn't open that playlist — it may be private or the link is incomplete."
         if shuffle:
