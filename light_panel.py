@@ -124,6 +124,7 @@ def _start_ble():
     asyncio.run(_ble_loop())
 
 # ---------- music-reactive listen mode ----------
+LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
 def _listen_loop():
     try:
         import pyaudio, numpy as np
@@ -144,9 +145,10 @@ def _listen_loop():
         level = min(1.0, rms / 2500.0)
         ema = 0.6 * ema + 0.4 * level                      # smooth the loudness
         hue = (hue + 0.006 + ema * 0.04) % 1.0             # hue drifts, faster when louder
-        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, max(0.08, ema))]
+        # floor 30%: the table controller shows very dim colours as OFF (at 8% it looked dead, 2026-11-17)
+        r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, LISTEN_FLOOR + (1 - LISTEN_FLOOR) * ema)]
         for sq in QS:                                      # straight to the strips, NOT send(): listen colours must not
-            if sq.qsize() < 2: sq.put(lights._rgb(r, g, b))   # replace the saved state (LAST) it returns to
+            if sq.empty(): sq.put(lights._rgb(r, g, b))    # replace LAST; empty = each strip at its own pace (table is slow)
         time.sleep(0.05)
     try: st.close()
     except Exception: pass
