@@ -101,9 +101,9 @@ void stripShow(const uint32_t* px) {                          // per-LED version
 }
 
 // "wipe MS c1 c2 ..." (hex RRGGBB): copy of the bed controller's party effect, filmed 2026-11-18 —
-// each colour sweeps in from LED 0 over 60% of MS with a dark gap at its front, then holds. "r g b" stops it.
+// each colour sweeps in from LED 0 over 60% of MS (no gap, filmed again), then holds. "r g b" stops it.
 uint32_t wipeC[8], stripPx[STRIP_N]; int wipeN = 0; uint32_t wipeMs = 2400, wipeT0 = 0;
-const int WIPE_GAP = STRIP_N / 8;                             // calibration knob: dark band at the front (LEDs)
+const int WIPE_GAP = 0;                                       // calibration knob: dark band at the front (LEDs); bed has none
 void wipeStart(String a) {
   int sp = a.indexOf(' '); wipeMs = max(200L, a.substring(0, sp).toInt()); wipeN = 0;
   while (sp > 0 && wipeN < 8) { int nx = a.indexOf(' ', sp + 1); wipeC[wipeN++] = strtoul(a.substring(sp + 1, nx < 0 ? a.length() : nx).c_str(), nullptr, 16); sp = nx; }
