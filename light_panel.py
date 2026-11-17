@@ -101,6 +101,7 @@ class TableQ:
         else: return                                                 # effect/speed: _effect_loop sends colours instead
         r, g, b = [int(x * self.bri / 100) for x in self.rgb] if self.on else (0, 0, 0)
         self.c.publish("home/room/strip/set", "%d %d %d" % (r, g, b))
+        _effect_loop.sent = None          # a solid colour stops the ESP32's effect -> let _effect_loop resend it
     def qsize(self): return 0
     def empty(self): return True
 
