@@ -80,23 +80,42 @@ def send(data):
 # ---------- table strip: driven by the room ESP32 (DO -> D32) since 2026-11-18, not by its laggy BLE controller ----------
 class TableQ:
     """Stands in for a strip queue: decodes the ELK frames everything already sends and publishes the
-    resulting colour to home/room/strip/set (instant, so listen mode stays in step with the bed)."""
+    resulting colour to home/room/strip/set (instant, so listen mode stays in step with the bed).
+    App effects are imitated here (whole-strip jump / strobe / fade), timed by the effect speed."""
+    SEVEN = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255), (255, 0, 255), (255, 255, 255)]
+    JUMP = {5: SEVEN[:3], 3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to step through
     def __init__(self):
         import paho.mqtt.client as mqtt
         try: self.c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         except AttributeError: self.c = mqtt.Client()
         self.c.username_pw_set("nova", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".mqtt_key")).read().strip())
         self.c.connect_async("localhost"); self.c.loop_start()
-        self.on, self.rgb, self.bri = True, (255, 150, 60), 100
+        self.on, self.rgb, self.bri, self.eff, self.speed = True, (255, 150, 60), 100, None, 50
         for f in list(LAST.values()): self.put(f)
+        threading.Thread(target=self._anim, daemon=True).start()
+    def _out(self, rgb):
+        r, g, b = [int(x * self.bri / 100) for x in rgb] if self.on else (0, 0, 0)
+        self.c.publish("home/room/strip/set", "%d %d %d" % (r, g, b))
     def put(self, d):
         if not d or len(d) < 4 or d[1] == 6: return                 # wake marker / clock handshake
         if   d[2] == 4: self.on = d[3] == 0xff
-        elif d[2] == 5: self.rgb = tuple(d[4:7])
+        elif d[2] == 5: self.rgb, self.eff = tuple(d[4:7]), None    # a colour (incl. listen frames) ends an effect
         elif d[2] == 1: self.bri = d[3]
-        else: return                                                 # ponytail: app effects/speed ignored -> keeps its colour
-        r, g, b = [int(x * self.bri / 100) for x in self.rgb] if self.on else (0, 0, 0)
-        self.c.publish("home/room/strip/set", "%d %d %d" % (r, g, b))
+        elif d[2] == 3: self.eff = d[3]; return                     # the animator takes over
+        elif d[2] == 2: self.speed = d[3]; return
+        else: return
+        if self.eff is None or not self.on: self._out(self.rgb)
+    def _anim(self):
+        import colorsys
+        t, h = 0, 0.0
+        while True:
+            e, step = self.eff, 0.15 + 1.35 * (1 - self.speed / 100)   # calibration knob: 1.5 s (slow) .. 0.15 s (fast)
+            if e is None or not self.on: time.sleep(0.1); continue
+            if e in self.JUMP:  cs = self.JUMP[e]; self._out(cs[t % len(cs)]); time.sleep(step)
+            elif e == 196:      self._out(self.SEVEN[t // 2 % 7] if t % 2 == 0 else (0, 0, 0)); time.sleep(step / 3)   # strobe
+            else:                                                    # fade/breathe/flow...: smooth rainbow
+                h = (h + 0.05 / (step * 7)) % 1; self._out(tuple(int(x * 255) for x in colorsys.hsv_to_rgb(h, 1, 1))); time.sleep(0.05)
+            t += 1
     def qsize(self): return 0
     def empty(self): return True
 
