@@ -5,11 +5,13 @@ import nova_app
 A = nova_app.Api
 class F:  # minimal stand-in for Api: real tick/helpers, recorded side effects
     ROUTINES, AUTOMATIONS = A.ROUTINES, A.AUTOMATIONS
+    _AWAY_F = os.path.join(__import__("tempfile").mkdtemp(), ".away")   # own flag files: never the real hub ones
+    _AUTO_F = os.path.join(os.path.dirname(_AWAY_F), "auto_state.json")
     _days_ok, _in_window, _automation_tick = staticmethod(A._days_ok), staticmethod(A._in_window), A._automation_tick
     def __init__(s):
         s._auto_on, s._auto_state, s._ran_today = True, {}, {}
         s._last_motion_ts = s._motion_end_ts = time.time() - 3600
-        s._iot_data = {"online": True, "ts": time.time(), "motion": False, "light": "off", "temp": 25.0}
+        s._iot_data = {"online": True, "ts": time.time(), "motion": False, "light": "off", "ac": "off", "temp": 25.0}
         s.fired, s.spoken = [], []
     def _run_routine(s, name, r): s.fired.append(name); return r.get("reply", "")
     def _proactive(s, x): s.spoken.append(x)
@@ -41,3 +43,8 @@ f._automation_tick(D(2026, 11, 9, 8, 0)); assert f.fired == ["morning"]         
 f.fired.clear(); f._ran_today.clear(); f._automation_tick(D(2026, 11, 7, 8, 0)); assert f.fired == []  # Saturday
 assert A._in_window(["22:00", "06:00"], D(2026, 1, 1, 2, 0)) and not A._in_window(["22:00", "06:00"], D(2026, 1, 1, 12, 0))
 print("all automation checks passed")
+# away mode: never switch the AC on or greet with lights while you're out
+g = F(); open(g._AWAY_F, "w").write("x"); g._auto_state.clear()
+g._iot_data.update(temp=29.0, motion=True); g._motion_end_ts = time.time() - 60
+g._automation_tick(D(2026, 11, 6, 19, 0)); assert g.fired == [], ("away", g.fired)
+os.remove(g._AWAY_F); print("away checks passed")

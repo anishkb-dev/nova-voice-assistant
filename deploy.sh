@@ -6,6 +6,10 @@ cd "$(dirname "$0")"
 HUB=nova-hub
 if ! git diff --quiet HEAD; then echo "Uncommitted changes - commit first so the hub runs a known version:"; git status --short; exit 1; fi
 DRY=""; [ "${1:-}" = "-n" ] && DRY="-n"
+# checks first: a broken rule or mic mixer never reaches the hub
+for t in test_automations.py app/netmic.py; do
+  out=$(python3 "$t" 2>&1) || { echo "$out" | tail -15; echo "CHECK FAILED: $t - not deploying"; exit 1; }
+done
 
 # rsync prints one line per file it actually changed (">f..." = file content/size/time differs)
 CHANGED=$(git ls-files | rsync -aic -e "ssh -o LogLevel=ERROR" $DRY --files-from=- . "$HUB:anish-ai/" | awk '/^[<>]f/ {print $2}')
