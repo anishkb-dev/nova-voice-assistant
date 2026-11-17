@@ -100,12 +100,14 @@ void stripShow(const uint32_t* px) {                          // per-LED version
   rmtWrite(STRIP_PIN, stripBits, STRIP_N * 24, RMT_WAIT_FOR_EVER);
 }
 
-// "scroll MS LEN c1 c2 ..." (hex RRGGBB): copy of the bed controller's party effect, filmed 2026-11-18 —
-// bands of LEN LEDs per colour scroll along the strip continuously, one band passing a point every MS. "r g b" stops it.
-uint32_t wipeC[8], stripPx[STRIP_N]; int wipeN = 0, wipeLen = 48; uint32_t wipeMs = 2300, wipeT0 = 0;
+// "scroll MS LEN GAP c1 c2 ..." (hex RRGGBB): copy of the bed controller's party effect, filmed 2026-11-18 —
+// bands of LEN LEDs per colour (last GAP of them dark) scroll along the strip, one band passing a point every MS.
+// "r g b" stops it.
+uint32_t wipeC[8], stripPx[STRIP_N]; int wipeN = 0, wipeLen = 24, wipeGap = 3; uint32_t wipeMs = 2300, wipeT0 = 0;
 void wipeStart(String a) {
   int sp = a.indexOf(' '); wipeMs = max(200L, a.substring(0, sp).toInt());
-  int sp2 = a.indexOf(' ', sp + 1); wipeLen = max(1L, a.substring(sp + 1, sp2).toInt()); sp = sp2; wipeN = 0;
+  int sp2 = a.indexOf(' ', sp + 1); wipeLen = max(1L, a.substring(sp + 1, sp2).toInt()); sp = sp2;
+  sp2 = a.indexOf(' ', sp + 1); wipeGap = constrain(a.substring(sp + 1, sp2).toInt(), 0, wipeLen - 1); sp = sp2; wipeN = 0;
   while (sp > 0 && wipeN < 8) { int nx = a.indexOf(' ', sp + 1); wipeC[wipeN++] = strtoul(a.substring(sp + 1, nx < 0 ? a.length() : nx).c_str(), nullptr, 16); sp = nx; }
   wipeT0 = millis();
 }
@@ -117,7 +119,7 @@ void wipeTick() {
   int span = wipeLen * wipeN;
   for (int i = 0; i < STRIP_N; i++) {
     int p = ((int)(i - shift) % span + span) % span;           // bands move away from LED 0
-    stripPx[i] = wipeC[p / wipeLen];
+    stripPx[i] = p % wipeLen >= wipeLen - wipeGap ? 0 : wipeC[p / wipeLen];
   }
   stripShow(stripPx);
 }
