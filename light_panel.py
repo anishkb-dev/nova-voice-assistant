@@ -92,7 +92,7 @@ async def _strip(dev, q):
                 # in listen mode a reconnect must not flash the saved colour (LAST) between listen frames
                 for d in [lights._clock()] + ([lights.ON] if STATE["listen"] else list(LAST.values())):
                     await c.write_gatt_char(lights.CHAR, d, response=True); await asyncio.sleep(0.15)
-                idle = born = time.time()
+                idle = born = time.time(); n = 0
                 # listen mode never idles, so cap the link's age: the table's link goes stale (writes ignored)
                 while time.time() - idle < 3 and time.time() - born < LINK_MAX_S:
                     try:
@@ -102,9 +102,11 @@ async def _strip(dev, q):
                             # always confirmed: the table controller IGNORES unconfirmed writes (bed accepts them), 2026-11-17
                             await c.write_gatt_char(lights.CHAR, d, response=True)
                             await asyncio.sleep(FAST_GAP if fast else 0.15)   # the table controller needs the gap
+                            n += 1
                         idle = time.time()
                     except queue.Empty:
                         await asyncio.sleep(0.03)
+            if STATE["listen"]: print("BLE %s: link %.0fs, %d writes" % (dev.name, time.time() - born, n), flush=True)
         except Exception as e:
             print("BLE %s: %s (retry in 2s)" % (dev.name, str(e)[:70]), flush=True)
             q.put(b"")                                        # retry: wake the loop to resend LAST
