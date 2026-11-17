@@ -25,7 +25,7 @@ KEYBOARD = {"keyboard": [[{"text": "📊 Status"}], [{"text": "🔴 Nova off"}, 
 RESTART_NOVA = ("Restart Nova", "pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'")
 FIXES = {"broker": ("Restart broker", "launchctl kickstart -k %s/com.nova.broker" % DOM),
          **{k: RESTART_NOVA for k in ("nova", "voice", "camera", "strips")}}
-MICS = {"bedmic": ("Bed mic", "esp32-bedmic.local")}   # add ("Table mic", "esp32-room.local") once it's wired
+MICS = {"bedmic": ("Bed mic", "esp32-bedmic.local"), "tablemic": ("Table mic", "esp32-room.local")}
 room = {"online": None}
 mq = {"c": None}
 
