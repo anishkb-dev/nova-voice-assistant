@@ -89,10 +89,12 @@ async def _strip(dev, q):
             while q.empty(): await asyncio.sleep(0.05)
             async with BleakClient(dev, timeout=20) as c:
                 _LIVE.add(dev.address)
-                for d in [lights._clock()] + list(LAST.values()):
+                # in listen mode a reconnect must not flash the saved colour (LAST) between listen frames
+                for d in [lights._clock()] + ([lights.ON] if STATE["listen"] else list(LAST.values())):
                     await c.write_gatt_char(lights.CHAR, d, response=True); await asyncio.sleep(0.15)
-                idle = time.time()
-                while time.time() - idle < 3:
+                idle = born = time.time()
+                # listen mode never idles, so cap the link's age: the table's link goes stale (writes ignored)
+                while time.time() - idle < 3 and time.time() - born < LINK_MAX_S:
                     try:
                         d = q.get_nowait()
                         if d:                                            # b"" = retry wake-up marker
@@ -127,6 +129,7 @@ def _start_ble():
 
 # ---------- music-reactive listen mode ----------
 class Fast(bytes): """a listen-mode frame: sent with the shorter FAST_GAP"""
+LINK_MAX_S = 15     # calibration knob: reconnect a busy strip this often (stale-link fix); ~1-2 s gap each time
 FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
 LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
 def _listen_loop():
