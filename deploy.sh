@@ -8,7 +8,7 @@ if ! git diff --quiet HEAD; then echo "Uncommitted changes - commit first so the
 DRY=""; [ "${1:-}" = "-n" ] && DRY="-n"
 
 # rsync prints one line per file it actually changed (">f..." = file content/size/time differs)
-CHANGED=$(git ls-files | rsync -ai $DRY --files-from=- . "$HUB:anish-ai/" | awk '/^[<>]f/ {print $2}')
+CHANGED=$(git ls-files | rsync -aic -e "ssh -o LogLevel=ERROR" $DRY --files-from=- . "$HUB:anish-ai/" | awk '/^[<>]f/ {print $2}')
 echo "${CHANGED:-(nothing changed)}"
 [ -n "$DRY" ] && exit 0
 VER="$(git log -1 --format='%h %s' | tr -d "'\\" | cut -c1-60) ($(date '+%d %b %H:%M'))"
