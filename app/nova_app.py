@@ -2874,7 +2874,15 @@ def main():
         _autostart()
         threading.Event().wait()
     threading.Thread(target=_autostart, daemon=True).start()
-    webview.start()
+    def _dock_icon():          # Mac: the process is Python.app, so set Nova's own Dock icon (app/nova_icon.png)
+        try:
+            import AppKit
+            img = AppKit.NSImage.alloc().initWithContentsOfFile_(os.path.join(os.path.dirname(HTML), "nova_icon.png"))
+            from PyObjCTools import AppHelper                       # AppKit wants the main thread
+            if img: AppHelper.callAfter(AppKit.NSApplication.sharedApplication().setApplicationIconImage_, img)
+        except Exception as e:
+            print("[ui] dock icon:", str(e)[:60], flush=True)
+    webview.start(_dock_icon if not nova.IS_HUB else None)
 
 
 if __name__ == "__main__":
