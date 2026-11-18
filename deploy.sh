@@ -27,7 +27,8 @@ fi
 if echo "$CHANGED" | grep -vE '^(supervisor\.py|iot/|test_)' | grep -qE '\.(py|html|js|css)$'; then
   # light_panel holds the Bluetooth strips; Nova (re)starts it, so it gets the new code too
   echo "$CHANGED" | grep -q '^light_panel\.py$' && hub 'pkill -f "light_panel[.]py"'
-  hub 'cd ~/anish-ai/app; N=$(wc -l < nova.log); pkill -f "app/nova_app[.]py"; pkill -f "cam_presence[.]py";
+  hub 'cd ~/anish-ai/app; [ "$(stat -f%z nova.log 2>/dev/null || echo 0)" -gt 5000000 ] && mv nova.log nova.log.1; touch nova.log;   # log rotation: keep 1 old copy
+       N=$(wc -l < nova.log); pkill -f "app/nova_app[.]py"; pkill -f "cam_presence[.]py";
        for i in $(seq 1 60); do sed -n "$((N+1)),\$p" nova.log | grep -q "listening (floor" && echo "hub Nova back up" && exit; sleep 3; done;
        echo "WARNING: hub Nova not listening after 3 min - check app/nova.log"'
 fi

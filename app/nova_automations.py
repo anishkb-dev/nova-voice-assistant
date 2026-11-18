@@ -24,7 +24,27 @@ class Automations:
                 continue
             if text.strip() == name.lower() or any(" %s " % p.lower() in text for p in r.get("phrases", [])):   # "Nova, evening" = the routine
                 return (name, r)
-        return None
+        return self._fuzzy_routine(rs, text.split())
+
+    FUZZY = 0.85   # calibration knob: typos score 0.87-0.96 ("good moning"); different routines <= 0.80 (good evening/morning 0.75)
+
+    @classmethod
+    def _fuzzy_routine(cls, rs, words):
+        """Typo-tolerant pass: 'good moning', 'gud morning', 'goodmorning' -> morning. Compares each phrase with
+        word windows of the same length (+-1 word, so 'goodmorning' meets 'good morning')."""
+        from difflib import SequenceMatcher
+        best = (cls.FUZZY, None)
+        for name, r in rs.items():
+            if name.startswith("_"): continue
+            for p in r.get("phrases", []):
+                p = p.lower()
+                if len(p) < 6: continue                       # too short to tell typo from another word ("im up")
+                n = len(p.split())
+                for k in {max(1, n - 1), n, n + 1}:
+                    for i in range(len(words) - k + 1):
+                        sc = SequenceMatcher(None, " ".join(words[i:i + k]), p).ratio()
+                        if sc > best[0]: best = (sc, (name, r))
+        return best[1]
 
     # Routine brightness is capped by the hour (calibration knob): (from_hour, max %), latest match wins.
     BRIGHT_CAP = [(0, 35), (6, 85), (18, 100), (21, 60), (23, 35)]

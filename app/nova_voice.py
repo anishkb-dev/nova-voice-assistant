@@ -458,7 +458,7 @@ class Voice:
                 sys.path.insert(0, os.path.expanduser("~/anish-ai")); import localstt
                 if localstt.available():
                     t0 = time.time(); txt = localstt.transcribe(p, RATE)
-                    print("[hf] local stt %.2fs: %r" % (time.time() - t0, txt[:60]), flush=True)
+                    print("[hf] local stt %.2fs: %d chars" % (time.time() - t0, len(txt)), flush=True)   # text not logged: privacy
                     if not txt: return ""            # local heard no speech -> don't burn the cloud quota on noise
             except Exception as e:
                 print("[hf] local stt err:", str(e)[:60], flush=True)
@@ -484,7 +484,7 @@ class Voice:
             # 3) Groq rate-limited/offline -> the Mac's local Whisper (base.en, ~0.6 s) over MQTT
             if not txt and nova.IS_HUB and self._mac_online:
                 txt = self._mac_stt(wav_bytes)
-                if txt: print("[hf] mac-local stt: %r" % txt[:60], flush=True)
+                if txt: print("[hf] mac-local stt: %d chars" % len(txt), flush=True)
 
             if not txt or txt.lower().strip(" .,!?") in _HALLUC:
                 return ""
@@ -660,7 +660,8 @@ class Voice:
                     print("[hf] echo ignored: %r" % text, flush=True)
                     continue
                 m = WAKE_RE.search(text)
-                print("[hf] heard=%r nova=%s" % (text, bool(m)), flush=True)
+                # privacy: only Nova commands are logged word for word; background talk/TV -> just its length
+                print("[hf] heard=%r nova=True" % text if m else "[hf] heard (no wake, %d words)" % len(text.split()), flush=True)
                 if not m and not DIRECT_CMD(text):
                     continue                          # no 'Nova' and not a clear device command -> background speech
                 if self._say and self._say.poll() is None:
