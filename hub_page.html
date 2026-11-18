@@ -652,6 +652,7 @@
   .btn,.chip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .chip{font-size:8.5px!important;padding-left:1px!important;padding-right:1px!important}
   .effects-grid .btn,.device-block-proj .btn{font-size:13px!important;padding-left:2px!important;padding-right:2px!important}
+  html,body{overflow:hidden}
 </style></head>
 <body>
 <div class="deck-container">
@@ -972,5 +973,15 @@
   }
   fetch('/vol').then(r => r.json()).then(j => { $('vol-slider').value = j.v; $('vol-percentage').innerText = j.v + '%'; }).catch(() => {});
   poll(); setInterval(poll, 1500);
+
+  // Fit any phone: the design is 844x390; smaller landscape screens get the whole deck scaled down uniformly.
+  function fit() {
+    const c = document.querySelector('.deck-container');
+    if (matchMedia('(orientation: portrait)').matches) { c.style.cssText = ''; return; }
+    const k = Math.min(1, innerHeight / 390, innerWidth / 844);
+    c.style.width = innerWidth / k + 'px'; c.style.height = innerHeight / k + 'px';
+    c.style.transform = 'scale(' + k + ')'; c.style.transformOrigin = '0 0';
+  }
+  addEventListener('resize', fit); fit();
 </script>
 </body></html>
