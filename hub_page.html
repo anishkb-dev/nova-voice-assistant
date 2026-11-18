@@ -7,7 +7,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font:13px/1.2 -apple-system,system-ui,sans-serif}
 /* one screen, no page scroll: 4 columns; button grids stretch/shrink to fill the height */
-main{display:grid;grid-template-columns:1fr 1fr 1fr 1.15fr;gap:6px;height:100dvh;
+main{display:grid;grid-template-columns:1.2fr 1.05fr .85fr 1.1fr;gap:6px;height:100dvh;
   padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) 6px max(6px,env(safe-area-inset-left))}
 .col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 7px;min-height:0;overflow:hidden;
   display:flex;flex-direction:column;gap:4px}
@@ -15,13 +15,13 @@ h2{font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);
 .g{display:grid;grid-template-columns:repeat(var(--c,3),1fr);grid-auto-rows:1fr;gap:4px;flex:1;min-height:0}
 .g.f2{flex:2}.g.n{flex:none;height:34px}
 button{min-height:0;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--tile);color:var(--fg);
-  font:600 12px system-ui,sans-serif;padding:2px;touch-action:manipulation;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  font:600 11.5px system-ui,sans-serif;padding:0 1px;touch-action:manipulation;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 button:active{background:var(--tile2);transform:scale(.95)}
 button.busy{border-color:var(--acc);color:var(--acc)}
 button.on{outline:2px solid var(--ok)}
 button.big{font-size:17px}
 input[type=range]{width:100%;height:20px;accent-color:var(--acc);margin:0;flex:none}
-.wheelrow{display:flex;gap:6px;flex:none;height:min(34dvh,24vw)}
+.wheelrow{display:flex;gap:6px;flex:none;height:min(30dvh,16vw)}
 #wheel{position:relative;flex:none;height:100%;aspect-ratio:1;border-radius:50%;touch-action:none;
   background:radial-gradient(circle,#fff 0%,rgba(255,255,255,0) 70%),conic-gradient(red,#ff0,lime,cyan,blue,magenta,red);
   box-shadow:0 0 0 2px var(--line)}
@@ -96,7 +96,7 @@ input[type=range]{width:100%;height:20px;accent-color:var(--acc);margin:0;flex:n
   <div class="g n" style="--c:3">
     <button class="big" onclick="music('stop_music')">⏹</button>
     <button class="big" onclick="music('next_song')">⏭</button>
-    <button onclick="music('play_playlist',{shuffle:true})">🔀 Shuffle</button></div>
+    <button onclick="music('play_playlist',{shuffle:true})">🔀</button></div>
   <h2>Volume <span id="vv"></span></h2>
   <input type="range" id="vol" min="0" max="100" value="50" oninput="$('#vv').textContent=this.value+'%'" onchange="setVol(this.value)">
   <h2>My playlist <span id="pln"></span></h2>
@@ -158,7 +158,7 @@ async function poll(){
     const ac=(R.ac||'').split(' ');$('#acs').textContent=ac[0]==='on'?ac[1]+'°':(ac[0]||'–');
     $('#fans').textContent=R.fan||'';$('#prs').textContent=s.projector?'on (guess)':'off (guess)';
     $('#title').textContent=s.playing?(s.title||'Playing'):'Nothing playing';
-    $('#sst').textContent=s.strips?Object.entries(s.strips).map(([k,v])=>k+' '+v.toLowerCase()).join(' · '):'';
+    $('#sst').textContent=s.strips?Object.entries(s.strips).map(([k,v])=>k+' '+(v[0]==='#'?'colour':v.toLowerCase())).join(' · '):'';
     if(!modesDrawn&&s.routines){modesDrawn=true;s.routines.forEach(n=>{const b=document.createElement('button');
       b.textContent=n.replace(/_/g,' ');b.onclick=()=>hub('routine',n);$('#modes').appendChild(b)})}
   }catch(e){}
