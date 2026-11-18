@@ -20,6 +20,7 @@ class Automations:
             names = [k for k in rs if not k.startswith("_")]
             return ("_list", {"reply": "Your routines are: " + ", ".join(names) + ".", "steps": []})
         exact = {n.lower(): (n, r) for n, r in rs.items() if not n.startswith("_")}
+        exact.update({p.lower(): (n, r) for n, r in rs.items() if not n.startswith("_") for p in r.get("exact", [])})   # "sleep"
         if text.strip() in exact: return exact[text.strip()]          # "Nova, evening" = the routine
         if self.NOT_ROUTINE.search(text): return None                   # "remind me to wake up", "bedtime story", "how do I go to sleep"
         for name, r in rs.items():
@@ -273,6 +274,8 @@ class Automations:
         for name, r in rs.items():                                   # 1) timed routines
             if name.startswith("_") or not r.get("at"): continue
             if r["at"] == hm and self._ran_today.get(name) != today and self._days_ok(r.get("days"), now):
+                if (r.get("skip_when_away") and os.path.exists(self._AWAY_F)) or (r.get("skip_asleep") and not self._auto_on):
+                    self._ran_today[name] = today; print("[auto] timed routine skipped (away/asleep):", name, flush=True); continue
                 self._ran_today[name] = today
                 print("[auto] timed routine:", name, flush=True)
                 self._proactive(nova.speakable(self._run_routine(name, r)))

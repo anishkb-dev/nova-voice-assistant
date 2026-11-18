@@ -285,6 +285,10 @@ class H(http.server.BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             return self._send(PAGE, "text/html; charset=utf-8")
+        if path == "/deck":
+            return self._send(DECK_PAGE, "text/html; charset=utf-8")
+        if path == "/do":                                      # deck button: only the fixed DECK list, by index
+            return self._send(json.dumps({"say": _deck_do(g("i", -1))}))
         if path == "/on":
             send(lights.ON); STATE["on"] = True
         elif path == "/off":
@@ -444,6 +448,69 @@ setInterval(async()=>{try{const s=await (await fetch("/state")).json();
 }catch(e){}},1500);
 </script>
 </body></html>"""
+
+
+# ---------- touch deck (/deck): one button = one fixed Nova action. Works while the Nova app is off. ----------
+DECK = [   # (group, label, nova function, args) - add a button = add a line
+    ("Ceiling", "On", "bulb", ("on",)), ("Ceiling", "Off", "bulb", ("off",)), ("Ceiling", "Warm", "bulb", ("warm",)),
+    ("Ceiling", "Dim", "bulb", ("brightness 20",)), ("Ceiling", "Bright", "bulb", ("brightness 100",)),
+    ("Strips", "On", "lights", ("on",)), ("Strips", "Off", "lights", ("off",)), ("Strips", "Warm", "lights", ("warm",)),
+    ("Strips", "Party", "lights", ("party",)), ("Strips", "Blue", "lights", ("blue",)),
+    ("AC", "On", "ac", ("on",)), ("AC", "Off", "ac", ("off",)), ("AC", "24°", "ac", ("temp 24",)), ("AC", "26°", "ac", ("temp 26",)),
+    ("Fan", "On", "iot_control", ("fan", "on")), ("Fan", "Off", "iot_control", ("fan", "off")),
+    ("Projector", "Power", "projector", ("toggle",)), ("Projector", "Colour", "projector", ("colour",)),
+    ("Projector", "Laser", "projector", ("laser",)),
+    ("Music", "Stop", "stop_music", ()),
+]
+_deck_lock = threading.Lock()
+
+
+def _deck_do(i):
+    if not 0 <= i < len(DECK): return "Unknown button."
+    _, label, fn, args = DECK[i]
+    with _deck_lock:                                   # one at a time: a double-tap can't fire a toggle twice in parallel
+        try:
+            import nova                                # lazy: ~2 s the first time, then cached
+            return str(nova.FUNCS[fn](*args))
+        except Exception as e:
+            print("[deck]", fn, args, e, flush=True); return "%s failed: %s" % (label, str(e)[:60])
+
+
+def _deck_page():
+    import html, itertools
+    out = []
+    for grp, items in itertools.groupby(enumerate(DECK), key=lambda x: x[1][0]):
+        btns = "".join('<button data-i="%d">%s</button>' % (i, html.escape(d[1])) for i, d in items)
+        out.append('<section><h2>%s</h2><div class="row">%s</div></section>' % (html.escape(grp), btns))
+    return DECK_HTML.replace("{{BODY}}", "".join(out))
+
+
+DECK_HTML = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nova Deck</title>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0b0908">
+<style>
+:root{--bg:#0b0908;--tile:#1a1512;--tile2:#241c17;--fg:#ffdbc9;--dim:#a08a7c;--acc:#ff9a42}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.3 -apple-system,system-ui,sans-serif;padding:16px 16px 90px;user-select:none}
+h1{font-size:20px;margin:4px 0 14px;color:var(--acc);letter-spacing:.5px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin:18px 0 8px}
+.row{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+button{height:84px;border:1px solid #2e241d;border-radius:16px;background:var(--tile);color:var(--fg);font:600 17px system-ui,sans-serif;touch-action:manipulation}
+button:active{background:var(--tile2);transform:scale(.96)}
+button.busy{border-color:var(--acc);color:var(--acc)}
+#toast{position:fixed;left:16px;right:16px;bottom:16px;padding:14px 16px;border-radius:14px;background:#241c17;border:1px solid #3a2d24;opacity:0;transition:opacity .2s}
+#toast.on{opacity:1}
+</style></head><body><h1>NOVA</h1>{{BODY}}<div id="toast"></div>
+<script>
+const t=document.getElementById("toast");let h;
+document.querySelectorAll("button[data-i]").forEach(b=>b.onclick=async()=>{
+  if(b.classList.contains("busy"))return; b.classList.add("busy");
+  try{const r=await (await fetch("/do?i="+b.dataset.i)).json();t.textContent=r.say}catch(e){t.textContent="Hub not reachable."}
+  b.classList.remove("busy");t.classList.add("on");clearTimeout(h);h=setTimeout(()=>t.classList.remove("on"),3000);
+});
+</script></body></html>"""
+DECK_PAGE = _deck_page()
+assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE   # self-check: every button rendered
 
 
 def main():

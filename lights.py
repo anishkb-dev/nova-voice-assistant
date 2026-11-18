@@ -75,14 +75,15 @@ def _tx(payloads):
 def _tx1(payloads):
     # If the light_panel server is running, route through ITS persistent BLE connection
     # (BLE allows one link — this avoids the panel and voice fighting over it).
-    try:
-        import urllib.request
-        urllib.request.urlopen("http://localhost:8099/state", timeout=0.4)
-        for p in payloads:
-            urllib.request.urlopen("http://localhost:8099/raw?hex=" + p.hex(), timeout=2)
-        return True
-    except Exception:
-        pass
+    import urllib.request
+    for wait in (0.4, 2.5):                  # 2nd try waits out a busy panel (BLE renew) - direct BLE would fight its link
+        try:
+            urllib.request.urlopen("http://localhost:8099/state", timeout=wait)
+            for p in payloads:
+                urllib.request.urlopen("http://localhost:8099/raw?hex=" + p.hex(), timeout=3)
+            return True
+        except Exception:
+            time.sleep(0.5)
     try:
         asyncio.run(_send(payloads)); return True
     except Exception as e:

@@ -64,3 +64,12 @@ for _t, _e in {"good moning": "morning", "goodmorning": "morning", "good nigth":
                "turn off the lights i'm going to bed": "goodnight", "evening": "evening", "what are my routines": "_list"}.items():
     assert _m(_t) == _e, (_t, _m(_t), _e)
 print("routine phrase checks passed")
+assert _m("sleep") == "goodnight" and _m("i can't sleep") == "-", "exact-only phrase"
+print("exact phrase checks passed")
+_tf = os.path.join(__import__("tempfile").mkdtemp(), "r.json")
+json.dump({"nudge": {"at": "10:30", "days": "daily", "skip_asleep": True, "skip_when_away": True, "reply": "x", "steps": []}}, open(_tf, "w"))
+F.ROUTINES = _tf
+k = F(); CUR.append(k); k._auto_on = False; k._automation_tick(D(2026, 11, 10, 10, 30))
+assert "nudge" not in k.fired, ("freelance nudge while asleep", k.fired)
+k2 = F(); CUR.append(k2); k2._auto_on = True; k2._automation_tick(D(2026, 11, 10, 10, 30))
+assert "nudge" in k2.fired, ("freelance nudge when awake", k2.fired); print("timed skip checks passed")
