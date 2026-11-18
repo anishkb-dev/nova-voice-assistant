@@ -218,10 +218,17 @@ def stop_music() -> str:
     if subprocess.run(["pkill", "-f", "nova_track[.]"], capture_output=True).returncode == 0: return "Music stopped."
     return "Nothing was playing."
 
-def set_volume(level: int) -> str:
-    """Set the Mac's output volume (0-100)."""
+VOL_STEP = 10   # calibration knob: how much "volume up/down" changes it
+
+def set_volume(level) -> str:
+    """Set the Mac's output volume: 0-100, or "up"/"down" (+-VOL_STEP), or "+20"/"-20"."""
     try:
-        lvl = max(0, min(100, int(level)))
+        s = str(level).strip().lower()
+        if s in ("up", "louder", "down", "quieter", "softer") or s[:1] in "+-":
+            d = VOL_STEP if s in ("up", "louder") else -VOL_STEP if s in ("down", "quieter", "softer") else int(s)
+            cur = subprocess.run(["osascript", "-e", "output volume of (get volume settings)"], capture_output=True, text=True).stdout
+            s = int(cur.strip() or 50) + d
+        lvl = max(0, min(100, int(s)))
     except (TypeError, ValueError):
         return "Please give a volume between 0 and 100."
     subprocess.run(["osascript", "-e", f"set volume output volume {lvl}"], capture_output=True)
@@ -1306,9 +1313,9 @@ TOOLS = [
         "name": "next_song", "description": "Skip to the next song ('next', 'skip this song').",
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
-        "name": "set_volume", "description": "Set the Mac output volume, 0 to 100.",
+        "name": "set_volume", "description": "Set the volume: a number 0-100, or 'up'/'down' for louder/quieter ('volume up', 'turn it down').",
         "parameters": {"type": "object", "properties": {
-            "level": {"type": "integer", "description": "Volume 0-100"}}, "required": ["level"]}}},
+            "level": {"type": "string", "description": "0-100, 'up', 'down', or a change like '+20'"}}, "required": ["level"]}}},
     {"type": "function", "function": {
         "name": "mute", "description": "Mute or unmute ALL system audio at once (music, videos, everything). Use for 'mute', 'unmute', 'silence everything'.",
         "parameters": {"type": "object", "properties": {

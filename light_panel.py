@@ -112,6 +112,7 @@ JUMP = {3: SEVEN, 0: SEVEN, 1: SEVEN, 193: SEVEN}   # effect id -> colours to st
 # party (5): long colour bands scroll along the strip; any one spot sees blue -> green -> red, ~2.3 s each at speed 27.
 WIPE = {5: [(0, 0, 255), (0, 255, 0), (255, 0, 0)]}
 BAND = 28   # calibration knob: LEDs per colour band incl. gap (16 lit + GAP dark, matched by eye to the bed 2026-11-18)
+FAST_MS = 400   # calibration knob: table party ms per band at full speed (1000 "matched the bed" but was too slow, 2026-11-18)
 GAP = 12    # calibration knob: dark LEDs between bands (3 and 8 looked too small vs the bed)
 
 def _effect_loop():
@@ -125,7 +126,7 @@ def _effect_loop():
         if e in WIPE:                                                  # the ESP32 animates it; send the command once
             b = LAST[1][3] if LAST.get(1) else 100
             v = sp[3] if sp else 27                                    # calibration knob: 2300 ms per band at speed 27 (filmed),
-            ms = int(2300 - (v - 27) * 1300 / 73)                      # 1000 ms at speed 100 (judged by eye vs the bed)
+            ms = int(2300 - (v - 27) * (2300 - FAST_MS) / 73)            # FAST_MS at speed 100
             # bands move away from LED 0, so a spot sees them in reverse list order -> reverse to get blue, green, red
             cmd = "scroll %d %d %d " % (ms, BAND, GAP) + " ".join("%02x%02x%02x" % tuple(int(c * b / 100) for c in rgb) for rgb in WIPE[e][::-1])
             if cmd != _effect_loop.sent or _voice_on.is_set():
@@ -460,7 +461,7 @@ DECK = [   # (group, label, nova function, args) - add a button = add a line
     ("Fan", "On", "iot_control", ("fan", "on")), ("Fan", "Off", "iot_control", ("fan", "off")),
     ("Projector", "Power", "projector", ("toggle",)), ("Projector", "Colour", "projector", ("colour",)),
     ("Projector", "Laser", "projector", ("laser",)),
-    ("Music", "Stop", "stop_music", ()),
+    ("Music", "Stop", "stop_music", ()), ("Music", "Vol −", "set_volume", ("down",)), ("Music", "Vol +", "set_volume", ("up",)),
 ]
 _deck_lock = threading.Lock()
 
