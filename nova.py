@@ -764,7 +764,7 @@ def light_panel() -> str:
         subprocess.Popen(["python3", os.path.expanduser("~/anish-ai/light_panel.py")],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(3)
-    subprocess.run(["open", url])
+    subprocess.run(["open", url + "/panel"])
     return "Opening the light panel, sir."
 
 _PROJ_ON = os.path.expanduser("~/anish-ai/.projector_on")                                   # exists = we think it's on

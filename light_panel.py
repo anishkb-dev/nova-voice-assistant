@@ -284,10 +284,10 @@ class H(http.server.BaseHTTPRequestHandler):
         g = lambda k, d=0: int(q.get(k, [d])[0])
         path = u.path
 
-        if path in ("/", "/index.html"):
-            return self._send(PAGE, "text/html; charset=utf-8")
-        if path == "/deck":
+        if path in ("/", "/index.html", "/deck"):              # the touch deck is the main page (2026-11-18)
             return self._send(DECK_PAGE, "text/html; charset=utf-8")
+        if path == "/panel":                                   # colour wheel, effects, listen, timer
+            return self._send(PAGE, "text/html; charset=utf-8")
         if path == "/vol":                                     # volume slider: ?v=0-100 sets; always returns the current level
             if "v" in q: _osa("set volume output volume %d" % max(0, min(100, g("v", 50))))
             return self._send(json.dumps({"v": int(_osa("output volume of (get volume settings)") or 0)}))
@@ -515,9 +515,20 @@ button:active{background:var(--tile2);transform:scale(.96)}
 button.busy{border-color:var(--acc);color:var(--acc)}
 #toast{position:fixed;left:16px;right:16px;bottom:16px;padding:14px 16px;border-radius:14px;background:#241c17;border:1px solid #3a2d24;opacity:0;transition:opacity .2s}
 #toast.on{opacity:1}
-</style></head><body><h1>NOVA</h1>{{BODY}}<div id="toast"></div>
+.vol{display:flex;align-items:center;gap:12px;background:var(--tile);border:1px solid #2e241d;border-radius:16px;padding:14px 16px}
+.vol input{flex:1;height:36px;accent-color:var(--acc)}
+.vol b{min-width:48px;text-align:right;color:var(--acc)}
+a.more{display:block;margin-top:22px;text-align:center;color:var(--dim)}
+</style></head><body><h1>NOVA</h1>
+<section><h2>Volume</h2><div class="vol">🔉<input type="range" id="vol" min="0" max="100" value="50">🔊<b id="vv"></b></div></section>
+{{BODY}}<a class="more" href="/panel">🎨 Colour wheel, effects &amp; music-listen →</a><div id="toast"></div>
 <script>
 const t=document.getElementById("toast");let h;
+const vol=document.getElementById("vol"),vv=document.getElementById("vv");
+const showVol=j=>{vol.value=j.v;vv.textContent=j.v+"%"};
+fetch("/vol").then(r=>r.json()).then(showVol).catch(()=>{});
+vol.oninput=()=>vv.textContent=vol.value+"%";
+vol.onchange=()=>fetch("/vol?v="+vol.value).then(r=>r.json()).then(showVol).catch(()=>{});   // on release
 document.querySelectorAll("button[data-i]").forEach(b=>b.onclick=async()=>{
   if(b.classList.contains("busy"))return; b.classList.add("busy");
   try{const r=await (await fetch("/do?i="+b.dataset.i)).json();t.textContent=r.say}catch(e){t.textContent="Hub not reachable."}
@@ -525,7 +536,7 @@ document.querySelectorAll("button[data-i]").forEach(b=>b.onclick=async()=>{
 });
 </script></body></html>"""
 DECK_PAGE = _deck_page()
-assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE   # self-check: every button rendered
+assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE and 'id="vol"' in DECK_PAGE   # self-check: every button rendered
 
 
 def main():
