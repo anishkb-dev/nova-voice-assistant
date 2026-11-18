@@ -642,6 +642,16 @@
     font-size: 18px;
     line-height: 1;
   }
+  /* fit fix (2026-11-19): let every grid track shrink below its text width so nothing spills off the column */
+  .deck-container{grid-template-columns:minmax(0,1.05fr) minmax(0,1.15fr) minmax(0,1.05fr) minmax(0,1fr)!important}
+  .col-card{min-width:0;overflow:hidden}
+  .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .grid-4{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  .chips-row{grid-template-columns:repeat(7,minmax(0,1fr))!important}
+  .btn,.chip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{font-size:8.5px!important;padding-left:1px!important;padding-right:1px!important}
+  .effects-grid .btn,.device-block-proj .btn{font-size:13px!important;padding-left:2px!important;padding-right:2px!important}
 </style></head>
 <body>
 <div class="deck-container">
