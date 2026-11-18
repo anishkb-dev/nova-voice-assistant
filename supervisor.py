@@ -19,7 +19,8 @@ CHAT = open(guard.CHAT_F).read().strip()
 OFF_F = os.path.join(HERE, ".nova_off")              # exists = you turned Nova off (survives reboots)
 PLIST = os.path.expanduser("~/Library/LaunchAgents/com.nova.app.plist")
 DOM = "gui/%d" % os.getuid()
-KEYBOARD = {"keyboard": [[{"text": "📊 Status"}], [{"text": "🔴 Nova off"}, {"text": "🟢 Nova on"}]],
+KEYBOARD = {"keyboard": [[{"text": "📊 Status"}], [{"text": "🔴 Nova off"}, {"text": "🟢 Nova on"}],
+                       [{"text": "🙈 Cam+mic off"}, {"text": "👁 Cam+mic on"}]],
             "resize_keyboard": True, "is_persistent": True}
 # com.nova.app runs `open -W -a NovaHub.app`: killing the job leaves the app up, so kill Nova itself (launchd relaunches it)
 RESTART_NOVA = ("Restart Nova", "pkill -f 'app/nova_app[.]py'; pkill -f 'cam_presence[.]py'")
@@ -95,13 +96,15 @@ def checks():
         if app:
             hb = heartbeat()
             add("voice", "Voice (listening)", None if hb and hb["hf"] else ("not listening" if hb else "Nova not responding"), 300)
-            if hb and not os.path.exists(os.path.join(HERE, ".bedmic_off")):
+            try: all_muted = "*" in open(os.path.join(HERE, ".mic_mute")).read().split()   # owner said "mic off"
+            except OSError: all_muted = False
+            if hb and not all_muted and not os.path.exists(os.path.join(HERE, ".bedmic_off")):
                 for key, (label, host) in MICS.items():
                     try: ip = socket.gethostbyname(host)
                     except OSError: ip = None
                     add(key, label, None if ip in hb.get("mics", []) else
                         ("no audio from %s" % ip if ip else "%s not on Wi-Fi (power?)" % host), 300)
-            if not os.path.exists(os.path.join(HERE, ".asleep")):   # goodnight turns the camera off on purpose
+            if not os.path.exists(os.path.join(HERE, ".asleep")) and not os.path.exists(os.path.join(HERE, ".camera_off")):   # off on purpose
                 add("camera", "Camera (presence)", None if running("cam_presence[.]py") else "not running", 300)
     return out
 
@@ -232,11 +235,17 @@ def handle(up):
         tg("sendMessage", chat_id=CHAT, text="Turn Nova off? Listening (hub and Mac), camera, automations and AC timers stop. "
                                              "Nothing will turn the AC off for you while it's off.",
            reply_markup=json.dumps(kb))
+    elif ("mic" in t or "cam" in t) and (t.endswith(" on") or t.endswith(" off")):   # 🙈/👁 buttons, or typed "mic on"
+        dev = "both" if "cam" in t and "mic" in t else "camera" if "cam" in t else "mic"
+        act = "on" if t.endswith(" on") else "off"
+        try: mq["c"].publish("home/hub/privacy", "%s %s" % (dev, act), qos=1); reply = "%s %s." % ({"both": "Camera and mic", "camera": "Camera", "mic": "Mic"}[dev], act)
+        except Exception as e: reply = "Couldn't reach Nova: %s" % str(e)[:60]
+        tg("sendMessage", chat_id=CHAT, text=reply, reply_markup=json.dumps(KEYBOARD))
     elif "nova on" in t or t == "/on":
         tg("sendMessage", chat_id=CHAT, text="Nova is already on." if not nova_off() and running("app/nova_app[.]py")
            else set_nova(True), reply_markup=json.dumps(KEYBOARD))
     else:
-        tg("sendMessage", chat_id=CHAT, text="Buttons: 📊 Status, 🔴 Nova off, 🟢 Nova on.", reply_markup=json.dumps(KEYBOARD))
+        tg("sendMessage", chat_id=CHAT, text="Buttons: 📊 Status, 🔴 Nova off, 🟢 Nova on, 🙈 Cam+mic off, 👁 Cam+mic on.", reply_markup=json.dumps(KEYBOARD))
 
 
 def poll():

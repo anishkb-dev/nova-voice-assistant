@@ -289,6 +289,34 @@ def mute(action: str = "toggle") -> str:
     return "Muted." if want == "true" else "Unmuted."
 
 _gesture_proc = None
+CAM_OFF_F = os.path.expanduser("~/anish-ai/.camera_off")   # exists = owner switched the camera off (survives restarts)
+MIC_MUTE_F = os.path.expanduser("~/anish-ai/.mic_mute")    # netmic ignores these sender IPs; "*" = every mic
+
+def camera_mic(device: str = "both", action: str = "off") -> str:
+    """Owner's privacy switch. device: camera | mic | both; action: on | off. Off sticks until switched back on
+    (restarts, routines and arriving home don't override it). Mic off = Nova can't hear 'mic on': use Telegram."""
+    d, a = (device or "both").lower(), (action or "off").lower().strip()
+    if a not in ("on", "off"): return "Say on or off."
+    cam, mic = d in ("camera", "cam", "both"), d in ("mic", "mics", "microphone", "both")
+    if not (cam or mic): return "Camera, mic or both?"
+    if not IS_HUB:                                    # camera + mics live on the hub
+        _hub_send("privacy", "%s %s" % ("both" if cam and mic else "camera" if cam else "mic", a))
+        return "Camera and mic %s, sir." % a if cam and mic else "%s %s, sir." % ("Camera" if cam else "Mic", a)
+    if cam:
+        if a == "off":
+            open(CAM_OFF_F, "w").close(); gesture_control("stop")
+        else:
+            if os.path.exists(CAM_OFF_F): os.remove(CAM_OFF_F)
+            gesture_control("start")
+    if mic:
+        try: ips = set(open(MIC_MUTE_F).read().split())
+        except OSError: ips = set()
+        ips = ips | {"*"} if a == "off" else ips - {"*"}   # keeps any single noisy mic muted
+        if ips: open(MIC_MUTE_F, "w").write("\n".join(sorted(ips)) + "\n")
+        elif os.path.exists(MIC_MUTE_F): os.remove(MIC_MUTE_F)
+    what = "Camera and mics" if cam and mic else "Camera" if cam else "Mics"
+    return "%s off. Turn them back on from Telegram (Cam+mic on)." % what if a == "off" and mic else "%s %s, sir." % (what, a)
+
 def gesture_control(action: str = "start") -> str:
     """Hub webcam presence watcher (cam_presence.py) on/off. Name kept from the old gesture-volume feature. action: start | stop."""
     global _gesture_proc
@@ -299,6 +327,8 @@ def gesture_control(action: str = "start") -> str:
             return "Room camera %s, sir." % ("off" if "stop" in (action or "") else "on")
         except Exception as e:
             return "Couldn't reach the hub for gestures: %s" % str(e)[:60]
+    if (action or "start").lower().strip() != "stop" and os.path.exists(CAM_OFF_F):
+        return "Camera is switched off (privacy); say 'camera on' to allow it."   # every auto-start lands here
     if (action or "start").lower().strip() == "stop":
         if _gesture_proc and _gesture_proc.poll() is None:
             _gesture_proc.terminate(); _gesture_proc = None
@@ -1316,7 +1346,7 @@ def wake_brief() -> str:
 
 
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
-         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "run_command": run_command,
+         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "camera_mic": camera_mic, "run_command": run_command,
          "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
          "notify": notify, "set_reminder": set_reminder, "system_status": system_status,
          "read_webpage": read_webpage, "create_reminder": create_reminder,
@@ -1355,6 +1385,11 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "next_song", "description": "Skip to the next song ('next', 'skip this song').",
         "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "camera_mic", "description": "Privacy switch for the room camera and/or microphones ('camera off', 'mic off', 'camera and mic off', 'camera on').",
+        "parameters": {"type": "object", "properties": {
+            "device": {"type": "string", "enum": ["camera", "mic", "both"]},
+            "action": {"type": "string", "enum": ["on", "off"]}}, "required": ["device", "action"]}}},
     {"type": "function", "function": {
         "name": "pause_music", "description": "Pause or resume the music ('pause', 'resume', 'play/pause'). Toggles.",
         "parameters": {"type": "object", "properties": {}}}},

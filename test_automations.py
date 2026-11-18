@@ -73,3 +73,22 @@ k = F(); CUR.append(k); k._auto_on = False; k._automation_tick(D(2026, 11, 10, 1
 assert "nudge" not in k.fired, ("freelance nudge while asleep", k.fired)
 k2 = F(); CUR.append(k2); k2._auto_on = True; k2._automation_tick(D(2026, 11, 10, 10, 30))
 assert "nudge" in k2.fired, ("freelance nudge when awake", k2.fired); print("timed skip checks passed")
+
+# --- privacy switch: camera/mic off sticks, mic on keeps a single muted noisy mic ---
+import tempfile as _tf, nova as _nv
+_d = _tf.mkdtemp(); _nv.CAM_OFF_F, _nv.MIC_MUTE_F = os.path.join(_d, "cam"), os.path.join(_d, "mute")
+_hub, _gc = _nv.IS_HUB, _nv.gesture_control
+_nv.IS_HUB = True; _calls = []
+_nv.gesture_control = lambda a="start": _calls.append(a) or ""
+open(_nv.MIC_MUTE_F, "w").write("192.168.68.104\n")
+_nv.camera_mic("both", "off")
+assert os.path.exists(_nv.CAM_OFF_F) and set(open(_nv.MIC_MUTE_F).read().split()) == {"*", "192.168.68.104"} and _calls == ["stop"]
+_nv.gesture_control = _gc
+assert "switched off" in _nv.gesture_control("start")          # auto-starts are blocked while off
+_nv.gesture_control = lambda a="start": _calls.append(a) or ""
+_nv.camera_mic("both", "on")
+assert not os.path.exists(_nv.CAM_OFF_F) and open(_nv.MIC_MUTE_F).read().split() == ["192.168.68.104"] and _calls[-1] == "start"
+_nv.camera_mic("mic", "off"); _nv.camera_mic("mic", "on")
+assert open(_nv.MIC_MUTE_F).read().split() == ["192.168.68.104"]
+_nv.IS_HUB, _nv.gesture_control = _hub, _gc
+print("privacy switch checks passed")

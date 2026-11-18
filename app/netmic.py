@@ -36,7 +36,7 @@ class NetMic:
                 self._mt = time.time()
                 try: self.mute = set(open(MUTE).read().split())
                 except OSError: self.mute = set()
-            if ip in self.mute:
+            if ip in self.mute or "*" in self.mute:   # "*" = owner said "mic off"
                 continue                    # its leftover buffer drains in a few reads
             pcm = self._hp(ip, d[16:])
             with self.cv:

@@ -384,6 +384,9 @@ class Api(Voice, Brain, Automations):
                 self._mac_online = on
                 if not on: self._mac_busy = False
                 return
+            if m.topic == "home/hub/privacy" and nova.IS_HUB:   # Mac-typed or Telegram "cam/mic on/off"
+                dev, _, act = val.partition(" ")
+                print("[hub] privacy", nova.camera_mic(dev, act), flush=True); return
             if m.topic == "home/mac/pick":
                 if not nova.IS_HUB: nova.pick_song()   # the Mac opens its own fixed URL; the payload is ignored
                 return
