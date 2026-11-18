@@ -300,7 +300,7 @@ class H(http.server.BaseHTTPRequestHandler):
         elif path == "/effect":
             name = q.get("name", ["party"])[0]
             eid = lights.EFFECTS.get(name, 0x88)
-            _stop_listen(); send(lights.ON); send(lights._effect(eid)); STATE["on"] = True
+            _stop_listen(); send(lights.ON); send(lights._effect(eid)); send(lights._speed(g("v", 100))); STATE["on"] = True   # no speed = the strip's last (often a slow crawl)
         elif path == "/speed":
             send(lights._speed(g("v", 50)))
         elif path == "/voice":                                 # Nova speaking: table strip breathes in Nova's amber, then back
