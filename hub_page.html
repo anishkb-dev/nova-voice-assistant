@@ -7,10 +7,12 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font:13px/1.2 -apple-system,system-ui,sans-serif}
 /* one screen, no page scroll: 4 columns; button grids stretch/shrink to fill the height */
-main{display:grid;grid-template-columns:1.2fr 1.05fr .85fr 1.1fr;gap:6px;height:100dvh;
+main{display:grid;grid-template-columns:1.15fr 1.05fr .95fr 1.05fr;gap:6px;height:100dvh;
   padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) 6px max(6px,env(safe-area-inset-left))}
 .col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 7px;min-height:0;overflow:hidden;
   display:flex;flex-direction:column;gap:4px}
+h2 span{min-width:0;margin-left:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#modes button{font-size:10.5px}
 h2{font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:2px 0 0;display:flex;justify-content:space-between;flex:none}
 .g{display:grid;grid-template-columns:repeat(var(--c,3),1fr);grid-auto-rows:1fr;gap:4px;flex:1;min-height:0}
 .g.f2{flex:2}.g.n{flex:none;height:34px}
@@ -87,7 +89,7 @@ input[type=range]{width:100%;height:20px;accent-color:var(--acc);margin:0;flex:n
   <h2>Projector <span id="prs"></span></h2><div class="g">
     <button onclick="act('projector','toggle')">Power</button><button onclick="act('projector','colour')">Colour</button>
     <button onclick="act('projector','nebula')">Nebula</button><button onclick="act('projector','laser')">Laser</button>
-    <button onclick="act('projector','brighter')">Bright+</button><button onclick="act('projector','dimmer')">Dim−</button></div>
+    <button onclick="act('projector','brighter')">☀ +</button><button onclick="act('projector','dimmer')">☀ −</button></div>
 </section>
 
 <!-- ============ MUSIC ============ -->
