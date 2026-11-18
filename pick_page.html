@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nova · Pick a song</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  body {
+    background: transparent;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif;
+    color: #ffdbc9;
+    overflow: hidden;
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Floating macOS Window Container */
+  .window {
+    width: 420px;
+    height: 560px;
+    background-color: #0b0908;
+    border-radius: 18px;
+    box-shadow: 
+      0 26px 60px -10px rgba(0, 0, 0, 0.85),
+      0 12px 28px -6px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 219, 201, 0.1),
+      0 0 0 1px rgba(255, 219, 201, 0.08);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    animation: windowAppear 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes windowAppear {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  /* Header */
+  .header {
+    height: 46px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 219, 201, 0.06);
+    flex-shrink: 0;
+  }
+
+  .title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nova-badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ff9a42;
+    box-shadow: 0 0 8px #ff9a42aa;
+  }
+
+  .window-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #ffdbc9;
+  }
+
+  .window-title span {
+    color: rgba(255, 219, 201, 0.5);
+    font-weight: 400;
+    margin: 0 2px;
+  }
+
+  .close-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 219, 201, 0.06);
+    border: none;
+    color: rgba(255, 219, 201, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.15s ease;
+  }
+
+  .close-btn:hover {
+    background: rgba(255, 219, 201, 0.14);
+    color: #ffdbc9;
+  }
+
+  /* Now Playing strip */
+  .now-playing-strip {
+    padding: 8px 16px;
+    background-color: #1a1411;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid rgba(255, 219, 201, 0.05);
+    flex-shrink: 0;
+  }
+
+  .pulse-indicator {
+    display: flex;
+    align-items: center;
+    gap: 2.5px;
+    height: 12px;
+  }
+
+  .bar {
+    width: 2.5px;
+    height: 10px;
+    background: #39e08f;
+    border-radius: 1px;
+    animation: eq 1s ease-in-out infinite alternate;
+  }
+  .bar:nth-child(2) { animation-delay: 0.25s; height: 6px; }
+  .bar:nth-child(3) { animation-delay: 0.5s; height: 12px; }
+
+  @keyframes eq {
+    0% { transform: scaleY(0.3); }
+    100% { transform: scaleY(1); }
+  }
+
+  .now-playing-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255, 219, 201, 0.45);
+    font-weight: 600;
+  }
+
+  .now-playing-title {
+    font-size: 12px;
+    color: #39e08f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+  }
+
+  /* Search Area */
+  .search-container {
+    padding: 12px 16px 8px 16px;
+    flex-shrink: 0;
+  }
+
+  .search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    font-size: 13px;
+    color: rgba(255, 219, 201, 0.4);
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    background-color: #181310;
+    border: 1px solid rgba(255, 219, 201, 0.1);
+    border-radius: 10px;
+    height: 38px;
+    padding: 0 34px 0 34px;
+    color: #ffdbc9;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.15s ease;
+    font-family: inherit;
+  }
+
+  .search-input::placeholder {
+    color: rgba(255, 219, 201, 0.35);
+  }
+
+  .search-input:focus {
+    border-color: #ff9a42;
+    background-color: #201814;
+    box-shadow: 0 0 0 2px rgba(255, 154, 66, 0.2);
+  }
+
+  .shortcut-tag {
+    position: absolute;
+    right: 10px;
+    font-size: 10px;
+    background: rgba(255, 219, 201, 0.08);
+    color: rgba(255, 219, 201, 0.5);
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+  }
+
+  /* Song List */
+  .meta-bar {
+    padding: 4px 18px 4px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: rgba(255, 219, 201, 0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+  }
+
+  .song-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 219, 201, 0.18) transparent;
+  }
+
+  .song-list-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .song-list-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 219, 201, 0.16);
+    border-radius: 3px;
+  }
+
+  .song-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .song-item {
+    display: flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    background-color: transparent;
+    transition: background-color 0.1s ease, transform 0.08s ease;
+    font-size: 12.5px;
+    line-height: 1.3;
+  }
+
+  .song-item:hover {
+    background-color: #211915;
+  }
+
+  .song-item.selected {
+    background-color: #281d18;
+    outline: 1px solid rgba(255, 154, 66, 0.4);
+  }
+
+  .song-item.now-playing {
+    color: #39e08f;
+    font-weight: 500;
+  }
+
+  .song-item.now-playing .song-number {
+    color: #39e08f;
+    opacity: 0.9;
+  }
+
+  .song-number {
+    width: 34px;
+    flex-shrink: 0;
+    color: rgba(255, 219, 201, 0.35);
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+
+  .song-title-wrap {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 8px;
+  }
+
+  .song-duration {
+    font-size: 11px;
+    color: rgba(255, 219, 201, 0.35);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  .playing-badge {
+    display: none;
+    margin-left: 6px;
+    font-size: 10px;
+    background: rgba(57, 224, 143, 0.15);
+    color: #39e08f;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .song-item.now-playing .playing-badge {
+    display: inline-block;
+  }
+
+  .empty-state {
+    padding: 40px 16px;
+    text-align: center;
+    color: rgba(255, 219, 201, 0.4);
+    font-size: 12px;
+  }
+
+  /* Status Toast Overlay */
+  .toast {
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    background-color: #ff9a42;
+    color: #0b0908;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    box-shadow: 0 4px 14px rgba(255, 154, 66, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Footer Controls */
+  .footer {
+    padding: 12px 16px;
+    background-color: #120e0c;
+    border-top: 1px solid rgba(255, 219, 201, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    appearance: none;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.12s ease;
+  }
+
+  .btn-shuffle {
+    background-color: #ff9a42;
+    color: #0b0908;
+    font-weight: 600;
+  }
+
+  .btn-shuffle:hover {
+    background-color: #ffaa5e;
+    transform: translateY(-0.5px);
+  }
+
+  .btn-shuffle:active {
+    transform: translateY(0.5px);
+  }
+
+  .btn-cancel {
+    background-color: #211915;
+    color: rgba(255, 219, 201, 0.8);
+    border: 1px solid rgba(255, 219, 201, 0.08);
+  }
+
+  .btn-cancel:hover {
+    background-color: #2b201a;
+    color: #ffdbc9;
+  }
+
+  .esc-hint {
+    font-size: 10px;
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+<div aria-label="Nova Pick a Song" aria-modal="true" class="window" id="popupWindow" role="dialog">
+<!-- Header -->
+<header class="header">
+<div class="title-group">
+<div class="nova-badge"></div>
+<div class="window-title">Nova <span>·</span> Pick a song</div>
+</div>
+<button aria-label="Reset search" class="close-btn" id="closeBtn" title="Reset search (Esc)">✕</button>
+</header>
+<!-- Now playing status line -->
+<div class="now-playing-strip">
+<div class="pulse-indicator">
+<span class="bar"></span>
+<span class="bar"></span>
+<span class="bar"></span>
+</div>
+<span class="now-playing-label">Now Playing</span>
+<span class="now-playing-title" id="nowPlayingText">…</span>
+</div>
+<!-- Search input -->
+<div class="search-container">
+<div class="search-wrap">
+<span class="search-icon">🔍</span>
+<input autocomplete="off" autofocus="" class="search-input" id="searchInput" placeholder="Search songs…" spellcheck="false" type="text"/>
+<span class="shortcut-tag">↵ Play</span>
+</div>
+</div>
+<!-- Song list meta count -->
+<div class="meta-bar">
+<span id="filteredCount">Playlist · 430 songs</span>
+<span>↑↓ Navigate</span>
+</div>
+<!-- Song list scrollable container -->
+<div class="song-list-scroll" id="scrollContainer">
+<ul class="song-list" id="songList">
+<!-- Songs injected via JS -->
+</ul>
+<div class="empty-state" id="emptyState" style="display: none;">
+      No matching songs found
+    </div>
+</div>
+<!-- Action Toast (Playing...) -->
+<div class="toast" id="toast">
+<span>▶</span> <span id="toastText">Playing…</span>
+</div>
+<!-- Footer -->
+<footer class="footer">
+<button class="btn btn-shuffle" id="shuffleBtn" title="Shuffle all 430 songs">
+<span>🔀</span> Shuffle all
+    </button>
+<button class="btn btn-cancel" id="cancelBtn" title="Clear search">
+      Reset <span class="esc-hint">(Esc)</span>
+</button>
+</footer>
+</div>
+<script>
+  // Real playlist: filled from /api/playlist (titles only; YouTube gives no durations in the flat list)
+  let songs = [];
+
+  // State
+  let currentPlayingId = 0;
+  let filteredSongs = [...songs];
+  let selectedIndex = 0;
+  let toastTimer = null;
+
+  // DOM Elements
+  const searchInput = document.getElementById("searchInput");
+  const songList = document.getElementById("songList");
+  const emptyState = document.getElementById("emptyState");
+  const filteredCount = document.getElementById("filteredCount");
+  const nowPlayingText = document.getElementById("nowPlayingText");
+  const closeBtn = document.getElementById("closeBtn");
+  const cancelBtn = document.getElementById("cancelBtn");
+  const shuffleBtn = document.getElementById("shuffleBtn");
+  const toast = document.getElementById("toast");
+  const toastText = document.getElementById("toastText");
+
+  // Render song items
+  function renderList() {
+    songList.innerHTML = "";
+    if (filteredSongs.length === 0) {
+      emptyState.style.display = "block";
+      filteredCount.textContent = "0 songs found";
+      return;
+    }
+
+    emptyState.style.display = "none";
+    filteredCount.textContent = searchInput.value.trim() 
+      ? `${filteredSongs.length} matching of ${songs.length}`
+      : `Playlist · ${songs.length} songs`;
+
+    // Cap render chunk for smooth DOM performance
+    const displaySlice = filteredSongs.slice(0, 100);
+
+    displaySlice.forEach((song, idx) => {
+      const li = document.createElement("li");
+      const isNowPlaying = song.id === currentPlayingId;
+      li.className = `song-item ${idx === selectedIndex ? "selected" : ""} ${isNowPlaying ? "now-playing" : ""}`;
+      li.dataset.index = idx;
+      li.dataset.id = song.id;
+
+      li.innerHTML = `
+        <span class="song-number">${String(song.id).padStart(3, '0')}</span>
+        <div class="song-title-wrap" title="${escapeHtml(song.title)}">
+          <span>${escapeHtml(song.title)}</span>
+          <span class="playing-badge">PLAYING</span>
+        </div>
+        <span class="song-duration">${song.duration}</span>
+      `;
+
+      li.addEventListener("click", () => {
+        playSong(song);
+      });
+
+      songList.appendChild(li);
+    });
+
+    scrollSelectionIntoView();
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.innerText = text;
+    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");   // titles are untrusted (YouTube) and go into title="..."
+  }
+
+  function scrollSelectionIntoView() {
+    const selectedEl = songList.querySelector(".song-item.selected");
+    if (selectedEl) {
+      selectedEl.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function updateSelection(newIdx) {
+    if (filteredSongs.length === 0) return;
+    if (newIdx < 0) newIdx = 0;
+    if (newIdx >= filteredSongs.length) newIdx = filteredSongs.length - 1;
+
+    selectedIndex = newIdx;
+    const items = songList.querySelectorAll(".song-item");
+    items.forEach((item, idx) => {
+      item.classList.toggle("selected", idx === selectedIndex);
+    });
+    scrollSelectionIntoView();
+  }
+
+  function showToast(message) {
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toastText.textContent = message;
+    toast.classList.add("show");
+    toastTimer = setTimeout(() => {
+      toast.classList.remove("show");
+    }, 2200);
+  }
+
+  // Play selection action - keeps window permanently open
+  function hub(fn, kw) {   // music runs in the hub's Nova app (it owns the queue)
+    return fetch("/api/hub?k=music&v=" + encodeURIComponent(JSON.stringify({fn, kw}))).catch(() => showToast("Hub not reachable"));
+  }
+  function playSong(song) {
+    hub("play_playlist", {start: song.id - 1});
+    currentPlayingId = song.id;
+    nowPlayingText.textContent = song.title;
+
+    // Show Playing toast feedback
+    const cleanTitle = song.title.split('—')[0].trim();
+    showToast(`Playing "${cleanTitle}"…`);
+
+    // Re-render list to reflect updated "now-playing" styling and badge
+    renderList();
+  }
+
+  // Reset or clear search action instead of closing
+  function resetSearch() {
+    if (searchInput.value !== "") {
+      searchInput.value = "";
+      filteredSongs = [...songs];
+      selectedIndex = 0;
+      renderList();
+      showToast("Search cleared");
+    } else {
+      showToast("Ready");
+    }
+    searchInput.focus();
+  }
+
+  // Search filter
+  searchInput.addEventListener("input", (e) => {
+    const val = e.target.value.toLowerCase().trim();
+    if (!val) {
+      filteredSongs = [...songs];
+    } else {
+      filteredSongs = songs.filter(s => s.title.toLowerCase().includes(val) || String(s.id).includes(val));
+    }
+    selectedIndex = 0;
+    renderList();
+  });
+
+  // Keyboard navigation
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      resetSearch();
+      return;
+    }
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      updateSelection(selectedIndex + 1);
+      return;
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      updateSelection(selectedIndex - 1);
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredSongs[selectedIndex]) {
+        playSong(filteredSongs[selectedIndex]);
+      }
+      return;
+    }
+  });
+
+  // Buttons - do not close window
+  closeBtn.addEventListener("click", resetSearch);
+  cancelBtn.addEventListener("click", resetSearch);
+
+  shuffleBtn.addEventListener("click", () => {
+    if (songs.length === 0) return;
+    hub("play_playlist", {shuffle: true});
+    showToast("Shuffling all…");
+  });
+
+  // Initialize: real playlist + live "now playing"
+  fetch("/api/playlist").then(r => r.json()).then(t => {
+    songs = t.map((title, i) => ({id: i + 1, title, duration: ""}));
+    filteredSongs = [...songs]; renderList();
+    shuffleBtn.title = `Shuffle all ${songs.length} songs`;
+  }).catch(() => { emptyState.textContent = "Playlist not reachable"; emptyState.style.display = "block"; });
+  async function poll() {
+    try {
+      const st = await (await fetch("/api/state")).json();
+      nowPlayingText.textContent = st.playing ? (st.title || "Playing") + (st.paused ? " (paused)" : "") : "Nothing playing";
+      const hit = songs.find(x => x.title === st.title);
+      const id = st.playing && hit ? hit.id : 0;
+      if (id !== currentPlayingId) { currentPlayingId = id; renderList(); }
+    } catch (e) {}
+  }
+  poll(); setInterval(poll, 3000);
+  renderList();
+  // Ensure search receives immediate focus
+  setTimeout(() => {
+    searchInput.focus();
+    searchInput.select();
+  }, 50);
+</script>
+</body></html>

@@ -286,6 +286,11 @@ class H(http.server.BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html", "/hub"):               # one landscape page for everything (2026-11-18)
             return self._send(open(HUB_HTML).read(), "text/html; charset=utf-8")
+        if path == "/pick":                                   # Mac song-picker popup (opened by nova.pick_song)
+            return self._send(open(PICK_HTML).read(), "text/html; charset=utf-8")
+        if path == "/api/pause":                              # play/pause toggle: freezes/wakes the player on this hub
+            import nova
+            return self._send(json.dumps({"say": nova.pause_music()}))
         if path == "/deck":
             return self._send(DECK_PAGE, "text/html; charset=utf-8")
         if path == "/api/state":
@@ -499,6 +504,7 @@ _deck_lock = threading.Lock()
 
 # ---------- the hub page (hub_page.html): live room state, whitelisted actions, playlist ----------
 HUB_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hub_page.html")
+PICK_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pick_page.html")
 TQ = []        # the table's MQTT client, reused: subscribes to home/room/# and publishes hub jobs
 MUSIC_OK = {"play_playlist": {"start", "shuffle"}, "next_song": set(), "stop_music": set()}   # fn -> allowed kw
 ROOM = {}      # latest home/room/<key> values (retained ones arrive on connect)
@@ -529,7 +535,8 @@ def _hub_state():
     try: title = open("/tmp/nova_now.txt").read().strip()
     except OSError: title = ""
     playing = subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0
-    return {"room": ROOM, "playing": playing, "title": title if playing else "",
+    import nova
+    return {"room": ROOM, "playing": playing, "paused": playing and nova.music_paused(), "title": title if playing else "",
             "projector": os.path.exists(os.path.expanduser("~/anish-ai/.projector_on")),
             "strips": _strips_state(), "on": STATE.get("on"),
             "routines": [k for k, v in json.load(open(os.path.expanduser("~/anish-ai/routines.json"))).items()

@@ -384,6 +384,9 @@ class Api(Voice, Brain, Automations):
                 self._mac_online = on
                 if not on: self._mac_busy = False
                 return
+            if m.topic == "home/mac/pick":
+                if not nova.IS_HUB: nova.pick_song()   # the Mac opens its own fixed URL; the payload is ignored
+                return
             if m.topic == "home/mac/busy":
                 self._mac_busy, self._busy_ts = val == "1", time.time(); return
             if m.topic in ("home/mac/said", "home/hub/said"):   # what the Mac speaks -> hub's echo/interrupt filter

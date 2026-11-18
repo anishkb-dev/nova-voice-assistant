@@ -117,8 +117,24 @@ def _start(title, vid, path):
     threading.Thread(target=after, daemon=True).start()
     return "Now playing: " + title
 
+_FLAT_F = "/tmp/nova_flat_%s.json"
+FLAT_TTL = 12 * 3600   # calibration knob: re-list the playlist after this long (new songs show up then)
+
 def _flat(url, items="1-200"):
-    """[(watch url, title)] of a playlist/radio without downloading anything."""
+    """[(watch url, title)] of a playlist/radio without downloading anything. Cached on disk for FLAT_TTL:
+    listing the owner's 430 songs takes 10-20 s, which made every song picked on the deck/popup slow."""
+    import hashlib
+    f = _FLAT_F % hashlib.md5((url + items).encode()).hexdigest()[:10]
+    try:
+        if time.time() - os.path.getmtime(f) < FLAT_TTL: return [tuple(x) for x in json.load(open(f))]
+    except (OSError, ValueError): pass
+    out = _flat_fetch(url, items)
+    if out:
+        try: json.dump(out, open(f, "w"))
+        except OSError: pass
+    return out
+
+def _flat_fetch(url, items):
     r = subprocess.run([_ytdlp(), "--no-update", "--flat-playlist", "--playlist-items", items,
                         "--print", "%(id)s\t%(title)s", url], capture_output=True, text=True, timeout=60)
     out = []
@@ -158,7 +174,7 @@ def _music_remote(fn, **kw):
     _remote_on[0] = fn != "stop_music"
     return {"play_music": "Playing %s on the hub speaker." % kw.get("query", ""),
             "play_playlist": "Playing %s on the hub speaker." % ("that playlist" if kw.get("url") else "your playlist"),
-            "next_song": "Skipping to the next song.", "stop_music": "Music stopped."}[fn]
+            "next_song": "Skipping to the next song.", "stop_music": "Music stopped.", "pause_music": "Pausing or resuming the music."}[fn]
 
 def play_music(query: str) -> str:
     """Play a song by name (YouTube Music, free, no account); more like it follows automatically. Replaces anything playing."""
@@ -200,8 +216,30 @@ def next_song() -> str:
     global _gen
     with _mlock:
         _gen += 1                            # the killed song must not advance a second time
+        subprocess.run(["pkill", "-CONT", "-f", "nova_track[.]"])   # a paused (frozen) player can't die until woken
         if _player and _player.poll() is None: _player.terminate()
         return _next()
+
+def music_paused() -> bool:
+    r = subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True, text=True)
+    pids = r.stdout.split()
+    return bool(pids) and subprocess.run(["ps", "-o", "stat=", "-p", pids[0]], capture_output=True, text=True).stdout.startswith("T")
+
+def pause_music() -> str:
+    """Pause or resume the music (toggle). Freezes the player, so it resumes mid-song."""
+    if _MUSIC_REMOTE(): return _music_remote("pause_music")
+    if subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode != 0: return "Nothing is playing."
+    if music_paused():
+        subprocess.run(["pkill", "-CONT", "-f", "nova_track[.]"]); return "Resumed."
+    subprocess.run(["pkill", "-STOP", "-f", "nova_track[.]"]); return "Paused."
+
+def pick_song() -> str:
+    """Open the song picker popup on the Mac (the user asked for music without naming a song)."""
+    url = "http://nova-hub.local:8099/pick"
+    if IS_HUB:   # ponytail: fire-and-forget; if the Mac is off nobody sees it (then say a song name or 'shuffle')
+        _pub(mqtt_client(), [("home/mac/pick", url)]); return "Pick a song on the Mac, sir."
+    subprocess.Popen(["open", "-na", "Brave Browser", "--args", "--app=" + url, "--window-size=440,600"])
+    return "Pick a song, sir."
 
 def music_playing() -> bool:
     if _MUSIC_REMOTE(): return _remote_on[0]   # our last word to the hub (a queue that ran out isn't seen; harmless)
@@ -213,6 +251,7 @@ def stop_music() -> str:
     if _MUSIC_REMOTE(): return _music_remote("stop_music")
     global _player, _gen
     _panel_listen(0)
+    subprocess.run(["pkill", "-CONT", "-f", "nova_track[.]"])   # a paused (frozen) player can't die until woken
     _gen += 1; _queue.clear()               # no lock: must not wait behind a download; a pending fetch sees _gen and quits
     if _player and _player.poll() is None:
         _player.terminate()
@@ -1277,7 +1316,7 @@ def wake_brief() -> str:
 
 
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
-         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "run_command": run_command,
+         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "run_command": run_command,
          "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
          "notify": notify, "set_reminder": set_reminder, "system_status": system_status,
          "read_webpage": read_webpage, "create_reminder": create_reminder,
@@ -1302,7 +1341,7 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {
             "query": {"type": "string", "description": "The search query"}}, "required": ["query"]}}},
     {"type": "function", "function": {
-        "name": "play_music", "description": "Play a song, artist, or album by name (streams audio from YouTube). Use this for any 'play ...' music request instead of shell commands.",
+        "name": "play_music", "description": "Play a song, artist, or album by name (streams audio from YouTube). Use this when a song/artist/album IS named ('play Dark Red'); no name given -> pick_song. Never use shell commands for music.",
         "parameters": {"type": "object", "properties": {
             "query": {"type": "string", "description": "Song / artist / album to play, e.g. '500 Miles'"}}, "required": ["query"]}}},
     {"type": "function", "function": {
@@ -1315,6 +1354,12 @@ TOOLS = [
             "shuffle": {"type": "boolean", "description": "true if the user asked for shuffle"}}}}},
     {"type": "function", "function": {
         "name": "next_song", "description": "Skip to the next song ('next', 'skip this song').",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "pause_music", "description": "Pause or resume the music ('pause', 'resume', 'play/pause'). Toggles.",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "pick_song", "description": "The user wants music but named NO song, artist or playlist ('play a song', 'play something', 'play music'): open the song picker on the Mac.",
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
         "name": "set_volume", "description": "Set the volume: a number 0-100, or 'up'/'down' for louder/quieter ('volume up', 'turn it down').",
