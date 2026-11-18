@@ -812,7 +812,8 @@ def _proj_code(n):
     return C.pulses_to_base64(C.nec_to_pulses(2045, n))
 
 def projector(action: str = "toggle") -> str:
-    """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset."""
+    """Star projector via IR (Tuya blaster). action: on|off|toggle|colour|brighter|dimmer|faster|slower|timer|reset.
+    'is on' / 'is off' = the owner says what it really is (remote used / IR missed): only update memory, press nothing."""
     r = _projector(action)
     threading.Thread(target=_proj_report, daemon=True).start()
     return r
@@ -865,6 +866,11 @@ def _projector(action):
             open(_PROJ_COL, "w").write(str(0 if a == "reset" else (cur + 1) % len(_PROJ_COLOURS)))
             if a == "reset" and os.path.exists(_PROJ_LASER_OFF): os.remove(_PROJ_LASER_OFF)   # reset turns the laser on
         return msg + ", sir."
+    m = re.fullmatch(r"(?:it'?s|is|was|already|its)\s+(?:already\s+)?(on|off)", a)
+    if m:                                          # memory fix only: the power button is a toggle, so pressing would undo it
+        if m.group(1) == "on": open(_PROJ_ON, "w").close()
+        elif os.path.exists(_PROJ_ON): os.remove(_PROJ_ON)
+        return "Got it, I'll remember the projector is %s, sir." % m.group(1)
     on = os.path.exists(_PROJ_ON)
     # ponytail: power is a single toggle with no feedback, so state is our best guess; if it's out of sync,
     # "projector toggle" (or the remote) fixes it.
