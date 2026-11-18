@@ -1,6 +1,11 @@
 """Bedside ESP32 mic (iot/esp32_bedmic) as a PyAudio-stream lookalike.
 UDP :5005, each packet = 16-byte key (~/anish-ai/.mic_key) + int16 LE mono PCM @ 16 kHz."""
 import array, hmac, os, socket, threading, time
+import numpy as np
+from scipy.signal import butter, sosfilt, sosfilt_zi
+
+HP_HZ = 200                                 # calibration knob: below this is thump/DC, not voice (table mic 2026-11-18: 99% <150 Hz)
+HP = butter(2, HP_HZ, "highpass", fs=16000, output="sos")
 
 KEY = open(os.path.expanduser("~/anish-ai/.mic_key"), "rb").read()[:16]
 MAX_BUF = 16000 * 2 * 5                     # keep at most 5 s; older audio is dropped
@@ -16,6 +21,7 @@ class NetMic:
         self.bufs, self.seen, self.last, self.cv = {}, {}, 0.0, threading.Condition()   # per sender IP
         self.lvl = {}                       # per sender IP: [quietest, loudest] frame level since levels() was last called
         self.mute, self._mt = set(), 0.0
+        self.zi = {}                        # per sender IP: high-pass filter state (packets are one continuous stream)
         threading.Thread(target=self._rx, daemon=True).start()
 
     def _rx(self):
@@ -32,13 +38,22 @@ class NetMic:
                 except OSError: self.mute = set()
             if ip in self.mute:
                 continue                    # its leftover buffer drains in a few reads
+            pcm = self._hp(ip, d[16:])
             with self.cv:
                 b = self.bufs.setdefault(ip, bytearray())
-                b += d[16:]
+                b += pcm
                 if len(b) > MAX_BUF:
                     del b[:len(b) - MAX_BUF]
                 self.last = self.seen[ip] = time.time()
                 self.cv.notify()
+
+    def _hp(self, ip, raw):
+        """High-pass each mic's stream: drops thumps/DC wander (power or ground noise) that would out-shout real voices."""
+        x = np.frombuffer(raw, "<i2").astype(np.float32)
+        zi = self.zi.get(ip)
+        if zi is None: zi = sosfilt_zi(HP) * x[0]
+        y, self.zi[ip] = sosfilt(HP, x, zi=zi)
+        return np.clip(y, -32768, 32767).astype("<i2").tobytes()
 
     def alive(self, within=2.0):
         return time.time() - self.last < within
@@ -89,6 +104,7 @@ class NetMic:
 if __name__ == "__main__":                  # self-check: loopback a keyed packet and a forged one
     import array
     m = NetMic(port=5099)
+    m._hp = lambda ip, raw: raw             # mixing logic first, unfiltered; the filter is checked at the end
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.sendto(b"x" * 16 + array.array("h", [999] * 512).tobytes(), ("127.0.0.1", 5099))
     s.sendto(KEY + array.array("h", [7] * 512).tobytes(), ("127.0.0.1", 5099))
@@ -96,6 +112,10 @@ if __name__ == "__main__":                  # self-check: loopback a keyed packe
     assert m.alive() and m.get_read_available() == 512, m.get_read_available()
     assert set(array.array("h", m.read(512))) == {7}      # forged packet rejected
     t = time.time(); assert m.read(1280) == bytes(2560) and time.time() - t < 1.5
+    t = np.arange(16000) / 16000.0          # high-pass: 30 Hz thump gone, 1 kHz voice kept
+    for hz, lo, hi in ((30, 0, 0.05), (1000, 0.9, 1.1)):
+        zi = sosfilt_zi(HP) * 0; y, _ = sosfilt(HP, np.sin(2 * np.pi * hz * t) * 5000, zi=zi)
+        r = np.abs(y[8000:]).max() / 5000; assert lo <= r <= hi, (hz, r)
     with m.cv:                              # a 2nd mic (macOS has no 127.0.0.2: fake its sender IP)
         m.bufs["10.0.0.2"] = bytearray(array.array("h", [900] * 1280).tobytes()); m.seen["10.0.0.2"] = time.time()
     s.sendto(KEY + array.array("h", [5] * 1280).tobytes(), ("127.0.0.1", 5099))
@@ -106,4 +126,9 @@ if __name__ == "__main__":                  # self-check: loopback a keyed packe
     assert set(array.array("h", m.read(1280))) == {6}                             # silent mic 2 doesn't block
     lv = m.levels(); assert lv["10.0.0.2"] == (900, 900) and lv["127.0.0.1"] == (5, 7), lv   # per-mic floor + peak
     assert m.levels() == {}                                                       # reset after reading
+    del m._hp                               # real filter: a 30 Hz thump through the socket comes out near silent
+    thump = (np.sin(2 * np.pi * 30 * np.arange(4096) / 16000) * 8000).astype("<i2")
+    for i in range(0, 4096, 512): s.sendto(KEY + thump[i:i + 512].tobytes(), ("127.0.0.1", 5099))
+    time.sleep(0.2); m.read(2560)
+    assert max(map(abs, array.array("h", m.read(1280)))) < 400, "thump not filtered"
     print("netmic ok")
