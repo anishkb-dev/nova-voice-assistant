@@ -19,12 +19,18 @@ class Automations:
         if re.search(r"\b(list|what)\b.*\broutines?\b", text):
             names = [k for k in rs if not k.startswith("_")]
             return ("_list", {"reply": "Your routines are: " + ", ".join(names) + ".", "steps": []})
+        exact = {n.lower(): (n, r) for n, r in rs.items() if not n.startswith("_")}
+        if text.strip() in exact: return exact[text.strip()]          # "Nova, evening" = the routine
+        if self.NOT_ROUTINE.search(text): return None                   # "remind me to wake up", "bedtime story", "how do I go to sleep"
         for name, r in rs.items():
             if name.startswith("_"):
                 continue
             if text.strip() == name.lower() or any(" %s " % p.lower() in text for p in r.get("phrases", [])):   # "Nova, evening" = the routine
                 return (name, r)
         return self._fuzzy_routine(rs, text.split())
+
+    # a question, a reminder/alarm or a request that merely contains a routine phrase is not that routine (2026-11-18)
+    NOT_ROUTINE = re.compile(r"\b(remind|reminder|alarm|timer|story|stories|ideas?|how|why|what|when|who|explain|meaning|song|music)\b")
 
     FUZZY = 0.85   # calibration knob: typos score 0.87-0.96 ("good moning"); different routines <= 0.80 (good evening/morning 0.75)
 
@@ -34,6 +40,7 @@ class Automations:
         word windows of the same length (+-1 word, so 'goodmorning' meets 'good morning')."""
         from difflib import SequenceMatcher
         best = (cls.FUZZY, None)
+        if len(words) > 4: return None                    # typo match only for a short command that IS the phrase
         for name, r in rs.items():
             if name.startswith("_"): continue
             for p in r.get("phrases", []):
@@ -42,7 +49,9 @@ class Automations:
                 n = len(p.split())
                 for k in {max(1, n - 1), n, n + 1}:
                     for i in range(len(words) - k + 1):
-                        sc = SequenceMatcher(None, " ".join(words[i:i + k]), p).ratio()
+                        w = " ".join(words[i:i + k])
+                        if w[:1] != p[:1]: continue           # typos keep the first letter; "make up" is not "wake up"
+                        sc = SequenceMatcher(None, w, p).ratio()
                         if sc > best[0]: best = (sc, (name, r))
         return best[1]
 

@@ -54,3 +54,13 @@ h = F(); CUR.append(h); h._iot_data.update(light="on", motion=False); h._motion_
 h._mac_active_ts = time.time() - 30; h._automation_tick(D(2026, 11, 6, 15, 0)); assert h.fired == [], ("mac typing", h.fired)
 h._motion_end_ts = h._last_motion_ts = time.time() - 200 * 60; h._automation_tick(D(2026, 11, 6, 15, 1))
 assert h.fired == ["lights off when the room is empty"], ("laptop left the room", h.fired); print("mac presence checks passed")
+# routine phrases: typos match, but questions/reminders/look-alikes must NOT run a routine (2026-11-18 audit)
+from nova_automations import Automations as _AU
+_au = _AU(); _au.ROUTINES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "routines.json")
+_m = lambda t: (_au._match_routine(t.lower()) or ("-",))[0]
+for _t, _e in {"good moning": "morning", "goodmorning": "morning", "good nigth": "goodnight", "wake up": "morning",
+               "remind me to wake up at 7": "-", "set an alarm to wake up at 6": "-", "make up": "-", "make up a story": "-",
+               "tell me a bedtime story": "-", "how do i go to sleep faster": "-", "date night ideas": "-",
+               "turn off the lights i'm going to bed": "goodnight", "evening": "evening", "what are my routines": "_list"}.items():
+    assert _m(_t) == _e, (_t, _m(_t), _e)
+print("routine phrase checks passed")
