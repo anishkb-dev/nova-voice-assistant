@@ -288,6 +288,9 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._send(PAGE, "text/html; charset=utf-8")
         if path == "/deck":
             return self._send(DECK_PAGE, "text/html; charset=utf-8")
+        if path == "/vol":                                     # volume slider: ?v=0-100 sets; always returns the current level
+            if "v" in q: _osa("set volume output volume %d" % max(0, min(100, g("v", 50))))
+            return self._send(json.dumps({"v": int(_osa("output volume of (get volume settings)") or 0)}))
         if path == "/do":                                      # deck button: only the fixed DECK list, by index
             return self._send(json.dumps({"say": _deck_do(g("i", -1))}))
         if path == "/on":
@@ -396,8 +399,8 @@ PAGE = r"""<!doctype html><html lang="en"><head>
     <div class="lbl">Effect speed</div>
     <input type="range" id="spd" min="1" max="100" value="50" oninput="spd(this.value)">
 
-    <div class="lbl">Volume</div>
-    <div class="row"><button onclick="vol(__VOLDN__)">🔉 Vol −</button><button onclick="vol(__VOLUP__)">🔊 Vol +</button></div>
+    <div class="lbl">Volume <span id="vv"></span></div>
+    <input type="range" id="vol" min="0" max="100" value="50" oninput="$('#vv').textContent=this.value+'%'" onchange="setVol(this.value)">
 
     <div class="lbl">Listen (music → colour)</div>
     <div class="row"><button id="lbtn" class="o" onclick="toggleListen()">🎵 START LISTENING</button></div>
@@ -415,7 +418,9 @@ PAGE = r"""<!doctype html><html lang="en"><head>
 const $=s=>document.querySelector(s);
 let listening=false;
 function go(p){return fetch(p).catch(()=>{});}
-function vol(i){fetch(`/do?i=${i}`).then(r=>r.json()).then(j=>msg(j.say)).catch(()=>{});}   // deck's Vol buttons
+function showVol(j){$('#vol').value=j.v;$('#vv').textContent=j.v+'%';}
+function setVol(v){fetch(`/vol?v=${v}`).then(r=>r.json()).then(showVol).catch(()=>{});}   // on release, not every pixel
+fetch('/vol').then(r=>r.json()).then(showVol).catch(()=>{});
 function msg(t){$("#tmsg").textContent=t;}
 
 // colour wheel
@@ -470,6 +475,11 @@ DECK = [   # (group, label, nova function, args) - add a button = add a line
 _deck_lock = threading.Lock()
 
 
+def _osa(cmd):
+    import subprocess
+    return subprocess.run(["osascript", "-e", cmd], capture_output=True, text=True).stdout.strip()
+
+
 def _deck_do(i):
     if not 0 <= i < len(DECK): return "Unknown button."
     _, label, fn, args = DECK[i]
@@ -515,9 +525,6 @@ document.querySelectorAll("button[data-i]").forEach(b=>b.onclick=async()=>{
 });
 </script></body></html>"""
 DECK_PAGE = _deck_page()
-_vi = {lbl: i for i, (_, lbl, _f, _a) in enumerate(DECK)}          # the main page's Vol buttons reuse the deck's
-PAGE = PAGE.replace("__VOLDN__", str(_vi["Vol −"])).replace("__VOLUP__", str(_vi["Vol +"]))
-assert "__VOL" not in PAGE
 assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE   # self-check: every button rendered
 
 
