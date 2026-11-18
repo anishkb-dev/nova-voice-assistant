@@ -28,9 +28,7 @@ Parked on 2026-11-18. Items were skipped or deferred, not rejected. Pick any one
 
 ## Lights
 11. **Copy the bed's other effects to the table** (fade, flow, wave…). Film each on the bed, as was done for party.
-12. **Give evening and home their own looks** (they match focus's old warm-white setup):
-    - evening: sunset scene with orange strips at 60%;
-    - home: keep as is.
+12. ~~Give evening its own look~~ **done 2026-11-18**: sunset bulb at 70%, orange strips at 60%.
 13. **Focus routine's rainbow fade speed.** It starts at full speed; slow it down if it's distracting.
 
 ## Desk and control
