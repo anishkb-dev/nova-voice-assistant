@@ -417,6 +417,10 @@
     font-size: 10px;
     opacity: 0.5;
   }
+  /* real window (2026-11-19): the popup IS the app window, so fill it instead of floating a card on grey */
+  html,body{background:#0b0908!important;margin:0!important;padding:0!important;overflow:hidden}
+  body{display:block!important}
+  .window{width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;border-radius:0!important;margin:0!important;position:fixed!important;inset:0!important;transform:none!important;box-shadow:none!important}
 </style>
 </head>
 <body>

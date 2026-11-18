@@ -238,7 +238,7 @@ def pick_song() -> str:
     url = "http://nova-hub.local:8099/pick"
     if IS_HUB:   # ponytail: fire-and-forget; if the Mac is off nobody sees it (then say a song name or 'shuffle')
         _pub(mqtt_client(), [("home/mac/pick", url)]); return "Pick a song on the Mac, sir."
-    subprocess.Popen(["open", "-na", "Brave Browser", "--args", "--app=" + url, "--window-size=440,600"])
+    subprocess.Popen(["open", "-na", "Brave Browser", "--args", "--app=" + url, "--window-size=420,560"])
     return "Pick a song, sir."
 
 def music_playing() -> bool:
