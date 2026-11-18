@@ -32,10 +32,14 @@ Parked on 2026-11-18. Items were skipped or deferred, not rejected. Pick any one
 13. **Focus routine's rainbow fade speed.** It starts at full speed; slow it down if it's distracting.
 
 ## Desk and control
-14. **Touchscreen for `/deck`.** Options:
-    - CYD 2.8" ESP32 (~₹1–1.5k on Robu);
-    - 3.5" ESP32 ₹2,699;
-    - or an old phone/tablet opening http://nova-hub.local:8099/deck.
+14. **Desk touchscreen panel** (parked 2026-11-18: "do we need it?" → not yet; use /deck on the phone for a week first).
+    - Pick: **Robu.in 2.8" SPI Touch Screen Module 240×320 V1.2, SKU R260027, ₹779**
+      (https://robu.in/product/ntl-28-inch-spi-touch-screen-module-tft-interface-240320-v12/). Resistive touch plus stylus,
+      ILI9341 or ST7789 (either may ship), 3.3 V logic.
+    - Drive it from the user's **spare ESP32**, never the room node or the bed mic. Needs ~14 F-F jumper wires.
+    - Firmware to write: the same buttons as `DECK` in light_panel.py, sent over MQTT, ~12 per page.
+    - Skip: Amazon oceanlabz ₹1,000 (same screen); UNO parallel shields (₹356–850; wrong bus); the ₹629 "without Touch" listing.
+    - All-in-one alternative: CYD ESP32-2432S028R (~₹1–1.5k Robu, ₹3,833 Amazon).
 15. **Room node box.** Design in `desk/HANDOFF.md`. First answer: does K4 switch 230 V?
 16. **The ₹0 desk tidy-up.** See `desk/HANDOFF.md`.
 

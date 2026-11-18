@@ -396,6 +396,9 @@ PAGE = r"""<!doctype html><html lang="en"><head>
     <div class="lbl">Effect speed</div>
     <input type="range" id="spd" min="1" max="100" value="50" oninput="spd(this.value)">
 
+    <div class="lbl">Volume</div>
+    <div class="row"><button onclick="vol(__VOLDN__)">🔉 Vol −</button><button onclick="vol(__VOLUP__)">🔊 Vol +</button></div>
+
     <div class="lbl">Listen (music → colour)</div>
     <div class="row"><button id="lbtn" class="o" onclick="toggleListen()">🎵 START LISTENING</button></div>
 
@@ -412,6 +415,7 @@ PAGE = r"""<!doctype html><html lang="en"><head>
 const $=s=>document.querySelector(s);
 let listening=false;
 function go(p){return fetch(p).catch(()=>{});}
+function vol(i){fetch(`/do?i=${i}`).then(r=>r.json()).then(j=>msg(j.say)).catch(()=>{});}   // deck's Vol buttons
 function msg(t){$("#tmsg").textContent=t;}
 
 // colour wheel
@@ -511,6 +515,9 @@ document.querySelectorAll("button[data-i]").forEach(b=>b.onclick=async()=>{
 });
 </script></body></html>"""
 DECK_PAGE = _deck_page()
+_vi = {lbl: i for i, (_, lbl, _f, _a) in enumerate(DECK)}          # the main page's Vol buttons reuse the deck's
+PAGE = PAGE.replace("__VOLDN__", str(_vi["Vol −"])).replace("__VOLUP__", str(_vi["Vol +"]))
+assert "__VOL" not in PAGE
 assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE   # self-check: every button rendered
 
 
