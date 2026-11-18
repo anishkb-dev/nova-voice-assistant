@@ -5,106 +5,103 @@
 <style>
 :root{--bg:#0b0908;--card:#16120f;--tile:#211a15;--tile2:#2e241d;--line:#2e241d;--fg:#ffdbc9;--dim:#a08a7c;--acc:#ff9a42;--ok:#39e08f}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.3 -apple-system,system-ui,sans-serif}
-/* landscape: three columns, each scrolls on its own */
-main{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:10px;height:100dvh;
-  padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 10px max(10px,env(safe-area-inset-left))}
-.col{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;overflow-y:auto;min-height:0}
-@media (orientation:portrait){main{grid-template-columns:1fr;height:auto}.col{overflow:visible}
-  #rot{display:block}}
-#rot{display:none;text-align:center;color:var(--dim);padding:8px}
-h2{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim);margin:10px 0 6px;display:flex;justify-content:space-between}
-h2:first-child{margin-top:2px}
-.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
-button{min-height:42px;border:1px solid var(--line);border-radius:11px;background:var(--tile);color:var(--fg);
-  font:600 13px system-ui,sans-serif;padding:6px 4px;touch-action:manipulation}
-button:active{background:var(--tile2);transform:scale(.96)}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font:13px/1.2 -apple-system,system-ui,sans-serif}
+/* one screen, no page scroll: 4 columns; button grids stretch/shrink to fill the height */
+main{display:grid;grid-template-columns:1fr 1fr 1fr 1.15fr;gap:6px;height:100dvh;
+  padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) 6px max(6px,env(safe-area-inset-left))}
+.col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 7px;min-height:0;overflow:hidden;
+  display:flex;flex-direction:column;gap:4px}
+h2{font-size:9px;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:2px 0 0;display:flex;justify-content:space-between;flex:none}
+.g{display:grid;grid-template-columns:repeat(var(--c,3),1fr);grid-auto-rows:1fr;gap:4px;flex:1;min-height:0}
+.g.f2{flex:2}.g.n{flex:none;height:34px}
+button{min-height:0;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--tile);color:var(--fg);
+  font:600 12px system-ui,sans-serif;padding:2px;touch-action:manipulation;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+button:active{background:var(--tile2);transform:scale(.95)}
 button.busy{border-color:var(--acc);color:var(--acc)}
 button.on{outline:2px solid var(--ok)}
-button.big{font-size:20px}
-input[type=range]{width:100%;height:28px;accent-color:var(--acc);margin:0}
-.wheelrow{display:flex;gap:10px;align-items:center}
-#wheel{position:relative;flex:none;width:150px;height:150px;border-radius:50%;touch-action:none;
+button.big{font-size:17px}
+input[type=range]{width:100%;height:20px;accent-color:var(--acc);margin:0;flex:none}
+.wheelrow{display:flex;gap:6px;flex:none;height:min(34dvh,24vw)}
+#wheel{position:relative;flex:none;height:100%;aspect-ratio:1;border-radius:50%;touch-action:none;
   background:radial-gradient(circle,#fff 0%,rgba(255,255,255,0) 70%),conic-gradient(red,#ff0,lime,cyan,blue,magenta,red);
   box-shadow:0 0 0 2px var(--line)}
-#mk{position:absolute;width:18px;height:18px;border-radius:50%;border:3px solid #fff;transform:translate(-50%,-50%);left:50%;top:50%;pointer-events:none}
-.wheelrow .side{flex:1;display:grid;gap:6px}
-#sw{height:26px;border-radius:8px;border:1px solid var(--line)}
-.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
-.stat div{background:var(--tile);border-radius:11px;padding:6px 2px}.stat b{display:block;font-size:17px;color:var(--acc)}
-.stat span{font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
-#now{background:var(--tile);border-radius:12px;padding:10px;min-height:52px}
-#now small{display:block;color:var(--dim);font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
-#now b{display:block;margin-top:3px;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ctl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
-#q{width:100%;background:var(--tile);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:9px;font:14px system-ui;user-select:text}
-#pl{margin-top:6px}
-#pl div{padding:9px 6px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#pl div:active{background:var(--tile2)}#pl i{color:var(--dim);font-style:normal;margin-right:6px}
-.t{color:var(--dim);font-size:12px}
-.timer{display:flex;gap:6px}.timer input{width:60px;background:var(--tile);border:1px solid var(--line);color:var(--fg);border-radius:10px;text-align:center;font:14px system-ui}
-#toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);max-width:80vw;padding:10px 16px;border-radius:12px;
+#mk{position:absolute;width:16px;height:16px;border-radius:50%;border:3px solid #fff;transform:translate(-50%,-50%);left:50%;top:50%;pointer-events:none}
+.side{flex:1;display:grid;grid-auto-rows:1fr;gap:4px;min-width:0}
+#sw{border-radius:7px;border:1px solid var(--line)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;text-align:center;flex:none}
+.stat div{background:var(--tile);border-radius:9px;padding:3px 1px}.stat b{display:block;font-size:15px;color:var(--acc)}
+.stat span{font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+#now{background:var(--tile);border-radius:9px;padding:5px 7px;flex:none}
+#now small{display:block;color:var(--dim);font-size:8px;letter-spacing:1.4px;text-transform:uppercase}
+#now b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#q{width:100%;flex:none;background:var(--tile);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:6px;font:13px system-ui;user-select:text}
+#pl{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}   /* the only scrolling part: 430 songs */
+#pl div{padding:7px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pl div:active{background:var(--tile2)}#pl i{color:var(--dim);font-style:normal;margin-right:5px}
+.t{color:var(--dim);font-size:11px}
+#min{min-width:0;background:var(--tile);border:1px solid var(--line);color:var(--fg);border-radius:9px;text-align:center;font:13px system-ui}
+#toast{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);max-width:80vw;padding:8px 14px;border-radius:10px;
   background:#2e241d;border:1px solid #4a3a2e;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.on{opacity:1}
+#rot{display:none}
+@media (orientation:portrait){html,body{overflow:auto}main{grid-template-columns:1fr;height:auto}.col{min-height:60vh}
+  #rot{display:block;text-align:center;color:var(--dim);padding:8px}}
 </style></head><body>
-<div id="rot">↻ Turn your phone sideways for the full deck</div>
+<div id="rot">↻ Turn your phone sideways</div>
 <main>
-<!-- ============ LIGHTS (strips) ============ -->
+<!-- ============ STRIPS ============ -->
 <section class="col">
   <h2>Strips <span id="sst"></span></h2>
-  <div class="wheelrow">
-    <div id="wheel"><div id="mk"></div></div>
-    <div class="side">
-      <div id="sw"></div>
-      <button onclick="go('/on')">⏻ On</button>
-      <button onclick="go('/off');listen(false)">Off</button>
-      <button onclick="go('/color?r=255&g=150&b=60')">Warm</button>
-    </div>
-  </div>
+  <div class="wheelrow"><div id="wheel"><div id="mk"></div></div>
+    <div class="side"><div id="sw"></div>
+      <button onclick="go('/on')">⏻ On</button><button onclick="go('/off');listen(false)">Off</button>
+      <button onclick="go('/color?r=255&g=150&b=60')">Warm</button></div></div>
   <h2>Brightness</h2><input type="range" min="1" max="100" value="100" onchange="go('/brightness?v='+this.value)">
-  <h2>Effects</h2>
-  <div class="g" id="fx"></div>
-  <h2>Effect speed</h2><input type="range" min="1" max="100" value="50" onchange="go('/speed?v='+this.value)">
-  <h2>Music → colour</h2><button id="lbtn" style="width:100%" onclick="listen(!listening)">🎵 Listen</button>
+  <h2>Effects · speed</h2><input type="range" min="1" max="100" value="50" onchange="go('/speed?v='+this.value)">
+  <div class="g" id="fx" style="--c:4"></div>
   <h2>Auto-off <span id="tmsg"></span></h2>
-  <div class="timer"><input type="number" id="min" value="30" min="1"><button style="flex:1" onclick="timer()">Set</button>
-    <button style="flex:1" onclick="go('/timer?min=0');$('#tmsg').textContent=''">Cancel</button></div>
+  <div class="g n" style="--c:4"><button id="lbtn" onclick="listen(!listening)">🎵 Listen</button>
+    <input type="number" id="min" value="30" min="1"><button onclick="timer()">Set</button>
+    <button onclick="go('/timer?min=0');$('#tmsg').textContent=''">✕</button></div>
 </section>
 
-<!-- ============ ROOM ============ -->
+<!-- ============ MODES + BULB ============ -->
 <section class="col">
-  <div class="stat"><div><b id="temp">–</b><span>Temp</span></div><div><b id="hum">–</b><span>Humidity</span></div>
+  <div class="stat"><div><b id="temp">–</b><span>Temp</span></div><div><b id="hum">–</b><span>Humid</span></div>
     <div><b id="acs">–</b><span>AC</span></div></div>
-  <h2>Modes</h2><div class="g" id="modes"></div>
+  <h2>Modes</h2><div class="g f2" id="modes"></div>
   <h2>Ceiling bulb</h2><div class="g">
     <button onclick="act('bulb','on')">On</button><button onclick="act('bulb','off')">Off</button>
     <button onclick="act('bulb','warm')">Warm</button><button onclick="act('bulb','cool')">Cool</button>
     <button onclick="act('bulb','brightness 20')">Dim</button><button onclick="act('bulb','brightness 100')">Bright</button></div>
+</section>
+
+<!-- ============ AC / FAN / PROJECTOR ============ -->
+<section class="col">
   <h2>AC</h2><div class="g">
     <button onclick="act('ac','on')">On</button><button onclick="act('ac','off')">Off</button>
     <button class="big" onclick="act('ac','decrease')">−</button><button class="big" onclick="act('ac','increase')">+</button>
-    <button onclick="act('ac','fan low')">Fan low</button><button onclick="act('ac','fan high')">Fan high</button></div>
-  <h2>Fan <span id="fans"></span></h2><div class="g">
+    <button onclick="act('ac','fan low')">Fan lo</button><button onclick="act('ac','fan high')">Fan hi</button></div>
+  <h2>Fan <span id="fans"></span></h2><div class="g" style="--c:2;flex:.5">
     <button onclick="act('fan','on')">On</button><button onclick="act('fan','off')">Off</button></div>
   <h2>Projector <span id="prs"></span></h2><div class="g">
     <button onclick="act('projector','toggle')">Power</button><button onclick="act('projector','colour')">Colour</button>
     <button onclick="act('projector','nebula')">Nebula</button><button onclick="act('projector','laser')">Laser</button>
-    <button onclick="act('projector','brighter')">Brighter</button><button onclick="act('projector','dimmer')">Dimmer</button></div>
+    <button onclick="act('projector','brighter')">Bright+</button><button onclick="act('projector','dimmer')">Dim−</button></div>
 </section>
 
 <!-- ============ MUSIC ============ -->
 <section class="col">
   <div id="now"><small>Now playing</small><b id="title">Nothing playing</b></div>
-  <div class="ctl">
+  <div class="g n" style="--c:3">
     <button class="big" onclick="music('stop_music')">⏹</button>
     <button class="big" onclick="music('next_song')">⏭</button>
-    <button onclick="music('play_playlist',{shuffle:true})">🔀 Shuffle</button>
-  </div>
+    <button onclick="music('play_playlist',{shuffle:true})">🔀 Shuffle</button></div>
   <h2>Volume <span id="vv"></span></h2>
   <input type="range" id="vol" min="0" max="100" value="50" oninput="$('#vv').textContent=this.value+'%'" onchange="setVol(this.value)">
   <h2>My playlist <span id="pln"></span></h2>
   <input id="q" type="search" placeholder="Search songs…" oninput="drawPl()">
-  <div id="pl"><div class="t">Loading playlist… (first time takes ~20 s)</div></div>
+  <div id="pl"><div class="t">Loading playlist…</div></div>
 </section>
 </main>
 <div id="toast"></div>
@@ -131,7 +128,7 @@ wheel.onpointerdown=e=>{drag=true;wheel.setPointerCapture(e.pointerId);pick(e)};
 wheel.onpointermove=e=>drag&&pick(e);wheel.onpointerup=e=>{drag=false;pick(e)};
 
 // ---- effects ----
-['party','fade','cycle','jump','strobe','flow','wave','water','curtain','breathe'].forEach(n=>{
+['party','fade','cycle','jump','strobe','flow','wave','water'].forEach(n=>{
   const b=document.createElement('button');b.textContent=n[0].toUpperCase()+n.slice(1);
   b.onclick=()=>{go('/effect?name='+n);setL(false)};$('#fx').appendChild(b)});
 let listening=false;
