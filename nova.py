@@ -35,6 +35,7 @@ def run_command(command: str) -> str:
 
 _player = None            # the running afplay (music) process, if any
 _TRACK = "/tmp/nova_track"
+NOW_F = "/tmp/nova_now.txt"   # title of the song playing (the hub page shows it)
 
 def _ytdlp() -> str:
     # prefer the pip 'nightly' build (keeps up with YouTube); fall back to brew, then PATH
@@ -105,6 +106,8 @@ def _start(title, vid, path):
     _player = p = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if vid: _played.add(vid)
+    try: open(NOW_F, "w").write(title)
+    except OSError: pass
     _panel_listen(1)
     g = _gen
     def after():
@@ -173,9 +176,9 @@ def play_music(query: str) -> str:
         _last_vid[0] = got[1]
         return _start(*got)
 
-def play_playlist(url: str = "", shuffle: bool = False) -> str:
+def play_playlist(url: str = "", shuffle: bool = False, start: int = 0) -> str:
     """Play a YouTube / YouTube Music playlist song by song. No url = the user's own playlist (MY_PLAYLIST)."""
-    if _MUSIC_REMOTE(): return _music_remote("play_playlist", url=url, shuffle=shuffle)
+    if _MUSIC_REMOTE(): return _music_remote("play_playlist", url=url, shuffle=shuffle, start=start)
     url = (url or MY_PLAYLIST).strip()
     if not url:
         return "I don't have your playlist link yet — send it to me (public or unlisted)."
@@ -184,6 +187,7 @@ def play_playlist(url: str = "", shuffle: bool = False) -> str:
         items = _flat(url, "1-2000")          # whole playlist (the user's has 430)
         if not items:
             return "I couldn't open that playlist — it may be private or the link is incomplete."
+        items = items[max(0, int(start)):] or items  # start = a song picked on the hub page; the rest follow in order
         if shuffle:
             import random; random.shuffle(items)
         _queue.extend(items)

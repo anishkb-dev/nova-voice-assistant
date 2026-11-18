@@ -1,0 +1,172 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nova Deck</title>
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0908">
+<style>
+:root{--bg:#0b0908;--card:#16120f;--tile:#211a15;--tile2:#2e241d;--line:#2e241d;--fg:#ffdbc9;--dim:#a08a7c;--acc:#ff9a42;--ok:#39e08f}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.3 -apple-system,system-ui,sans-serif}
+/* landscape: three columns, each scrolls on its own */
+main{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:10px;height:100dvh;
+  padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 10px max(10px,env(safe-area-inset-left))}
+.col{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px;overflow-y:auto;min-height:0}
+@media (orientation:portrait){main{grid-template-columns:1fr;height:auto}.col{overflow:visible}
+  #rot{display:block}}
+#rot{display:none;text-align:center;color:var(--dim);padding:8px}
+h2{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--dim);margin:10px 0 6px;display:flex;justify-content:space-between}
+h2:first-child{margin-top:2px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+button{min-height:42px;border:1px solid var(--line);border-radius:11px;background:var(--tile);color:var(--fg);
+  font:600 13px system-ui,sans-serif;padding:6px 4px;touch-action:manipulation}
+button:active{background:var(--tile2);transform:scale(.96)}
+button.busy{border-color:var(--acc);color:var(--acc)}
+button.on{outline:2px solid var(--ok)}
+button.big{font-size:20px}
+input[type=range]{width:100%;height:28px;accent-color:var(--acc);margin:0}
+.wheelrow{display:flex;gap:10px;align-items:center}
+#wheel{position:relative;flex:none;width:150px;height:150px;border-radius:50%;touch-action:none;
+  background:radial-gradient(circle,#fff 0%,rgba(255,255,255,0) 70%),conic-gradient(red,#ff0,lime,cyan,blue,magenta,red);
+  box-shadow:0 0 0 2px var(--line)}
+#mk{position:absolute;width:18px;height:18px;border-radius:50%;border:3px solid #fff;transform:translate(-50%,-50%);left:50%;top:50%;pointer-events:none}
+.wheelrow .side{flex:1;display:grid;gap:6px}
+#sw{height:26px;border-radius:8px;border:1px solid var(--line)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
+.stat div{background:var(--tile);border-radius:11px;padding:6px 2px}.stat b{display:block;font-size:17px;color:var(--acc)}
+.stat span{font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+#now{background:var(--tile);border-radius:12px;padding:10px;min-height:52px}
+#now small{display:block;color:var(--dim);font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
+#now b{display:block;margin-top:3px;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
+#q{width:100%;background:var(--tile);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:9px;font:14px system-ui;user-select:text}
+#pl{margin-top:6px}
+#pl div{padding:9px 6px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pl div:active{background:var(--tile2)}#pl i{color:var(--dim);font-style:normal;margin-right:6px}
+.t{color:var(--dim);font-size:12px}
+.timer{display:flex;gap:6px}.timer input{width:60px;background:var(--tile);border:1px solid var(--line);color:var(--fg);border-radius:10px;text-align:center;font:14px system-ui}
+#toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);max-width:80vw;padding:10px 16px;border-radius:12px;
+  background:#2e241d;border:1px solid #4a3a2e;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.on{opacity:1}
+</style></head><body>
+<div id="rot">↻ Turn your phone sideways for the full deck</div>
+<main>
+<!-- ============ LIGHTS (strips) ============ -->
+<section class="col">
+  <h2>Strips <span id="sst"></span></h2>
+  <div class="wheelrow">
+    <div id="wheel"><div id="mk"></div></div>
+    <div class="side">
+      <div id="sw"></div>
+      <button onclick="go('/on')">⏻ On</button>
+      <button onclick="go('/off');listen(false)">Off</button>
+      <button onclick="go('/color?r=255&g=150&b=60')">Warm</button>
+    </div>
+  </div>
+  <h2>Brightness</h2><input type="range" min="1" max="100" value="100" onchange="go('/brightness?v='+this.value)">
+  <h2>Effects</h2>
+  <div class="g" id="fx"></div>
+  <h2>Effect speed</h2><input type="range" min="1" max="100" value="50" onchange="go('/speed?v='+this.value)">
+  <h2>Music → colour</h2><button id="lbtn" style="width:100%" onclick="listen(!listening)">🎵 Listen</button>
+  <h2>Auto-off <span id="tmsg"></span></h2>
+  <div class="timer"><input type="number" id="min" value="30" min="1"><button style="flex:1" onclick="timer()">Set</button>
+    <button style="flex:1" onclick="go('/timer?min=0');$('#tmsg').textContent=''">Cancel</button></div>
+</section>
+
+<!-- ============ ROOM ============ -->
+<section class="col">
+  <div class="stat"><div><b id="temp">–</b><span>Temp</span></div><div><b id="hum">–</b><span>Humidity</span></div>
+    <div><b id="acs">–</b><span>AC</span></div></div>
+  <h2>Modes</h2><div class="g" id="modes"></div>
+  <h2>Ceiling bulb</h2><div class="g">
+    <button onclick="act('bulb','on')">On</button><button onclick="act('bulb','off')">Off</button>
+    <button onclick="act('bulb','warm')">Warm</button><button onclick="act('bulb','cool')">Cool</button>
+    <button onclick="act('bulb','brightness 20')">Dim</button><button onclick="act('bulb','brightness 100')">Bright</button></div>
+  <h2>AC</h2><div class="g">
+    <button onclick="act('ac','on')">On</button><button onclick="act('ac','off')">Off</button>
+    <button class="big" onclick="act('ac','decrease')">−</button><button class="big" onclick="act('ac','increase')">+</button>
+    <button onclick="act('ac','fan low')">Fan low</button><button onclick="act('ac','fan high')">Fan high</button></div>
+  <h2>Fan <span id="fans"></span></h2><div class="g">
+    <button onclick="act('fan','on')">On</button><button onclick="act('fan','off')">Off</button></div>
+  <h2>Projector <span id="prs"></span></h2><div class="g">
+    <button onclick="act('projector','toggle')">Power</button><button onclick="act('projector','colour')">Colour</button>
+    <button onclick="act('projector','nebula')">Nebula</button><button onclick="act('projector','laser')">Laser</button>
+    <button onclick="act('projector','brighter')">Brighter</button><button onclick="act('projector','dimmer')">Dimmer</button></div>
+</section>
+
+<!-- ============ MUSIC ============ -->
+<section class="col">
+  <div id="now"><small>Now playing</small><b id="title">Nothing playing</b></div>
+  <div class="ctl">
+    <button class="big" onclick="music('stop_music')">⏹</button>
+    <button class="big" onclick="music('next_song')">⏭</button>
+    <button onclick="music('play_playlist',{shuffle:true})">🔀 Shuffle</button>
+  </div>
+  <h2>Volume <span id="vv"></span></h2>
+  <input type="range" id="vol" min="0" max="100" value="50" oninput="$('#vv').textContent=this.value+'%'" onchange="setVol(this.value)">
+  <h2>My playlist <span id="pln"></span></h2>
+  <input id="q" type="search" placeholder="Search songs…" oninput="drawPl()">
+  <div id="pl"><div class="t">Loading playlist… (first time takes ~20 s)</div></div>
+</section>
+</main>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+let th; function toast(t){if(!t)return;$('#toast').textContent=t;$('#toast').classList.add('on');clearTimeout(th);th=setTimeout(()=>$('#toast').classList.remove('on'),2800)}
+const go=p=>fetch(p).catch(()=>toast('Hub not reachable.'));
+async function call(url,btn){btn&&btn.classList.add('busy');
+  try{const r=await (await fetch(url)).json();toast(r.say==='ok'?'Done.':r.say)}catch(e){toast('Hub not reachable.')}
+  btn&&btn.classList.remove('busy')}
+const act=(f,a)=>call('/api/act?f='+f+'&a='+encodeURIComponent(a),event&&event.currentTarget);
+const hub=(k,v)=>call('/api/hub?k='+k+'&v='+encodeURIComponent(v));
+const music=(fn,kw={})=>hub('music',JSON.stringify({fn,kw}));
+
+// ---- colour wheel (same maths as /panel) ----
+const wheel=$('#wheel'),mk=$('#mk');let drag=false,last=0;
+function hsv(h,s,v){const f=(n,k=(n+h*6)%6)=>v-v*s*Math.max(Math.min(k,4-k,1),0);return [f(5),f(3),f(1)].map(x=>Math.round(x*255))}
+function pick(e){const r=wheel.getBoundingClientRect(),R=r.width/2;let x=e.clientX-r.left-R,y=e.clientY-r.top-R,d=Math.hypot(x,y);
+  if(d>R){x*=R/d;y*=R/d;d=R}
+  mk.style.left=(50+x/R*50)+'%';mk.style.top=(50+y/R*50)+'%';
+  const [a,b,c]=hsv(((Math.atan2(x,-y)*180/Math.PI)+360)%360/360,Math.min(1,d/R),1);$('#sw').style.background=`rgb(${a},${b},${c})`;
+  const n=Date.now();if(n-last>70){last=n;go(`/color?r=${a}&g=${b}&b=${c}`);setL(false)}}
+wheel.onpointerdown=e=>{drag=true;wheel.setPointerCapture(e.pointerId);pick(e)};
+wheel.onpointermove=e=>drag&&pick(e);wheel.onpointerup=e=>{drag=false;pick(e)};
+
+// ---- effects ----
+['party','fade','cycle','jump','strobe','flow','wave','water','curtain','breathe'].forEach(n=>{
+  const b=document.createElement('button');b.textContent=n[0].toUpperCase()+n.slice(1);
+  b.onclick=()=>{go('/effect?name='+n);setL(false)};$('#fx').appendChild(b)});
+let listening=false;
+function setL(on){listening=on;$('#lbtn').classList.toggle('on',on);$('#lbtn').textContent=on?'🎵 Listening… tap to stop':'🎵 Listen'}
+function listen(on){setL(on);go('/listen?on='+(on?1:0))}
+function timer(){const m=+$('#min').value||0;if(m>0){go('/timer?min='+m);$('#tmsg').textContent=m+' min'}}
+
+// ---- volume ----
+const showVol=j=>{$('#vol').value=j.v;$('#vv').textContent=j.v+'%'};
+function setVol(v){fetch('/vol?v='+v).then(r=>r.json()).then(showVol).catch(()=>{})}
+fetch('/vol').then(r=>r.json()).then(showVol).catch(()=>{});
+
+// ---- playlist (titles come from YouTube: textContent only, never innerHTML) ----
+let PL=[];
+function drawPl(){const q=$('#q').value.toLowerCase(),box=$('#pl');box.textContent='';
+  PL.forEach((t,i)=>{if(q&&!t.toLowerCase().includes(q))return;
+    const d=document.createElement('div'),n=document.createElement('i');n.textContent=i+1;d.append(n,t);
+    d.onclick=()=>{music('play_playlist',{start:i});toast('Playing: '+t)};box.appendChild(d)})}
+fetch('/api/playlist').then(r=>r.json()).then(j=>{PL=j;$('#pln').textContent=j.length+' songs';drawPl()})
+  .catch(()=>{$('#pl').textContent='Playlist not reachable.'});
+
+// ---- live state ----
+let modesDrawn=false;
+async function poll(){
+  try{const s=await (await fetch('/api/state')).json(),R=s.room||{};
+    $('#temp').textContent=R.temp?R.temp+'°':'–';$('#hum').textContent=R.humidity?R.humidity+'%':'–';
+    const ac=(R.ac||'').split(' ');$('#acs').textContent=ac[0]==='on'?ac[1]+'°':(ac[0]||'–');
+    $('#fans').textContent=R.fan||'';$('#prs').textContent=s.projector?'on (guess)':'off (guess)';
+    $('#title').textContent=s.playing?(s.title||'Playing'):'Nothing playing';
+    $('#sst').textContent=s.strips?Object.entries(s.strips).map(([k,v])=>k+' '+v.toLowerCase()).join(' · '):'';
+    if(!modesDrawn&&s.routines){modesDrawn=true;s.routines.forEach(n=>{const b=document.createElement('button');
+      b.textContent=n.replace(/_/g,' ');b.onclick=()=>hub('routine',n);$('#modes').appendChild(b)})}
+  }catch(e){}
+  try{const l=await (await fetch('/state')).json();if(l.listen!==listening)setL(l.listen);
+    $('#tmsg').textContent=l.timer>0?Math.ceil(l.timer/60)+' min left':''}catch(e){}
+}
+poll();setInterval(poll,2500);
+</script></body></html>

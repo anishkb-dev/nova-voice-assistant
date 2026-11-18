@@ -284,8 +284,30 @@ class H(http.server.BaseHTTPRequestHandler):
         g = lambda k, d=0: int(q.get(k, [d])[0])
         path = u.path
 
-        if path in ("/", "/index.html", "/deck"):              # the touch deck is the main page (2026-11-18)
+        if path in ("/", "/index.html", "/hub"):               # one landscape page for everything (2026-11-18)
+            return self._send(open(HUB_HTML).read(), "text/html; charset=utf-8")
+        if path == "/deck":
             return self._send(DECK_PAGE, "text/html; charset=utf-8")
+        if path == "/api/state":
+            return self._send(json.dumps(_hub_state()))
+        if path == "/api/act":                                 # ?f=ac&a=temp 25 - only whitelisted function + argument shapes
+            f, a = q.get("f", [""])[0], q.get("a", [""])[0]
+            return self._send(json.dumps({"say": _hub_act(f, a)}))
+        if path == "/api/hub":                                 # music / routines run inside the Nova app (it owns the queue)
+            k, v = q.get("k", [""])[0], q.get("v", [""])[0]
+            if k not in ("music", "routine"): return self._send(json.dumps({"say": "no"}))
+            if k == "music":                                   # the Nova app runs getattr(nova, fn)(**kw): only these get through
+                try:
+                    j = json.loads(v); kw = j.get("kw") or {}
+                    ok = j["fn"] in MUSIC_OK and set(kw) <= MUSIC_OK[j["fn"]]
+                    v = json.dumps({"fn": j["fn"], "kw": {"start": int(kw["start"])} if "start" in kw else
+                                    {"shuffle": True} if kw.get("shuffle") else {}})
+                except Exception: ok = False
+                if not ok: return self._send(json.dumps({"say": "no"}))
+            TQ[0].c.publish("home/hub/" + k, v, qos=1)
+            return self._send(json.dumps({"say": "ok"}))
+        if path == "/api/playlist":
+            return self._send(json.dumps(_playlist()))
         if path == "/panel":                                   # colour wheel, effects, listen, timer
             return self._send(PAGE, "text/html; charset=utf-8")
         if path == "/vol":                                     # volume slider: ?v=0-100 sets; always returns the current level
@@ -475,6 +497,54 @@ DECK = [   # (group, label, nova function, args) - add a button = add a line
 _deck_lock = threading.Lock()
 
 
+# ---------- the hub page (hub_page.html): live room state, whitelisted actions, playlist ----------
+HUB_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hub_page.html")
+TQ = []        # the table's MQTT client, reused: subscribes to home/room/# and publishes hub jobs
+MUSIC_OK = {"play_playlist": {"start", "shuffle"}, "next_song": set(), "stop_music": set()}   # fn -> allowed kw
+ROOM = {}      # latest home/room/<key> values (retained ones arrive on connect)
+ACT_OK = {     # function -> allowed argument shape (the page can only send these)
+    "ac": r"on|off|increase|decrease|temp (1[6-9]|2\d|30)|fan (low|medium|high|auto)|mode (cool|dry|fan|auto)",
+    "bulb": r"on|off|warm|white|cool|daylight|brightness \d{1,3}|[a-z ]{3,20}",
+    "lights": r"on|off|[a-z]{3,12}|brightness \d{1,3}|speed \d{1,3}",
+    "projector": r"on|off|toggle|colour|laser|laser on|laser off|brighter|dimmer|faster|slower|timer|reset|is on|is off|"
+                 r"green|nebula|red|blue|green two|pink|aqua|rainbow",
+    "fan": r"on|off",
+}
+
+
+def _hub_act(f, a):
+    import re
+    if f not in ACT_OK or not re.fullmatch(ACT_OK[f], a or ""): return "Not allowed."
+    with _deck_lock:
+        try:
+            import nova
+            if f == "fan": return str(nova.FUNCS["iot_control"]("fan", a))
+            return str(nova.FUNCS[f](a))
+        except Exception as e:
+            print("[hub page]", f, a, e, flush=True); return "Failed: %s" % str(e)[:60]
+
+
+def _hub_state():
+    import subprocess
+    try: title = open("/tmp/nova_now.txt").read().strip()
+    except OSError: title = ""
+    playing = subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0
+    return {"room": ROOM, "playing": playing, "title": title if playing else "",
+            "projector": os.path.exists(os.path.expanduser("~/anish-ai/.projector_on")),
+            "strips": _strips_state(), "on": STATE.get("on"),
+            "routines": [k for k, v in json.load(open(os.path.expanduser("~/anish-ai/routines.json"))).items()
+                         if not k.startswith("_") and not v.get("at")]}
+
+
+_pl = {"t": 0, "items": []}
+def _playlist():
+    """The owner's playlist titles (index = position), cached 12 h: listing 400+ songs takes ~10-20 s."""
+    if time.time() - _pl["t"] > 12 * 3600 or not _pl["items"]:
+        import nova
+        _pl["items"] = [t for _, t in nova._flat(nova.MY_PLAYLIST, "1-2000")]; _pl["t"] = time.time()
+    return _pl["items"]
+
+
 def _osa(cmd):
     import subprocess
     return subprocess.run(["osascript", "-e", cmd], capture_output=True, text=True).stdout.strip()
@@ -540,7 +610,13 @@ assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE a
 
 
 def main():
-    tq = TableQ(); QS.append(tq); NAMES[tq] = "ESP32 table " + STRIPS["table"]
+    tq = TableQ(); QS.append(tq); NAMES[tq] = "ESP32 table " + STRIPS["table"]; TQ.append(tq)
+    def _room_msg(c, u, m):
+        k = m.topic.split("/", 2)[2]
+        if "/" not in k: ROOM[k] = m.payload.decode(errors="replace")[:120]
+    tq.c.on_message = _room_msg
+    tq.c.on_connect = lambda c, *a: c.subscribe("home/room/#")
+    tq.c.subscribe("home/room/#")      # in case it connected before on_connect was set
     threading.Thread(target=_effect_loop, daemon=True).start()
     threading.Thread(target=_start_ble, daemon=True).start()
     socketserver.ThreadingTCPServer.allow_reuse_address = True

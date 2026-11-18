@@ -447,6 +447,13 @@ class Api(Voice, Brain, Automations):
                     while self._audio_q and not self._audio_q.empty(): self._audio_q.get_nowait()
                     self.stop_speaking(); self._hub_speaking = False
                     print("[hub] stop", flush=True)
+                elif key == "routine":                    # the hub page's mode buttons: same as saying it
+                    def _routine_here(name=val):
+                        rs = json.load(open(self.ROUTINES)); r = rs.get(name)
+                        if not r or name.startswith("_"): print("[hub] no routine", name, flush=True); return
+                        said = self._run_routine(name, r)
+                        if said: self._proactive(nova.speakable(said))
+                    threading.Thread(target=_routine_here, daemon=True).start()
                 elif key == "volume":
                     print("[hub] volume", val, "->", nova.set_volume(val), flush=True)
                 elif key == "music":                      # the Mac's brain: music always plays on this speaker
