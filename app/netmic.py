@@ -4,6 +4,7 @@ import array, hmac, os, socket, threading, time
 
 KEY = open(os.path.expanduser("~/anish-ai/.mic_key"), "rb").read()[:16]
 MAX_BUF = 16000 * 2 * 5                     # keep at most 5 s; older audio is dropped
+MUTE = os.path.expanduser("~/anish-ai/.mic_mute")   # sender IPs to ignore, one per line (a noisy mic); re-read every 2 s
 
 
 class NetMic:
@@ -14,6 +15,7 @@ class NetMic:
         self.sock.bind(("", port))
         self.bufs, self.seen, self.last, self.cv = {}, {}, 0.0, threading.Condition()   # per sender IP
         self.lvl = {}                       # per sender IP: [quietest, loudest] frame level since levels() was last called
+        self.mute, self._mt = set(), 0.0
         threading.Thread(target=self._rx, daemon=True).start()
 
     def _rx(self):
@@ -24,6 +26,12 @@ class NetMic:
                 return                      # closed
             if len(d) <= 16 or not hmac.compare_digest(d[:16], KEY):
                 continue                    # not our mic -> ignore (stops LAN audio injection)
+            if time.time() - self._mt > 2:
+                self._mt = time.time()
+                try: self.mute = set(open(MUTE).read().split())
+                except OSError: self.mute = set()
+            if ip in self.mute:
+                continue                    # its leftover buffer drains in a few reads
             with self.cv:
                 b = self.bufs.setdefault(ip, bytearray())
                 b += d[16:]
