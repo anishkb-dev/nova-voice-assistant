@@ -134,3 +134,18 @@ _nv4.camera_mic("mic", "off"); assert _hf == [False] and _nv4.mics_off()
 _nv4.camera_mic("mic", "on"); assert _hf == [False, True] and not _nv4.mics_off()
 _nv4.HANDSFREE, _nv4.IS_HUB, _nv4.MIC_MUTE_F, _nv4.CAM_OFF_F = None, _h4, _m4, _c4
 print("hub mic privacy checks passed")
+
+# --- wake alarm: rings + reads, keeps ringing until "good morning", then reads again; skips ring once awake ---
+import nova as _nv5, tempfile as _tf5, threading as _th5, time as _t5
+_d5 = _tf5.mkdtemp(); _sv5 = (_nv5.ALARM_F, _nv5.ALARM_ACK_F, _nv5.ALARM_WAV, _nv5.SNOOZE, _nv5._osa)
+_nv5.ALARM_F, _nv5.ALARM_ACK_F = os.path.join(_d5, "on"), os.path.join(_d5, "ack")
+_nv5.ALARM_WAV, _nv5.SNOOZE, _nv5._osa = "/nonexistent.wav", 1, lambda s: "50"
+_said5 = []
+_w5 = _th5.Thread(target=_nv5.wake, args=("Your clip is live.", _said5.append)); _w5.start()
+_t5.sleep(2.5); assert os.path.exists(_nv5.ALARM_F) and _said5 == ["Your clip is live."], _said5   # still ringing
+assert _nv5.AWAKE_RE.search("uh good morning") and _nv5.AWAKE_RE.search("I'm awake") and not _nv5.AWAKE_RE.search("morning news")
+assert _nv5.alarm_off("test"); _w5.join(5); assert not _w5.is_alive() and not os.path.exists(_nv5.ALARM_F)
+assert _said5[-1] == "Good morning, sir. Your clip is live.", _said5
+_nv5.wake("Ten minutes left.", _said5.append); assert _said5[-1] == "Ten minutes left."       # awake now: no ring
+_nv5.ALARM_F, _nv5.ALARM_ACK_F, _nv5.ALARM_WAV, _nv5.SNOOZE, _nv5._osa = _sv5
+print("wake alarm checks passed")

@@ -241,6 +241,13 @@ def handle(up):
         try: mq["c"].publish("home/hub/privacy", "%s %s" % (dev, act), qos=1); reply = "%s %s." % ({"both": "Camera and mic", "camera": "Camera", "mic": "Mic"}[dev], act)
         except Exception as e: reply = "Couldn't reach Nova: %s" % str(e)[:60]
         tg("sendMessage", chat_id=CHAT, text=reply, reply_markup=json.dumps(KEYBOARD))
+    elif any(w in t for w in ("good morning", "goodmorning", "i'm awake", "im awake", "i'm up", "stop alarm")):
+        # stops a ringing alarm (nova.wake watches this file); also marks you awake so later morning lines don't ring
+        f = os.path.expanduser("~/anish-ai/.alarm_on"); on = os.path.exists(f)
+        open(os.path.expanduser("~/anish-ai/.alarm_ack"), "w").write("telegram")
+        if on: os.remove(f)
+        tg("sendMessage", chat_id=CHAT, text="Good morning, sir. Alarm off." if on else "Good morning, sir. No alarm was ringing.",
+           reply_markup=json.dumps(KEYBOARD))
     elif "nova on" in t or t == "/on":
         tg("sendMessage", chat_id=CHAT, text="Nova is already on." if not nova_off() and running("app/nova_app[.]py")
            else set_nova(True), reply_markup=json.dumps(KEYBOARD))

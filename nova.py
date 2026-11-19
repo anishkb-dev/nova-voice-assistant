@@ -404,22 +404,58 @@ def _remind_line(msg):
 ALARM_VOL = 100     # calibration knob: hub volume for wake-up alarms, max (goodnight leaves it at 20)
 ALARM_WAV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alarm.wav")
 
-def alarm(restore_after=50):
-    """Hub: volume up, play the beeping alarm (~5 s, blocks), volume back to what it was after `restore_after` s."""
-    osa = lambda s: subprocess.run(["osascript", "-e", s], capture_output=True, text=True).stdout.strip()
-    try: before = int(osa("output volume of (get volume settings)") or 0)
+ALARM_F = os.path.expanduser("~/anish-ai/.alarm_on")     # exists while an alarm is ringing; "good morning" deletes it
+ALARM_ACK_F = os.path.expanduser("~/anish-ai/.alarm_ack") # mtime = when you last said good morning
+SNOOZE = 20            # calibration knob: seconds of quiet between rings (time to answer)
+ALARM_MAX = 30 * 60    # failsafe: stop ringing after 30 min (you're out, or the mic is off)
+AWAKE_FOR = 3 * 3600   # after "good morning", later morning announcements just speak, no ring
+SAY_WAIT = None        # app's speak-and-wait-till-done (set by nova_app on the hub)
+AWAKE_RE = re.compile(r"\b(good ?morning|i'?m (awake|up)|stop (the )?alarm)\b", re.I)
+
+def _osa(s): return subprocess.run(["osascript", "-e", s], capture_output=True, text=True).stdout.strip()
+
+def alarm_off(source=""):
+    """'Good morning' (hub mic or Telegram): stop the ringing. True if an alarm was on."""
+    open(ALARM_ACK_F, "w").write(source)
+    if not os.path.exists(ALARM_F): return False
+    os.remove(ALARM_F); print("[alarm] off (%s)" % source, flush=True); return True
+
+def wake(text, say=None):
+    """Hub: ring the alarm, read `text`, ring again every SNOOZE s until you say good morning (mic or Telegram),
+    then read `text` once more. Volume up to ALARM_VOL for the whole thing, back afterwards."""
+    say = say or SAY_WAIT or SPEAK
+    try: awake = time.time() - os.path.getmtime(ALARM_ACK_F) < AWAKE_FOR
+    except OSError: awake = False
+    if awake or os.path.exists(ALARM_F):          # already up, or an alarm is already ringing -> just say it
+        return say(text)
+    open(ALARM_F, "w").write(text)
+    try: before = int(_osa("output volume of (get volume settings)") or 0)
     except ValueError: before = None
-    if before is not None and before < ALARM_VOL:
-        osa("set volume output volume %d" % ALARM_VOL)
-        # ponytail: fixed delay, not "speech finished"; long lines past 50 s finish at the old volume
-        threading.Timer(restore_after, osa, ["set volume output volume %d" % before]).start()
-    print("[alarm] ringing", flush=True)
-    subprocess.run(["afplay", ALARM_WAV], capture_output=True)
+    if before is not None and before < ALARM_VOL: _osa("set volume output volume %d" % ALARM_VOL)
+    t0, first = time.time(), True
+    try:
+        while os.path.exists(ALARM_F) and time.time() - t0 < ALARM_MAX:
+            print("[alarm] ringing", flush=True)
+            p = subprocess.Popen(["afplay", ALARM_WAV], stderr=subprocess.DEVNULL)
+            while p.poll() is None and os.path.exists(ALARM_F): time.sleep(0.2)
+            if p.poll() is None: p.terminate()
+            if not os.path.exists(ALARM_F): break
+            if first: say(text); first = False
+            for _ in range(SNOOZE):
+                if not os.path.exists(ALARM_F): break
+                time.sleep(1)
+        else:
+            if os.path.exists(ALARM_F): print("[alarm] gave up after %d min" % (ALARM_MAX // 60), flush=True)
+        if not os.path.exists(ALARM_F):          # you answered: now you're awake, hear it properly
+            say("Good morning, sir. " + text)
+    finally:
+        if os.path.exists(ALARM_F): os.remove(ALARM_F)
+        if before is not None and before < ALARM_VOL: _osa("set volume output volume %d" % before)
 
 def _speak_reminder(msg):
+    if IS_HUB and msg.startswith("Good morning, sir. "):   # exam-day 7:30 wake-up: ring until you say good morning
+        return wake(msg[len("Good morning, sir. "):])      # exact words (no LLM rewording); wake() adds the greeting
     text = _remind_line(msg)
-    if IS_HUB and msg.startswith("Good morning"):      # exam-day 7:30 wake-up: alarm first, then Nova reads it
-        alarm()
     if SPEAK:
         try: SPEAK(text); return
         except Exception: swallowed()

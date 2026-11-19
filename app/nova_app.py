@@ -36,6 +36,7 @@ class Api(Voice, Brain, Automations):
         threading.Thread(target=self._iot_listener, daemon=True).start()  # live climate for the HUD
         nova.SPEAK = self.speak                 # reminders fire in Daniel's voice on the room speaker
         if nova.IS_HUB: nova.HANDSFREE = self.set_handsfree   # "mic off" also stops the hub's own mic
+        nova.SAY_WAIT = self._say_wait          # alarm: speak a line and return when it has finished
         nova.resume_reminders()                 # re-arm timed reminders saved before a restart
         if nova.IS_HUB: self._resume_later()    # same for routine steps (goodnight's fade + AC easing)
         if not nova.IS_HUB:
@@ -412,19 +413,9 @@ class Api(Voice, Brain, Automations):
                 if key == "gestures":
                     print("[hub] gestures", val, "->", nova.gesture_control(val), flush=True)
                 elif key == "say":
-                    def _say_here(val=val):
-                        if val.startswith("[alarm] "):  # morning clip announcement: ring first, then read it
-                            val = val[8:]; nova.alarm()
-                        self._hub_speaking = True     # covers the ~1s of synthesis before audio starts
-                        print("[hub] say %r" % val[:80], flush=True)
-                        self._table_voice(1)
-                        try:
-                            self.speak(val)           # returns when audio STARTS; later chunks follow
-                            quiet = 0
-                            while quiet < 4:          # done = nothing playing for 0.8 s (covers chunk gaps)
-                                time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) else quiet + 1
-                        finally: self._hub_speaking = False; self._table_voice(0)
-                    threading.Thread(target=_say_here, daemon=True).start()
+                    if val.startswith("[alarm] "):      # morning clip announcement: ring until "good morning"
+                        threading.Thread(target=nova.wake, args=(val[8:],), daemon=True).start()
+                    else: threading.Thread(target=self._say_wait, args=(val,), daemon=True).start()
                 elif key in ("lights", "strips"):          # strips = a routine step: strips only, no bulb mirror
                     if not getattr(self, "_strip_q", None):          # one worker = strip commands run in arrival order
                         import queue; self._strip_q = queue.Queue()

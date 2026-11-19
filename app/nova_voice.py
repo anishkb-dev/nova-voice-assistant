@@ -5,6 +5,18 @@ from nova_common import *   # noqa: F403 - the constants/helpers nova_app always
 
 class Voice:
 
+    def _say_wait(self, val):
+        """Hub: say a line in Nova's voice and return once it has finished playing (home/hub/say, alarms)."""
+        self._hub_speaking = True     # covers the ~1s of synthesis before audio starts
+        print("[hub] say %r" % val[:80], flush=True)
+        self._table_voice(1)
+        try:
+            self.speak(val)           # returns when audio STARTS; later chunks follow
+            quiet = 0
+            while quiet < 4:          # done = nothing playing for 0.8 s (covers chunk gaps)
+                time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) else quiet + 1
+        finally: self._hub_speaking = False; self._table_voice(0)
+
     def speak(self, text):
         if not self.voice or not text:
             return
@@ -661,6 +673,8 @@ class Voice:
                 if is_echo(text):                    # Nova heard its own voice
                     print("[hf] echo ignored: %r" % text, flush=True)
                     continue
+                if os.path.exists(nova.ALARM_F) and nova.AWAKE_RE.search(text):   # "good morning" stops the alarm (no "Nova" needed)
+                    nova.alarm_off("mic"); continue
                 m = WAKE_RE.search(text)
                 # privacy: only Nova commands are logged word for word; background talk/TV -> just its length
                 print("[hf] heard=%r nova=True" % text if m else "[hf] heard (no wake, %d words)" % len(text.split()), flush=True)
