@@ -439,6 +439,25 @@ def resume_reminders():
         n = exams.arm(lambda s, m: _add_reminder(s, m, banner=False, stale=exams.STALE), pending)
         if n: print("[reminder] armed %d exam reminders" % n, flush=True)
 
+CLIP_DIR = os.path.expanduser("~/Developer/youtube/clipper")   # Mac only (post_watch.py announces from there)
+
+def clip_submitted() -> str:
+    """'Nova, submitted': mark the last announced clip post submitted in posts.json (only that field). Never submits anything."""
+    import re as _re
+    pf, af = os.path.join(CLIP_DIR, "posts.json"), os.path.join(CLIP_DIR, ".announced.json")
+    if not os.path.exists(pf): return "I can only mark clips from the Mac, sir."
+    try: ann = json.load(open(af))
+    except (OSError, ValueError): ann = {}
+    posts = {str(p["id"]): p for p in json.load(open(pf))}
+    todo = sorted((a["first"], i) for i, a in ann.items() if i in posts and not posts[i].get("submitted"))
+    if not todo: return "Nothing waiting to be marked, sir."
+    pid = todo[-1][1]                                            # the most recently announced one
+    s = open(pf).read()
+    s2 = _re.sub(r'(\{[^{}]*"id": %s,[^{}]*"submitted": )false' % pid, r"\1true", s, count=1)   # keep the file's layout
+    if s2 == s: return "Couldn't find that post in the file, sir."
+    tmp = pf + ".tmp"; open(tmp, "w").write(s2); os.replace(tmp, pf)
+    return "Marked submitted: the %s clip." % posts[pid].get("campaign", "")
+
 def next_exam() -> str:
     """Next IA-2 exam: subject, day, time and how long until it."""
     import exams
@@ -1358,7 +1377,7 @@ def wake_brief() -> str:
 
 
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
-         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "camera_mic": camera_mic, "next_exam": next_exam, "run_command": run_command,
+         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "camera_mic": camera_mic, "next_exam": next_exam, "clip_submitted": clip_submitted, "run_command": run_command,
          "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
          "notify": notify, "set_reminder": set_reminder, "system_status": system_status,
          "read_webpage": read_webpage, "create_reminder": create_reminder,

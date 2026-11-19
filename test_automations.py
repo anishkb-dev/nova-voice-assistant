@@ -66,6 +66,9 @@ for _t, _e in {"good moning": "morning", "goodmorning": "morning", "good nigth":
 print("routine phrase checks passed")
 assert _m("sleep") == "goodnight" and _m("i can't sleep") == "-", "exact-only phrase"
 print("exact phrase checks passed")
+assert _m("submitted") == "clip_submitted" and _m("i submitted it") == "clip_submitted", _m("submitted")
+assert _m("i submitted my assignment") != "clip_submitted" and _m("what did i submit") != "clip_submitted"
+print("clip phrase checks passed")
 _tf = os.path.join(__import__("tempfile").mkdtemp(), "r.json")
 json.dump({"nudge": {"at": "10:30", "days": "daily", "skip_asleep": True, "skip_when_away": True, "reply": "x", "steps": []}}, open(_tf, "w"))
 F.ROUTINES = _tf
@@ -109,3 +112,16 @@ _t2.sleep(0.5)
 assert _spoke == ["slightly late"], _spoke
 _nv2._speak_reminder, _nv2._REM_F = _sr, _rf
 print("study week checks passed")
+
+# --- "Nova, submitted": flips only the last-announced post's submitted flag, keeps the file's layout ---
+import shutil as _sh, nova as _nv3
+_cd = __import__("tempfile").mkdtemp(); _cdir = _nv3.CLIP_DIR; _nv3.CLIP_DIR = _cd
+open(os.path.join(_cd, "posts.json"), "w").write('[\n {"id": 1, "at": "x", "campaign": "SEGA Metaphor", "networks": ["YT"], "submitted": false},\n {"id": 2, "at": "y", "campaign": "Call of Duty DMZ", "networks": ["IG"], "submitted": false}\n]\n')
+assert "Nothing waiting" in _nv3.clip_submitted()
+json.dump({"1": {"first": 100, "repeat": True}, "2": {"first": 200, "repeat": False}}, open(os.path.join(_cd, ".announced.json"), "w"))
+assert "Call of Duty" in _nv3.clip_submitted()
+_after = open(os.path.join(_cd, "posts.json")).read()
+assert '"id": 2, "at": "y", "campaign": "Call of Duty DMZ", "networks": ["IG"], "submitted": true}' in _after and '"id": 1' in _after and _after.count("true") == 1, _after
+assert "SEGA" in _nv3.clip_submitted() and "Nothing waiting" in _nv3.clip_submitted()
+_nv3.CLIP_DIR = _cdir
+print("clip submitted checks passed")
