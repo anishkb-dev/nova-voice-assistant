@@ -1,6 +1,7 @@
 """Self-check for nova_app._vp_guess (guess-and-ask STT learning). Run: python3 test_stt_guess.py"""
 import ast, re, sys, types
-src = open("app/nova_app.py").read(); t = ast.parse(src)
+# split 2026-11-17: constants/DIRECT_CMD live in nova_common.py, _vp_guess in the voice mixin (nova_voice.py)
+t = ast.parse(open("app/nova_common.py").read() + "\n" + open("app/nova_voice.py").read())
 g = {"re": re}
 for n in t.body:   # module constants + DIRECT_CMD
     if isinstance(n, ast.Assign) and any(getattr(x, "id", "") in ("_DEV","_ACT","_ROUTINE","_QUESTION_RE","_SEED_CMDS") for x in n.targets) \
