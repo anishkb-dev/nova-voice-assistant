@@ -54,7 +54,8 @@ class Api(Voice, Brain, Automations):
         self._close_mic = False             # lavalier/USB: close mic rejects the speaker -> no ducking needed
         self._ducked = False                # mic ducked while Nova speaks (reduces self-echo)
         threading.Thread(target=self._duck_loop, daemon=True).start()
-        threading.Thread(target=self._volume_loop, daemon=True).start()  # live volume bar in the HUD
+        if not nova.IS_HUB:   # hub's screen is broken: its HUD volume bar cost an osascript every 300 ms for nobody
+            threading.Thread(target=self._volume_loop, daemon=True).start()  # live volume bar in the HUD
         threading.Thread(target=self._warm_face, daemon=True).start()    # preload face-recognition model
         self.vprofile = self._load_vprofile()   # learns your voice timing + vocabulary over time
         self._last_cmd_at = 0
@@ -659,7 +660,7 @@ class Api(Voice, Brain, Automations):
             except Exception:
                 nova.swallowed()
             tick += 1
-            if not fresh and tick % 6 == 0:             # ~every 300ms when idle
+            if not fresh and tick % 20 == 0:            # ~every 1 s when idle (300 ms loaded the Mac for a volume bar)
                 rv, rm = self._read_volume()
                 if rv is not None:
                     v, muted = rv, rm
@@ -809,7 +810,7 @@ class Api(Voice, Brain, Automations):
     def _wifi(self):
         """WiFi SSID + signal % (cached ~12s; querying is slow)."""
         now = time.time()
-        if hasattr(self, "_wifi_cache") and now - getattr(self, "_wifi_t", 0) < 12:
+        if hasattr(self, "_wifi_cache") and now - getattr(self, "_wifi_t", 0) < (600 if nova.IS_HUB else 60):   # system_profiler takes ~3 s of CPU
             return self._wifi_cache
         info = {"ssid": "—", "signal": 0, "up": False}
         try:
