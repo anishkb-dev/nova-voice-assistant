@@ -274,6 +274,8 @@ class Automations:
         for name, r in rs.items():                                   # 1) timed routines
             if name.startswith("_") or not r.get("at"): continue
             if r["at"] == hm and self._ran_today.get(name) != today and self._days_ok(r.get("days"), now):
+                if name == "freelance_online" and __import__("exams").study_mode(now):   # IA-2 week: no nags
+                    self._ran_today[name] = today; print("[auto] timed routine skipped (study mode):", name, flush=True); continue
                 if (r.get("skip_when_away") and os.path.exists(self._AWAY_F)) or (r.get("skip_asleep") and not self._auto_on):
                     self._ran_today[name] = today; print("[auto] timed routine skipped (away/asleep):", name, flush=True); continue
                 self._ran_today[name] = today

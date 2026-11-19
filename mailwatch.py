@@ -2,6 +2,7 @@
 platform mail and tells Anish: real orders, buyer messages, scams, security alerts.
 Never replies, clicks, opens attachments or reads codes aloud. Key: ~/anish-ai/.gmail_key (GMAIL_USER, GMAIL_APP_PW).
 Spec: freelance-watch-handoff.md"""
+import exams
 import email, email.header, html, imaplib, json, os, re, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -148,6 +149,8 @@ def run(speak, telegram):
                 quiet = h >= QUIET[0] or h < QUIET[1]
                 print("[mail]", kind, tg.splitlines()[0][:120], flush=True)
                 telegram(tg)
+                if kind in ("news", "info") and exams.study_mode():   # IA-2 week: job leads etc. -> Telegram only
+                    say = ""
                 if say and (kind == "order" or not quiet):
                     speak(say)
                 if kind == "order":                           # ponytail: repeat twice; real "acknowledge" when asked

@@ -92,3 +92,20 @@ _nv.camera_mic("mic", "off"); _nv.camera_mic("mic", "on")
 assert open(_nv.MIC_MUTE_F).read().split() == ["192.168.68.104"]
 _nv.IS_HUB, _nv.gesture_control = _hub, _gc
 print("privacy switch checks passed")
+
+# --- IA-2 study week: freelance nudge silent until Wed 25 Nov 11:00, then back; late exam reminders dropped ---
+_rt = os.path.join(__import__("tempfile").mkdtemp(), "r.json"); F.ROUTINES = _rt
+json.dump({"freelance_online": {"at": "10:30", "days": "daily", "reply": "x", "steps": []}}, open(_rt, "w"))
+k3 = F(); CUR.append(k3); k3._auto_on = True; k3._automation_tick(D(2026, 11, 23, 10, 30))
+assert "freelance_online" not in k3.fired, ("nudge during study week", k3.fired)
+k4 = F(); CUR.append(k4); k4._auto_on = True; k4._automation_tick(D(2026, 11, 26, 10, 30))
+assert "freelance_online" in k4.fired, ("nudge back after exams", k4.fired)
+import nova as _nv2, time as _t2
+_spoke = []; _sr = _nv2._speak_reminder; _nv2._speak_reminder = _spoke.append
+_rf = _nv2._REM_F; _nv2._REM_F = os.path.join(__import__("tempfile").mkdtemp(), "rem.json")
+_nv2._schedule(_t2.time() - 3600, "late exam", banner=False, stale=1800)    # an hour late -> silent
+_nv2._schedule(_t2.time() - 60, "slightly late", banner=False, stale=1800)  # a minute late -> spoken
+_t2.sleep(0.5)
+assert _spoke == ["slightly late"], _spoke
+_nv2._speak_reminder, _nv2._REM_F = _sr, _rf
+print("study week checks passed")

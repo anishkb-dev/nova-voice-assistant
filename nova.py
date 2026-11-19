@@ -412,25 +412,37 @@ def _rem_edit(fn):
         json.dump(rems, open(_REM_F, "w"))
         return rems
 
-def _schedule(due, msg, banner=True):
-    """Fire at epoch `due` (late ones fire right away), then drop it from the file."""
+def _schedule(due, msg, banner=True, stale=0):
+    """Fire at epoch `due` (late ones fire right away, unless more than `stale` s late), then drop it from the file."""
     def _fire():
         time.sleep(max(0, due - time.time()))
-        if banner:
+        if stale and time.time() - due > stale:              # e.g. hub was down at 7:30 -> don't say it at 10
+            print("[reminder] dropped, %d min late: %s" % ((time.time() - due) // 60, msg), flush=True)
+        elif banner:
             subprocess.run(["osascript", "-e", f'display notification "{msg}" with title "Reminder"'], capture_output=True)
-        _speak_reminder(msg)
+        if not (stale and time.time() - due > stale): _speak_reminder(msg)
         _rem_edit(lambda r: [x for x in r if (x["due"], x["msg"]) != (due, msg)])
     threading.Thread(target=_fire, daemon=True).start()
 
-def _add_reminder(secs, msg, banner=True):
+def _add_reminder(secs, msg, banner=True, stale=0):
     due = round(time.time() + secs, 1)
-    _rem_edit(lambda r: r + [{"due": due, "msg": msg, "banner": banner}])
-    _schedule(due, msg, banner)
+    _rem_edit(lambda r: r + [{"due": due, "msg": msg, "banner": banner, "stale": stale}])
+    _schedule(due, msg, banner, stale)
 
 def resume_reminders():
     """Called once at startup: re-arm reminders saved before a restart."""
-    for x in _rem_edit(lambda r: r):
-        _schedule(x["due"], x["msg"], x.get("banner", True))
+    pending = _rem_edit(lambda r: r)
+    for x in pending:
+        _schedule(x["due"], x["msg"], x.get("banner", True), x.get("stale", 0))
+    if IS_HUB:                                    # IA-2 week: exam reminders on the room speaker (exams.py)
+        import exams
+        n = exams.arm(lambda s, m: _add_reminder(s, m, banner=False, stale=exams.STALE), pending)
+        if n: print("[reminder] armed %d exam reminders" % n, flush=True)
+
+def next_exam() -> str:
+    """Next IA-2 exam: subject, day, time and how long until it."""
+    import exams
+    return exams.next_exam()
 
 def set_reminder(minutes: float, text: str = "") -> str:
     """Remind you after N minutes (speaks + shows a notification)."""
@@ -1346,7 +1358,7 @@ def wake_brief() -> str:
 
 
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
-         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "camera_mic": camera_mic, "run_command": run_command,
+         "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "camera_mic": camera_mic, "next_exam": next_exam, "run_command": run_command,
          "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
          "notify": notify, "set_reminder": set_reminder, "system_status": system_status,
          "read_webpage": read_webpage, "create_reminder": create_reminder,
@@ -1384,6 +1396,9 @@ TOOLS = [
             "shuffle": {"type": "boolean", "description": "true if the user asked for shuffle"}}}}},
     {"type": "function", "function": {
         "name": "next_song", "description": "Skip to the next song ('next', 'skip this song').",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "next_exam", "description": "The user's next exam (IA-2 this week): subject, when, and time left. Use for 'what's my next exam', 'when is my next exam', 'how long until my exam'.",
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
         "name": "camera_mic", "description": "Privacy switch for the room camera and/or microphones ('camera off', 'mic off', 'camera and mic off', 'camera on').",
