@@ -35,6 +35,7 @@ class Api(Voice, Brain, Automations):
         self._last_welcome_ts = 0
         threading.Thread(target=self._iot_listener, daemon=True).start()  # live climate for the HUD
         nova.SPEAK = self.speak                 # reminders fire in Daniel's voice on the room speaker
+        if nova.IS_HUB: nova.HANDSFREE = self.set_handsfree   # "mic off" also stops the hub's own mic
         nova.resume_reminders()                 # re-arm timed reminders saved before a restart
         if nova.IS_HUB: self._resume_later()    # same for routine steps (goodnight's fade + AC easing)
         if not nova.IS_HUB:

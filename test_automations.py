@@ -125,3 +125,12 @@ assert '"id": 2, "at": "y", "campaign": "Call of Duty DMZ", "networks": ["IG"], 
 assert "SEGA" in _nv3.clip_submitted() and "Nothing waiting" in _nv3.clip_submitted()
 _nv3.CLIP_DIR = _cdir
 print("clip submitted checks passed")
+
+# --- "mic off" also switches off the hub's own mic (HANDSFREE hook), "mic on" brings it back ---
+import nova as _nv4, tempfile as _tf4
+_hf = []; _nv4.HANDSFREE = _hf.append; _h4 = _nv4.IS_HUB; _nv4.IS_HUB = True
+_m4, _c4 = _nv4.MIC_MUTE_F, _nv4.CAM_OFF_F; _d4 = _tf4.mkdtemp(); _nv4.MIC_MUTE_F, _nv4.CAM_OFF_F = os.path.join(_d4, "m"), os.path.join(_d4, "c")
+_nv4.camera_mic("mic", "off"); assert _hf == [False] and _nv4.mics_off()
+_nv4.camera_mic("mic", "on"); assert _hf == [False, True] and not _nv4.mics_off()
+_nv4.HANDSFREE, _nv4.IS_HUB, _nv4.MIC_MUTE_F, _nv4.CAM_OFF_F = None, _h4, _m4, _c4
+print("hub mic privacy checks passed")

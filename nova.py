@@ -292,6 +292,12 @@ _gesture_proc = None
 CAM_OFF_F = os.path.expanduser("~/anish-ai/.camera_off")   # exists = owner switched the camera off (survives restarts)
 MIC_MUTE_F = os.path.expanduser("~/anish-ai/.mic_mute")    # netmic ignores these sender IPs; "*" = every mic
 
+HANDSFREE = None    # app's set_handsfree(on): the hub's own mic (set by nova_app)
+
+def mics_off() -> bool:
+    try: return "*" in open(MIC_MUTE_F).read().split()
+    except OSError: return False
+
 def camera_mic(device: str = "both", action: str = "off") -> str:
     """Owner's privacy switch. device: camera | mic | both; action: on | off. Off sticks until switched back on
     (restarts, routines and arriving home don't override it). Mic off = Nova can't hear 'mic on': use Telegram."""
@@ -314,6 +320,7 @@ def camera_mic(device: str = "both", action: str = "off") -> str:
         ips = ips | {"*"} if a == "off" else ips - {"*"}   # keeps any single noisy mic muted
         if ips: open(MIC_MUTE_F, "w").write("\n".join(sorted(ips)) + "\n")
         elif os.path.exists(MIC_MUTE_F): os.remove(MIC_MUTE_F)
+        if HANDSFREE: HANDSFREE(a == "on")                      # the hub's own USB mic, not just the room-node mics
     what = "Camera and mics" if cam and mic else "Camera" if cam else "Mics"
     return "%s off. Turn them back on from Telegram (Cam+mic on)." % what if a == "off" and mic else "%s %s, sir." % (what, a)
 

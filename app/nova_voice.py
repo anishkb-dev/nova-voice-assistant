@@ -267,6 +267,8 @@ class Voice:
     def set_handsfree(self, on):
         """Toggle always-listening wake-word mode. Say 'Nova, <command>'."""
         on = bool(on)
+        if on and nova.mics_off():                  # owner said "mic off": the hub's own mic stays off too (restarts included)
+            print("[hf] not listening: mics are switched off (privacy)", flush=True); on = False
         if on and not self._hf:
             if self._hf_thread and self._hf_thread.is_alive():
                 self._hf_thread.join(2.0)            # quick mute->unmute: let the old listener exit (no 2 loops on the mic)
