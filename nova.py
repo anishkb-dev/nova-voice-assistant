@@ -3,6 +3,9 @@
 Run:  python3 ~/anish-ai/nova.py      (needs Ollama running; it usually is)
 Quit: type 'exit' or Ctrl-C."""
 import urllib.parse, subprocess, sys, json, datetime, os, glob, time, threading, re, shutil, ollama
+if not shutil.which("claude"):     # Claude Code comes from nvm, which NovaMac.app's launchd PATH doesn't include
+    _cc = sorted(glob.glob(os.path.expanduser("~/.nvm/versions/node/*/bin/claude")), key=lambda p: [int(x) for x in re.findall(r"\d+", p.split("/node/")[1].split("/")[0])])
+    if _cc: os.environ["PATH"] = os.path.dirname(_cc[-1]) + os.pathsep + os.environ.get("PATH", "")
 
 MODEL = "nova"
 
