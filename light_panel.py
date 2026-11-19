@@ -203,9 +203,11 @@ def _start_ble():
 class Fast(bytes): """a listen-mode frame: sent with the shorter FAST_GAP"""
 LINK_MAX_S = 15     # calibration knob: renew each strip's link this often (stale-link fix); ~1-2 s gap each time
 FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
-LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
+LISTEN_FLOOR = 0.22  # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
 LISTEN_LEAD = 0.15   # calibration knob: seconds to read ahead of playback, covers BLE/strip lag; raise if lights trail the beat
 HOP = 0.05           # one loudness value per 50 ms of song
+LISTEN_DECAY = 0.75  # calibration knob: how fast a flash fades per frame (lower = snappier, higher = smoother)
+LISTEN_BEAT = 0.22   # calibration knob: loudness jump that counts as a beat (lower = more colour changes)
 
 def _envelope(path):
     """Loudness of the whole song, 0-1 per HOP, scaled to the song's own loud parts (quiet songs still pulse)."""
@@ -222,7 +224,8 @@ def _envelope(path):
             if m: out.append(np.sqrt((x[:m * hop].reshape(m, hop) ** 2).mean(1)))
     if not out: return None
     rms = np.concatenate(out)
-    return np.clip(rms / (np.percentile(rms, 95) or 1.0), 0.0, 1.0)
+    lo, hi = np.percentile(rms, 20), np.percentile(rms, 98)   # stretch the song's own range: quiet bits ~0, hits ~1
+    return np.clip((rms - lo) / ((hi - lo) or 1.0), 0.0, 1.0) ** 1.5
 
 class _Song:
     """Where Nova's song is right now (pauses = SIGSTOP, so paused time is subtracted) and how loud it is there."""
@@ -253,11 +256,13 @@ def _listen_loop():
     except Exception as e:
         print("listen needs numpy:", e); STATE["listen"] = False; return
     song = _Song()
-    hue, ema, last = 0.0, 0.0, 0.0
+    hue, ema, prev, last = 0.0, 0.0, 0.0, 0.0
     while STATE["listen"]:
         level = song.level()
-        ema = 0.6 * ema + 0.4 * level                      # smooth the loudness
-        hue = (hue + 0.006 + ema * 0.04) % 1.0             # hue drifts, faster when louder
+        ema = level if level > ema else ema * LISTEN_DECAY  # instant attack, quick fade: hits flash, gaps go dim
+        if level - prev > LISTEN_BEAT: hue = (hue + 0.17) % 1.0   # a beat (sudden jump) -> new colour
+        prev = level
+        hue = (hue + 0.004 + ema * 0.02) % 1.0             # plus a slow drift between beats
         # floor 30%: the table controller shows very dim colours as OFF (at 8% it looked dead, 2026-11-17)
         r, g, b = [int(x * 255) for x in colorsys.hsv_to_rgb(hue, 1.0, LISTEN_FLOOR + (1 - LISTEN_FLOOR) * ema)]
         # straight to the queues, NOT send() (listen colours must not replace LAST). Lockstep: a new colour goes to
@@ -266,7 +271,7 @@ def _listen_loop():
         if ready and (len(ready) == len(QS) or time.time() - last > 1.0):
             for sq in ready: sq.put(Fast(lights._rgb(r, g, b)))
             last = time.time()
-        time.sleep(0.05)
+        time.sleep(0.03)
     for sq in QS:                                          # back to how the lights were (incl. off)
         for f in _replay(): sq.put(f)
     print("listen stopped")
