@@ -653,6 +653,7 @@
   .chip{font-size:8.5px!important;padding-left:1px!important;padding-right:1px!important}
   .effects-grid .btn,.device-block-proj .btn{font-size:13px!important;padding-left:2px!important;padding-right:2px!important}
   html,body{overflow:hidden}
+.chip{font-size:0!important}.effects-grid{grid-template-rows:1fr!important}.modes-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,1fr)!important}
 </style></head>
 <body>
 <div class="deck-container">
@@ -686,11 +687,7 @@
 <button class="btn" onclick="setEffect(this, 'Party')">Party</button>
 <button class="btn" onclick="setEffect(this, 'Fade')">Fade</button>
 <button class="btn" onclick="setEffect(this, 'Cycle')">Cycle</button>
-<button class="btn" onclick="setEffect(this, 'Jump')">Jump</button>
 <button class="btn" onclick="setEffect(this, 'Strobe')">Strobe</button>
-<button class="btn" onclick="setEffect(this, 'Flow')">Flow</button>
-<button class="btn" onclick="setEffect(this, 'Wave')">Wave</button>
-<button class="btn" onclick="setEffect(this, 'Water')">Water</button>
 </div>
 <!-- Music Sync & Status -->
 <div class="listen-toggle" id="listen-toggle-btn" onclick="toggleListenMode()">
@@ -732,23 +729,14 @@
 <button class="btn mode-btn" onclick="selectMode(this, 'Leaving')">Leaving</button>
 <button class="btn mode-btn" onclick="selectMode(this, 'Home')">Home</button>
 <button class="btn mode-btn" onclick="selectMode(this, 'Movie')">Movie</button>
-<button class="btn mode-btn" onclick="selectMode(this, 'Evening')">Evening</button>
-<button class="btn mode-btn" onclick="selectMode(this, 'Party')">Party</button>
-<button class="btn mode-btn" onclick="selectMode(this, 'Cozy')">Cozy</button>
-<button class="btn mode-btn" onclick="selectMode(this, 'Relax')">Relax</button>
 <button class="btn mode-btn" onclick="selectMode(this, 'Focus')">Focus</button>
-<button class="btn mode-btn" onclick="selectMode(this, 'Romantic')" style="grid-column: span 2;">Romantic</button></div>
+</div>
 <!-- Ceiling Bulb controls -->
 <div class="sec-label">Ceiling Bulb</div>
 <div class="grid-3 ceiling-grid-row">
 <button class="btn" id="bulb-btn-on" onclick="setBulbPower(true)">On</button>
 <button class="btn" id="bulb-btn-off" onclick="setBulbPower(false)">Off</button>
-<button class="btn" onclick="adjustBulb('Warm (2400K)')">Warm</button>
-</div>
-<div class="grid-3 ceiling-grid-row">
-<button class="btn" onclick="adjustBulb('Cool (5000K)')">Cool</button>
 <button class="btn" onclick="adjustBulb('Dimmed to 20%')">Dim</button>
-<button class="btn" onclick="adjustBulb('Bright 100%')">Bright</button>
 </div>
 </div>
 <!-- ==================== COLUMN 3: AC · FAN · PROJECTOR ==================== -->
@@ -799,11 +787,6 @@
 <button class="btn" onclick="triggerProjector('Power toggled')">Power</button>
 <button class="btn" onclick="triggerProjector('Colour shifted')">Colour</button>
 <button class="btn" onclick="triggerProjector('Nebula toggled')">Nebula</button>
-</div>
-<div class="grid-3 device-subgrid">
-<button class="btn" onclick="triggerProjector('Laser toggled')">Laser</button>
-<button class="btn" onclick="triggerProjector('Brighter +20%')">Brighter</button>
-<button class="btn" onclick="triggerProjector('Dimmer −20%')">Dimmer</button>
 </div>
 </div>
 </div>
