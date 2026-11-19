@@ -506,7 +506,7 @@ _deck_lock = threading.Lock()
 HUB_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hub_page.html")
 PICK_HTML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pick_page.html")
 TQ = []        # the table's MQTT client, reused: subscribes to home/room/# and publishes hub jobs
-MUSIC_OK = {"play_playlist": {"start", "shuffle"}, "next_song": set(), "stop_music": set()}   # fn -> allowed kw
+MUSIC_OK = {"play_playlist": {"start", "shuffle"}, "next_song": set(), "stop_music": set(), "pick_song": set()}   # fn -> allowed kw
 ROOM = {}      # latest home/room/<key> values (retained ones arrive on connect)
 ACT_OK = {     # function -> allowed argument shape (the page can only send these)
     "ac": r"on|off|increase|decrease|temp (1[6-9]|2\d|30)|fan (low|medium|high|auto)|mode (cool|dry|fan|auto)",

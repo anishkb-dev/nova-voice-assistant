@@ -466,7 +466,7 @@ class Api(Voice, Brain, Automations):
                     def _music_here(j=json.loads(val)):
                         r = getattr(nova, j["fn"])(**j["kw"])
                         print("[hub] music %s -> %s" % (j["fn"], r[:100]), flush=True)
-                        if not r.startswith(("Now playing", "Music stopped", "Nothing was", "Cancelled", "replaced")):
+                        if not r.startswith(("Now playing", "Music stopped", "Nothing was", "Cancelled", "replaced", "Pick a song")):
                             nova._hub_send("say", r)      # tell him why (no fetch, private playlist...)
                     threading.Thread(target=_music_here, daemon=True).start()
                 return

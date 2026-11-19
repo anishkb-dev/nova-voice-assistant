@@ -653,7 +653,7 @@
   .chip{font-size:8.5px!important;padding-left:1px!important;padding-right:1px!important}
   .effects-grid .btn,.device-block-proj .btn{font-size:13px!important;padding-left:2px!important;padding-right:2px!important}
   html,body{overflow:hidden}
-.chip{font-size:0!important}.effects-grid{grid-template-rows:1fr!important}.modes-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,1fr)!important}
+.chip{font-size:0!important}.transport-grid{grid-template-rows:1fr 1fr .7fr!important}.effects-grid{grid-template-rows:1fr!important}.modes-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,1fr)!important}
 </style></head>
 <body>
 <div class="deck-container">
@@ -827,6 +827,10 @@
 <span class="t-icon">🔀</span>
 <span>Shuffle</span>
 </button>
+<button class="btn transport-btn" id="btn-pick" onclick="pickSong()" title="Open the song picker on the Mac" style="grid-column:span 2">
+<span class="t-icon">🎵</span>
+<span>Pick song on Mac</span>
+</button>
 </div>
 <!-- Compact Master Volume Slider -->
 <div class="vol-control" style="flex:0 0 auto; padding:5px 7px; min-height:auto;">
@@ -914,6 +918,7 @@
   // ---- Column 4: music ----
   function togglePlayPause() { st.playing ? call('/api/pause') : music('play_playlist', {shuffle: true}); }
   function skipTrack() { music('next_song'); }
+  function pickSong() { music('pick_song'); }
   function stopMusic() { music('stop_music'); }
   function toggleShuffle() { music('play_playlist', {shuffle: true}); }
   let volTimer = null;
