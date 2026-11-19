@@ -413,6 +413,8 @@ class Api(Voice, Brain, Automations):
                     print("[hub] gestures", val, "->", nova.gesture_control(val), flush=True)
                 elif key == "say":
                     def _say_here(val=val):
+                        if val.startswith("[alarm] "):  # morning clip announcement: ring first, then read it
+                            val = val[8:]; nova.alarm()
                         self._hub_speaking = True     # covers the ~1s of synthesis before audio starts
                         print("[hub] say %r" % val[:80], flush=True)
                         self._table_voice(1)

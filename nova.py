@@ -401,8 +401,25 @@ def _remind_line(msg):
         swallowed()
     return "Pardon me, sir. A reminder: %s." % msg.rstrip(". ")
 
+ALARM_VOL = 80      # calibration knob: hub volume for wake-up alarms (goodnight leaves it at 20)
+ALARM_WAV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alarm.wav")
+
+def alarm(restore_after=40):
+    """Hub: volume up, play the beeping alarm (~5 s, blocks), volume back to what it was after `restore_after` s."""
+    osa = lambda s: subprocess.run(["osascript", "-e", s], capture_output=True, text=True).stdout.strip()
+    try: before = int(osa("output volume of (get volume settings)") or 0)
+    except ValueError: before = None
+    if before is not None and before < ALARM_VOL:
+        osa("set volume output volume %d" % ALARM_VOL)
+        # ponytail: fixed delay, not "speech finished"; long lines past 40 s finish at the old volume
+        threading.Timer(restore_after, osa, ["set volume output volume %d" % before]).start()
+    print("[alarm] ringing", flush=True)
+    subprocess.run(["afplay", ALARM_WAV], capture_output=True)
+
 def _speak_reminder(msg):
     text = _remind_line(msg)
+    if IS_HUB and msg.startswith("Good morning"):      # exam-day 7:30 wake-up: alarm first, then Nova reads it
+        alarm()
     if SPEAK:
         try: SPEAK(text); return
         except Exception: swallowed()
