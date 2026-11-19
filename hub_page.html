@@ -3,6 +3,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><meta name="apple-mobile-web-app-title" content="Nova Deck"/>
 <title>Smart-Room Landscape Control Deck</title>
 <style>
   :root {
@@ -980,11 +981,19 @@
   function fit() {
     const c = document.querySelector('.deck-container');
     if (matchMedia('(orientation: portrait)').matches) { c.style.cssText = ''; return; }
-    const k = Math.min(innerHeight / 390, innerWidth / 844);   // <1 shrinks small phones, >1 grows big ones
-    c.style.setProperty('width', innerWidth / k + 'px', 'important'); c.style.setProperty('height', innerHeight / k + 'px', 'important');
+    // stay clear of the notch / Dynamic Island / home bar (iOS safe areas)
+    let pr = document.getElementById('safe-probe');
+    if (!pr) { pr = document.createElement('div'); pr.id = 'safe-probe';
+      pr.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+      document.body.appendChild(pr); }
+    const cs = getComputedStyle(pr), L = parseFloat(cs.paddingLeft) || 0, R = parseFloat(cs.paddingRight) || 0,
+          T = parseFloat(cs.paddingTop) || 0, B = parseFloat(cs.paddingBottom) || 0;
+    const W = innerWidth - L - R, H = innerHeight - T - B;
+    const k = Math.min(H / 390, W / 844);   // <1 shrinks small phones, >1 grows big ones
+    c.style.setProperty('width', W / k + 'px', 'important'); c.style.setProperty('height', H / k + 'px', 'important');
     c.style.transform = 'scale(' + k + ')'; c.style.transformOrigin = '0 0';
-    c.style.setProperty('max-width', 'none', 'important'); c.style.setProperty('max-height', 'none', 'important'); c.style.position = 'fixed'; c.style.left = c.style.top = '0'; c.style.flex = 'none';   // body is flex: it would shrink/centre the box
+    c.style.setProperty('max-width', 'none', 'important'); c.style.setProperty('max-height', 'none', 'important'); c.style.position = 'fixed'; c.style.left = L + 'px'; c.style.top = T + 'px'; c.style.flex = 'none';   // body is flex: it would shrink/centre the box
   }
-  addEventListener('resize', fit); fit();
+  addEventListener('resize', fit); addEventListener('orientationchange', () => setTimeout(fit, 300)); fit();
 </script>
 </body></html>
