@@ -105,6 +105,8 @@ def _start(title, vid, path):
     # afplay on both machines (the hub has no Homebrew/mpv); below full so the mics still hear "Nova" over it
     _player = p = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try: open("/tmp/nova_track.start", "w").write("%d %f %s" % (p.pid, time.time(), track))   # light_panel syncs listen mode to this
+    except OSError: pass
     if vid: _played.add(vid)
     try: open(NOW_F, "w").write(title)
     except OSError: pass

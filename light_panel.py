@@ -8,7 +8,7 @@ import json
 Reuses lights.py (same BLE device + command builders) but holds ONE persistent
 BLE connection in a background asyncio thread for snappy colour-wheel response.
 Features: on/off, colour wheel, brightness, effects + speed, a music-reactive
-'Listen' mode (mic), and an auto-off timer. Close the phone app first (one BLE link).
+'Listen' mode (follows Nova's song), and an auto-off timer. Close the phone app first (one BLE link).
 """
 import asyncio, threading, queue, time, sys, os, colorsys
 import http.server, socketserver, urllib.parse
@@ -204,24 +204,58 @@ class Fast(bytes): """a listen-mode frame: sent with the shorter FAST_GAP"""
 LINK_MAX_S = 15     # calibration knob: renew each strip's link this often (stale-link fix); ~1-2 s gap each time
 FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
 LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
+TRACK_START_F = "/tmp/nova_track.start"   # nova.py: "<afplay pid> <start time> <wav path>"
+LISTEN_LEAD = 0.15   # calibration knob: seconds to read ahead of playback, covers BLE/strip lag; raise if lights trail the beat
+HOP = 0.05           # one loudness value per 50 ms of song
+
+def _envelope(path):
+    """Loudness of the whole song, 0-1 per HOP, scaled to the song's own loud parts (quiet songs still pulse)."""
+    import wave, numpy as np
+    with wave.open(path) as w:
+        if w.getsampwidth() != 2: return None
+        ch, hop = w.getnchannels(), int(w.getframerate() * HOP)
+        out = []
+        while True:
+            raw = w.readframes(hop * 400)                  # 20 s at a time: the old hub has little RAM
+            if not raw: break
+            x = np.frombuffer(raw, np.int16).reshape(-1, ch).astype(np.float32).mean(1)
+            m = len(x) // hop
+            if m: out.append(np.sqrt((x[:m * hop].reshape(m, hop) ** 2).mean(1)))
+    if not out: return None
+    rms = np.concatenate(out)
+    return np.clip(rms / (np.percentile(rms, 95) or 1.0), 0.0, 1.0)
+
+class _Song:
+    """Where Nova's song is right now (pauses = SIGSTOP, so paused time is subtracted) and how loud it is there."""
+    def __init__(self): self.key, self.env, self.t0, self.paused, self.chk, self.stopped = None, None, 0.0, 0.0, 0.0, False
+    def level(self):
+        try: pid, t0, path = open(TRACK_START_F).read().split(" ", 2); pid = int(pid); os.kill(pid, 0)
+        except (OSError, ValueError): return 0.0                         # nothing playing
+        if (pid, path) != self.key:
+            self.key, self.t0, self.paused, self.stopped = (pid, path), float(t0), 0.0, False
+            try: self.env = _envelope(path)
+            except Exception as e: print("listen: can't read song:", e); self.env = None
+        now = time.time()
+        if now - self.chk > 0.5:                                         # paused? (ps is too slow to run every frame)
+            import subprocess
+            st = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+            if self.stopped: self.paused += now - self.chk
+            self.stopped, self.chk = st.startswith("T"), now
+        if self.stopped or self.env is None: return 0.0
+        # ponytail: pauses are seen at 0.5 s granularity, so each resume can leave the lights up to 0.5 s early
+        i = int((now - self.t0 - self.paused + LISTEN_LEAD) / HOP)
+        return float(self.env[i]) if 0 <= i < len(self.env) else 0.0
+
 def _listen_loop():
+    """Strips follow the song Nova is playing (read from the file, not the mic). No song = slow dim colour drift."""
     try:
-        import pyaudio, numpy as np
+        import numpy  # noqa: F401
     except Exception as e:
-        print("listen needs pyaudio/numpy:", e); STATE["listen"] = False; return
-    pa = pyaudio.PyAudio()
-    try:
-        st = pa.open(rate=16000, channels=1, format=pyaudio.paInt16, input=True, frames_per_buffer=1024)
-    except Exception as e:
-        print("mic open failed:", e); STATE["listen"] = False; pa.terminate(); return
+        print("listen needs numpy:", e); STATE["listen"] = False; return
+    song = _Song()
     hue, ema, last = 0.0, 0.0, 0.0
     while STATE["listen"]:
-        try:
-            buf = np.frombuffer(st.read(1024, exception_on_overflow=False), dtype=np.int16).astype(np.float32)
-        except Exception:
-            break
-        rms = float(np.sqrt(np.mean(buf ** 2)))
-        level = min(1.0, rms / 2500.0)
+        level = song.level()
         ema = 0.6 * ema + 0.4 * level                      # smooth the loudness
         hue = (hue + 0.006 + ema * 0.04) % 1.0             # hue drifts, faster when louder
         # floor 30%: the table controller shows very dim colours as OFF (at 8% it looked dead, 2026-11-17)
@@ -233,9 +267,6 @@ def _listen_loop():
             for sq in ready: sq.put(Fast(lights._rgb(r, g, b)))
             last = time.time()
         time.sleep(0.05)
-    try: st.close()
-    except Exception: pass
-    pa.terminate()
     for sq in QS:                                          # back to how the lights were (incl. off)
         for f in _replay(): sq.put(f)
     print("listen stopped")
