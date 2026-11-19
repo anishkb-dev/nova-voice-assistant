@@ -54,9 +54,9 @@ def reminders():
         first = min(t for t, _, _ in EXAMS if t.date() == day)
         what = " and ".join(subs)
         out.append((D.combine(day - _dt.timedelta(1), _dt.time(21, 30)),
-                    "Tomorrow: %s. First one at %s. Get some sleep" % (what, _clock(first))))
+                    "You have %s tomorrow, sir. The first one is at %s. Please do get some rest tonight" % (what, _clock(first))))
         out.append((D.combine(day, _dt.time(7, 30)),
-                    "Exam day: %s. First one at %s. Leave on time and take your hall ticket" % (what, _clock(first))))
+                    "Good morning, sir. Today you have %s, the first at %s. Please leave in good time, and remember your hall ticket. Best of luck" % (what, _clock(first))))
     return out
 
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":       # self-check
     assert "No more exams" in next_exam(D(2026, 11, 25, 11, 1))
     r = reminders()
     assert len(r) == 6 and r[0][0] == D(2026, 11, 22, 21, 30) and r[-1][0] == D(2026, 11, 25, 7, 30), r
-    assert "Parallel Computing and Big Data Analytics" in r[0][1] and "9:30 AM" in r[0][1]
+    assert "Parallel Computing and Big Data Analytics tomorrow, sir" in r[0][1] and "9:30 AM" in r[0][1]
     assert study_mode(D(2026, 11, 25, 10, 59)) and not study_mode(D(2026, 11, 25, 11, 0))
     got = []
     assert arm(lambda s, m: got.append(m), [], S) == 6 and arm(lambda s, m: got.append(m), [{"msg": m} for m in got], S) == 0
