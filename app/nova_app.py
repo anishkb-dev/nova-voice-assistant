@@ -331,6 +331,7 @@ class Api(Voice, Brain, Automations):
             else:
                 c.subscribe("home/hub/heard")      # what the hub's mic heard -> we think + answer
                 c.subscribe("home/mac/stt/#")      # hub's STT fallback -> local Whisper here
+                c.subscribe("home/mac/pick")       # deck / hub "pick a song" -> song-picker popup here
                 c.subscribe("home/sleep")          # hub owns sleep mode (good night); we mirror it
                 c.subscribe("home/hub/status")     # hub Nova app alive (retained + last-will)
                 c.subscribe("home/nova/off")       # Telegram "Nova off" (hub supervisor.py) -> pause this mic too
