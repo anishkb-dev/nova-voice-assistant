@@ -204,7 +204,6 @@ class Fast(bytes): """a listen-mode frame: sent with the shorter FAST_GAP"""
 LINK_MAX_S = 15     # calibration knob: renew each strip's link this often (stale-link fix); ~1-2 s gap each time
 FAST_GAP = 0.06      # calibration knob: gap after a listen frame; raise it if the table skips/flickers
 LISTEN_FLOOR = 0.3   # calibration knob: dimmest listen colour (0-1); lower = more contrast, but the table goes dark
-TRACK_START_F = "/tmp/nova_track.start"   # nova.py: "<afplay pid> <start time> <wav path>"
 LISTEN_LEAD = 0.15   # calibration knob: seconds to read ahead of playback, covers BLE/strip lag; raise if lights trail the beat
 HOP = 0.05           # one loudness value per 50 ms of song
 
@@ -229,19 +228,20 @@ class _Song:
     """Where Nova's song is right now (pauses = SIGSTOP, so paused time is subtracted) and how loud it is there."""
     def __init__(self): self.key, self.env, self.t0, self.paused, self.chk, self.stopped = None, None, 0.0, 0.0, 0.0, False
     def level(self):
-        try: pid, t0, path = open(TRACK_START_F).read().split(" ", 2); pid = int(pid); os.kill(pid, 0)
-        except (OSError, ValueError): return 0.0                         # nothing playing
-        if (pid, path) != self.key:
-            self.key, self.t0, self.paused, self.stopped = (pid, path), float(t0), 0.0, False
-            try: self.env = _envelope(path)
-            except Exception as e: print("listen: can't read song:", e); self.env = None
         now = time.time()
-        if now - self.chk > 0.5:                                         # paused? (ps is too slow to run every frame)
+        if now - self.chk > 0.5:                                         # every 0.5 s: which song, paused? (too slow per frame)
             import subprocess
+            r = subprocess.run(["pgrep", "-fl", "nova_track[.]"], capture_output=True, text=True).stdout.split()
+            if not r: self.key = None; return 0.0                        # nothing playing
+            pid, path = int(r[0]), r[-1]                                 # "<pid> afplay -v 0.4 /tmp/nova_track.wav"
+            if (pid, path) != self.key:                                  # new song: nova.py writes the WAV right before afplay
+                self.key, self.paused, self.stopped = (pid, path), 0.0, False
+                try: self.t0, self.env = os.path.getmtime(path), _envelope(path)
+                except Exception as e: print("listen: can't read song:", e); self.env = None
             st = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
             if self.stopped: self.paused += now - self.chk
             self.stopped, self.chk = st.startswith("T"), now
-        if self.stopped or self.env is None: return 0.0
+        if self.key is None or self.stopped or self.env is None: return 0.0
         # ponytail: pauses are seen at 0.5 s granularity, so each resume can leave the lights up to 0.5 s early
         i = int((now - self.t0 - self.paused + LISTEN_LEAD) / HOP)
         return float(self.env[i]) if 0 <= i < len(self.env) else 0.0
