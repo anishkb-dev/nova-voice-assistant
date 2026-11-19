@@ -234,9 +234,9 @@ class _Song:
         now = time.time()
         if now - self.chk > 0.5:                                         # every 0.5 s: which song, paused? (too slow per frame)
             import subprocess
-            r = subprocess.run(["pgrep", "-fl", "nova_track[.]"], capture_output=True, text=True).stdout.split()
+            r = subprocess.run(["pgrep", "-fl", "nova_track[.]wav$"], capture_output=True, text=True).stdout.split()
             if not r: self.key = None; return 0.0                        # nothing playing
-            pid, path = int(r[0]), r[-1]                                 # "<pid> afplay -v 0.4 /tmp/nova_track.wav"
+            pid, path = int(r[0]), r[-1]                                 # "<pid> afplay -v 0.4 /tmp/nova_track.wav" (not yt-dlp's download, whose args end in a URL)
             if (pid, path) != self.key:                                  # new song: nova.py writes the WAV right before afplay
                 self.key, self.paused, self.stopped = (pid, path), 0.0, False
                 try: self.t0, self.env = os.path.getmtime(path), _envelope(path)
