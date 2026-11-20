@@ -446,11 +446,17 @@ class Voice:
         def _spoken(pcm):
             return speaker.voiced(pcm, trigger).size / 16000.0 if speaker else 0.0
 
-        def _keep(pcm, kind, sc=None):
+        def _keep(pcm, kind, sc=None, **kw):
             """Record of the owner's voice (and rejected voices) for tests -> voice_samples/ (speaker.keep)."""
             if speaker and nova.IS_HUB:
-                try: speaker.keep(pcm, kind, sc)
+                try: speaker.keep(pcm, kind, sc, **kw)
                 except Exception as e: print("[spk] keep:", e, flush=True)
+
+        COLLECT_F = os.path.expanduser("~/anish-ai/.nova_collect")   # touch it = recording mode for the wake-word model
+        def collecting():
+            """Recording mode: every utterance -> voice_samples/nova/ (training clips), no commands. Off after 30 min."""
+            try: return time.time() - os.path.getmtime(COLLECT_F) < 30 * 60
+            except OSError: return False
 
         def transcribe(pcm):
             if pcm.size < RATE * 0.2:                # <0.2s -> nothing said
@@ -679,6 +685,13 @@ class Voice:
                 hot = 0
                 # speech detected -> capture the whole utterance (with pre-roll) and transcribe it
                 self._placeholder("Listening…")
+                if collecting():                    # recording mode: save the clip, tink, nothing else
+                    _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms, max_s=4.0); ring.clear()
+                    if _pcm.size:
+                        _keep(_pcm, "nova", cap=400)
+                        subprocess.Popen(["afplay", "-v", "0.4", "/System/Library/Sounds/Tink.aiff"], stderr=subprocess.DEVNULL)
+                        print("[hf] collect: saved (%d so far)" % len(os.listdir(os.path.expanduser("~/anish-ai/voice_samples/nova"))), flush=True)
+                    continue
                 _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms, bg_check=True)
                 _t = time.time()
                 text = transcribe(_pcm)

@@ -51,7 +51,7 @@ SAMPLES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_sample
 KEEP = 60            # newest clips kept per folder
 
 
-def keep(pcm, kind, sc=None, rate=16000):
+def keep(pcm, kind, sc=None, rate=16000, cap=KEEP):
     """Save a clip for tests/calibration: voice_samples/<kind>/<time>_<score>.wav; kind = wake | you | other."""
     import time, wave
     pcm = np.asarray(pcm, np.int16)
@@ -60,7 +60,7 @@ def keep(pcm, kind, sc=None, rate=16000):
     d = os.path.join(SAMPLES, kind); os.makedirs(d, exist_ok=True)
     w = wave.open(os.path.join(d, "%s_%s.wav" % (time.strftime("%Y%m%d-%H%M%S"), "na" if sc is None else "%.2f" % sc)), "wb")
     w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(pcm.tobytes()); w.close()
-    for old in sorted(os.listdir(d))[:-KEEP]:
+    for old in sorted(os.listdir(d))[:-cap]:
         os.remove(os.path.join(d, old))
 
 
