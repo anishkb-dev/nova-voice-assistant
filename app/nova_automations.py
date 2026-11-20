@@ -106,6 +106,9 @@ class Automations:
     def _run_routine(self, name, r):
         """Spoken steps run now (their results join the reply); the rest run in the background so
         a slow device (BLE strip, IR cloud) never delays the answer. after_min steps are scheduled."""
+        lr = getattr(self, "_last_routine", None)         # a 2nd tap while morning is still fetching the weather
+        if lr and lr[0] == name and time.time() - lr[1] < 30:    # used to run the whole scene again
+            print("[routine] %s again within 30 s -> skipped" % name, flush=True); return "Already on it, sir."
         self._last_routine = (name, time.time())          # wall HUD: goodnight -> night mode
         said = [r.get("reply", "Done, sir.")]
         later = []

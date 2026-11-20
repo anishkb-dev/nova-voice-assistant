@@ -149,3 +149,19 @@ assert _said5[-1] == "Good morning, sir. Your clip is live.", _said5
 _nv5.wake("Ten minutes left.", _said5.append); assert _said5[-1] == "Ten minutes left."       # awake now: no ring
 _nv5.ALARM_F, _nv5.ALARM_ACK_F, _nv5.ALARM_WAV, _nv5.SNOOZE, _nv5._osa = _sv5
 print("wake alarm checks passed")
+
+# --- a 2nd tap on a routine within 30 s doesn't run it again; privacy switch blocks every camera opener ---
+import types as _ty, time as _tm
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "app"))
+import nova_automations as _na, cam_presence as _cp
+_o = _ty.SimpleNamespace(_routine_step=lambda st: "", _safe_step=lambda n, st: None)
+_rr = lambda name: _na.Automations._run_routine(_o, name, {"reply": "Morning.", "steps": []})
+assert _rr("morning") == "Morning." and _rr("morning") == "Already on it, sir." and _rr("focus") == "Morning."
+_o._last_routine = ("morning", _tm.time() - 31); assert _rr("morning") == "Morning."
+_cf = os.path.expanduser("~/anish-ai/.camera_off"); _had = os.path.exists(_cf)
+open(_cf, "a").close()
+try: _cp.pick_camera(); raise AssertionError("camera opened with privacy off")
+except PermissionError: pass
+finally:
+    if not _had: os.remove(_cf)
+print("routine debounce + camera privacy checks passed")

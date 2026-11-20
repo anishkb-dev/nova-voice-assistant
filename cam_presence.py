@@ -33,6 +33,8 @@ def _external_present():
 def pick_camera():
     """Return the index of the EXTERNAL webcam (e.g. the Lapcare); if none is plugged in, the Mac built-in."""
     import cv2, numpy as np, os, json
+    if os.path.exists(os.path.expanduser("~/anish-ai/.camera_off")):   # privacy switch: every camera user comes here
+        raise PermissionError("camera is switched off (privacy)")      # (face check, intruder guard, presence)
     if not _external_present():                  # no external webcam -> fall back to the Mac built-in
         print("gesture camera: no external webcam -> using Mac camera (index %d)" % MAC_CAM, flush=True)
         return MAC_CAM
