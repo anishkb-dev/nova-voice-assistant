@@ -42,9 +42,10 @@ class Voice:
                 return
             except Exception as e:
                 print("[speak] hub speaker unreachable, using this Mac:", e, flush=True)
-        if nova.IS_HUB:                                  # one voice at a time: a Mac reply that's playing finishes first
+        if nova.IS_HUB:                                  # one voice at a time: whatever is playing finishes first (a 9:30 PM exam
+                                                         # reminder and clip line used to cut each other off)
             t0 = time.time()
-            while (self._clip_on or (self._audio_q and not self._audio_q.empty())) and time.time() - t0 < 30:
+            while (self._clip_on or self._local_talking or (self._audio_q and not self._audio_q.empty())) and time.time() - t0 < 30:
                 time.sleep(0.1)
             self._talk_tok = tok = object(); self._local_talking = True
             def _talk_done():                            # clear the flag once this speech goes quiet for 0.8 s

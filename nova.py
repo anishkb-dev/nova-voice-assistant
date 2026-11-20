@@ -409,6 +409,7 @@ ALARM_WAV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alarm.wav"
 
 ALARM_F = os.path.expanduser("~/anish-ai/.alarm_on")     # exists while an alarm is ringing; "good morning" deletes it
 ALARM_ACK_F = os.path.expanduser("~/anish-ai/.alarm_ack") # mtime = when you last said good morning
+ASLEEP_F = os.path.expanduser("~/anish-ai/.asleep")         # good night's night mode (nova_automations._ASLEEP_F)
 SNOOZE = 20            # calibration knob: seconds of quiet between rings (time to answer)
 ALARM_MAX = 30 * 60    # failsafe: stop ringing after 30 min (you're out, or the mic is off)
 AWAKE_FOR = 3 * 3600   # after "good morning", later morning announcements just speak, no ring
@@ -435,7 +436,7 @@ def wake(text, say=None):
     try: before = int(_osa("output volume of (get volume settings)") or 0)
     except ValueError: before = None
     if before is not None and before < ALARM_VOL: _osa("set volume output volume %d" % ALARM_VOL)
-    t0, first = time.time(), True
+    t0, first, answered = time.time(), True, False
     try:
         while os.path.exists(ALARM_F) and time.time() - t0 < ALARM_MAX:
             print("[alarm] ringing", flush=True)
@@ -449,11 +450,13 @@ def wake(text, say=None):
                 time.sleep(1)
         else:
             if os.path.exists(ALARM_F): print("[alarm] gave up after %d min" % (ALARM_MAX // 60), flush=True)
-        if not os.path.exists(ALARM_F):          # you answered: now you're awake, hear it properly
-            say("Good morning, sir. " + text)
+        answered = not os.path.exists(ALARM_F)
+        if answered: say("Good morning, sir. " + text)   # you answered: now you're awake, hear it properly
     finally:
         if os.path.exists(ALARM_F): os.remove(ALARM_F)
         if before is not None and before < ALARM_VOL: _osa("set volume output volume %d" % before)
+    if answered and os.path.exists(ASLEEP_F):    # room still in night mode -> run Morning (no more pressing it by hand)
+        _hub_send("routine", "morning")
 
 def _speak_reminder(msg):
     if IS_HUB and msg.startswith("Good morning, sir. "):   # exam-day 7:30 wake-up: ring until you say good morning

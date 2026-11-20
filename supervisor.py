@@ -245,8 +245,11 @@ def handle(up):
         # stops a ringing alarm (nova.wake watches this file); also marks you awake so later morning lines don't ring
         f = os.path.expanduser("~/anish-ai/.alarm_on"); on = os.path.exists(f)
         open(os.path.expanduser("~/anish-ai/.alarm_ack"), "w").write("telegram")
-        if on: os.remove(f)
-        tg("sendMessage", chat_id=CHAT, text="Good morning, sir. Alarm off." if on else "Good morning, sir. No alarm was ringing.",
+        if on: os.remove(f)                     # the ringing alarm runs Morning itself once it stops (nova.wake)
+        night = not on and os.path.exists(os.path.expanduser("~/anish-ai/.asleep"))
+        if night: mq["c"].publish("home/hub/routine", "morning", qos=1)   # still in night mode -> wake the room
+        tg("sendMessage", chat_id=CHAT, text="Good morning, sir. Alarm off." if on else "Good morning, sir. Waking the room up." if night
+           else "Good morning, sir. No alarm was ringing.",
            reply_markup=json.dumps(KEYBOARD))
     elif "nova on" in t or t == "/on":
         tg("sendMessage", chat_id=CHAT, text="Nova is already on." if not nova_off() and running("app/nova_app[.]py")

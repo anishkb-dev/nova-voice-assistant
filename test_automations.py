@@ -147,6 +147,16 @@ assert _nv5.AWAKE_RE.search("uh good morning") and _nv5.AWAKE_RE.search("I'm awa
 assert _nv5.alarm_off("test"); _w5.join(5); assert not _w5.is_alive() and not os.path.exists(_nv5.ALARM_F)
 assert _said5[-1] == "Good morning, sir. Your clip is live.", _said5
 _nv5.wake("Ten minutes left.", _said5.append); assert _said5[-1] == "Ten minutes left."       # awake now: no ring
+# answering while the room is in night mode runs Morning; answered in day mode -> doesn't
+_sent5, _sv5b = [], (_nv5.ASLEEP_F, _nv5._hub_send, _nv5.AWAKE_FOR)
+_nv5.ASLEEP_F, _nv5._hub_send, _nv5.AWAKE_FOR = os.path.join(_d5, "asleep"), lambda *a: _sent5.append(a), 0
+for _night in (True, False):
+    if _night: open(_nv5.ASLEEP_F, "w").close()
+    elif os.path.exists(_nv5.ASLEEP_F): os.remove(_nv5.ASLEEP_F)
+    _w5 = _th5.Thread(target=_nv5.wake, args=("x", _said5.append)); _w5.start(); _t5.sleep(1.5)
+    _nv5.alarm_off("test"); _w5.join(5)
+    assert _sent5 == [("routine", "morning")], _sent5          # once, from the night-mode round only
+_nv5.ASLEEP_F, _nv5._hub_send, _nv5.AWAKE_FOR = _sv5b
 _nv5.ALARM_F, _nv5.ALARM_ACK_F, _nv5.ALARM_WAV, _nv5.SNOOZE, _nv5._osa = _sv5
 print("wake alarm checks passed")
 
