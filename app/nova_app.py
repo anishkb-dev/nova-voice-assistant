@@ -187,10 +187,13 @@ class Api(Voice, Brain, Automations):
         return {"ok": True, "name": name, "path": path}
 
     def _js(self, code):
+        if not webview.windows: return               # no HUD window (yet): was an IndexError on every call
+        t = time.time()
         try:
             webview.windows[0].evaluate_js(code)
         except Exception:
             nova.swallowed()
+        if time.time() - t > 0.1: print("[js] slow HUD update %.2fs: %s" % (time.time() - t, code[:40]), flush=True)   # blocks the caller
 
     def _placeholder(self, msg):
         self._js('var b=document.getElementById("box"); if(b) b.placeholder=' + json.dumps(msg) + ';')

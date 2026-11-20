@@ -51,7 +51,7 @@ class Voice:
             def _talk_done():                            # clear the flag once this speech goes quiet for 0.8 s
                 t1, quiet = time.time(), 0
                 while quiet < 4 and time.time() - t1 < 120:
-                    time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) or time.time() - t1 < 5 else quiet + 1
+                    time.sleep(0.2); quiet = 0 if (self._say and self._say.poll() is None) or time.time() - t1 < 2 else quiet + 1   # 2 s covers edge-tts synth (<=1.4 s); 5 s held the Mac's reply back after a 1 s "Yes, sir?"
                 if self._talk_tok is tok: self._local_talking = False
             threading.Thread(target=_talk_done, daemon=True).start()
         self.stop_speaking()

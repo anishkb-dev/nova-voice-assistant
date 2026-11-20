@@ -356,7 +356,7 @@ def get_weather(location: str = "") -> str:
     loc = urllib.parse.quote(location or "")
     try:
         u = f"https://wttr.in/{loc}?format=%l:+%C+%t+(feels+%f),+wind+%w,+humidity+%h"
-        return urllib.request.urlopen(u, timeout=10).read().decode().strip()
+        return urllib.request.urlopen(u, timeout=5).read().decode().strip()
     except Exception as e:
         return f"Couldn't get the weather: {e}"
 
