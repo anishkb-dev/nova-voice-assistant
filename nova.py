@@ -813,7 +813,7 @@ def dev_last():
 
 
 def ac(command: str, routine: bool = False) -> str:
-    """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10); Tuya blaster if the ESP32 is offline.
+    """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10). IR is one-way: "AC on." means sent, not obeyed.
     command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
     _dev("ac", command)
     cmd = (command or "").lower().strip()
@@ -838,11 +838,8 @@ def ac(command: str, routine: bool = False) -> str:
         st = _mqtt_peek(["home/room/status", "home/room/ac"])
     except Exception:
         st = {}
-    if st.get("home/room/status") != "online":
-        import os, sys
-        sys.path.insert(0, os.path.expanduser("~/anish-ai"))
-        from ac_control import ac as _ac
-        return _ac(command)
+    if st.get("home/room/status") != "online":    # the Tuya blaster was removed 2026-11-20: the room ESP32 is the only path
+        return "The room node is offline, so I can't reach the AC."
     power, deg, mode, fan = ((st.get("home/room/ac") or "off 24 cool auto").split() + ["", "", "", ""])[:4]
     deg = int(deg) if deg.isdigit() else 24
     words = cmd.replace("degrees", "").split(); head = words[0] if words else ""
@@ -879,18 +876,6 @@ def ac(command: str, routine: bool = False) -> str:
         _pub(c, _pub_set)
     except Exception as e:
         return "The AC didn't respond: %s" % str(e)[:60]
-    # ponytail: the ESP32's IR LED stopped reaching the AC (2026-11-10), so every command also goes via the Tuya
-    # blaster (cloud). LG frames are absolute state, so sending twice can't toggle anything back. The ESP32 publish
-    # stays for state tracking. Drop this once the ESP32 LED is re-aimed and confirmed working.
-    def _blaster():
-        try:
-            import os, sys; sys.path.insert(0, os.path.expanduser("~/anish-ai"))
-            from ac_control import ac as _ac
-            _ac({"fan": "mode fan"}.get(send, "fan " + send[6:] if send.startswith("speed ")
-                 else "mode " + send if send in ("cool", "heat", "dry", "auto") else send))
-        except Exception as e:
-            print("[ac] blaster failed:", str(e)[:80], flush=True)
-    threading.Thread(target=_blaster, daemon=True).start()
     return say
 
 def ensure_panel():
