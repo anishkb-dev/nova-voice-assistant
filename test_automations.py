@@ -14,7 +14,7 @@ class F:  # minimal stand-in for Api: real tick/helpers, recorded side effects
         s._last_motion_ts = s._motion_end_ts = time.time() - 3600
         s._iot_data = {"online": True, "ts": time.time(), "motion": False, "light": "off", "ac": "off", "temp": 25.0}
         s.fired, s.spoken = [], []
-    def _run_routine(s, name, r): s.fired.append(name); return r.get("reply", "")
+    def _run_routine(s, name, r, scene=True): s.fired.append(name); return r.get("reply", "")
     def _proactive(s, x): s.spoken.append(x)
     def _day_stats(s, d, t): pass
 nova_app.nova.speakable = lambda x: x
@@ -164,10 +164,18 @@ print("wake alarm checks passed")
 import types as _ty, time as _tm
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "app"))
 import nova_automations as _na, cam_presence as _cp
-_o = _ty.SimpleNamespace(_routine_step=lambda st: "", _safe_step=lambda n, st: None)
+_o = _ty.SimpleNamespace(_routine_step=lambda st: "", _safe_step=lambda n, st: None, _later_edit=lambda f: f([]))
 _rr = lambda name: _na.Automations._run_routine(_o, name, {"reply": "Morning.", "steps": []})
 assert _rr("morning") == "Morning." and _rr("morning") == "Already on it, sir." and _rr("focus") == "Morning."
 _o._last_routine = ("morning", _tm.time() - 31); assert _rr("morning") == "Morning."
+# a new mode stops the old one's leftover steps and its timed (60-min) steps
+import threading as _th
+_ev, _ran, _jobs = _th.Event(), [], [{"due": 1}]
+_o._safe_step = lambda n, st: (_ran.append((n, st["do"])), n == "goodnight" and _ev.wait(2))
+_o._later_edit = lambda f: _jobs.__setitem__(slice(None), f(list(_jobs)))
+_na.Automations._run_routine(_o, "goodnight", {"steps": [{"do": "a"}, {"do": "b"}]}); _tm.sleep(0.1)
+_na.Automations._run_routine(_o, "movie", {"steps": [{"do": "c"}]}); _ev.set(); _tm.sleep(0.3)
+assert ("goodnight", "b") not in _ran and ("movie", "c") in _ran and _jobs == [], (_ran, _jobs)
 _cf = os.path.expanduser("~/anish-ai/.camera_off"); _had = os.path.exists(_cf)
 open(_cf, "a").close()
 try: _cp.pick_camera(); raise AssertionError("camera opened with privacy off")

@@ -973,6 +973,7 @@ _PROJ_COL = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".projector
 
 _PROJ_LASER_OFF = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".projector_laser_off")
 _proj_last = {}
+_proj_lock = threading.Lock()
 
 def _proj_ir(n):
     """Projector button n: the room ESP32's IR LED (NEC, address bytes as tinytuya sends them), Tuya blaster if the ESP32 is offline."""
@@ -1048,16 +1049,17 @@ def _projector(action):
         if m.group(1) == "on": open(_PROJ_ON, "w").close()
         elif os.path.exists(_PROJ_ON): os.remove(_PROJ_ON)
         return "Got it, I'll remember the projector is %s, sir." % m.group(1)
-    on = os.path.exists(_PROJ_ON)
-    # ponytail: power is a single toggle with no feedback, so state is our best guess; if it's out of sync,
-    # "projector toggle" (or the remote) fixes it.
-    want = (not on) if a == "toggle" else (a == "on")
-    if want == on and a != "toggle":
-        return "The projector's already %s, sir." % a
-    if not _proj_ir(10):
-        return "I couldn't reach the IR blaster, sir."
-    if want: open(_PROJ_ON, "w").close()
-    elif on: os.remove(_PROJ_ON)
+    with _proj_lock:                               # two routines at once both read "on" and pressed the toggle twice
+        on = os.path.exists(_PROJ_ON)
+        # ponytail: power is a single toggle with no feedback, so state is our best guess; if it's out of sync,
+        # "projector toggle" (or the remote) fixes it.
+        want = (not on) if a == "toggle" else (a == "on")
+        if want == on and a != "toggle":
+            return "The projector's already %s, sir." % a
+        if not _proj_ir(10):
+            return "I couldn't reach the IR blaster, sir."
+        if want: open(_PROJ_ON, "w").close()
+        elif on: os.remove(_PROJ_ON)
     return "Projector %s, sir." % ("on" if want else "off")
 
 def iot_status() -> str:

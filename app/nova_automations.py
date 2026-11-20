@@ -103,13 +103,16 @@ class Automations:
             return "unknown step %r" % do
         return str(fn(**arg) if isinstance(arg, dict) else fn() if arg is None else fn(arg))
 
-    def _run_routine(self, name, r):
+    def _run_routine(self, name, r, scene=True):
         """Spoken steps run now (their results join the reply); the rest run in the background so
         a slow device (BLE strip, IR cloud) never delays the answer. after_min steps are scheduled."""
         lr = getattr(self, "_last_routine", None)         # a 2nd tap while morning is still fetching the weather
         if lr and lr[0] == name and time.time() - lr[1] < 30:    # used to run the whole scene again
             print("[routine] %s again within 30 s -> skipped" % name, flush=True); return "Already on it, sir."
         self._last_routine = (name, time.time())          # wall HUD: goodnight -> night mode
+        if scene:   # a new mode replaces the last one: goodnight's leftover steps (and its 60-min AC/projector
+            self._scene = gen = getattr(self, "_scene", 0) + 1     # timer) used to keep firing over movie/morning
+            self._later_edit(lambda j: [])
         said = [r.get("reply", "Done, sir.")]
         later = []
         for st in r.get("steps", []):
@@ -120,6 +123,8 @@ class Automations:
                 later.append(st)
         def _bg():
             for st in later:
+                if scene and self._scene != gen:
+                    print("[routine] %s superseded, %d steps dropped" % (name, len(later) - later.index(st)), flush=True); return
                 if st.get("after_min") and not nova.IS_HUB:     # the Mac may sleep (lid closed) -> the hub keeps the timer
                     try: nova._hub_send("later", json.dumps({"name": name, "st": st})); continue
                     except Exception as e: print("[routine] hub unreachable, timing locally:", e, flush=True)
@@ -342,7 +347,7 @@ class Automations:
             if fire:
                 st["last"], st["armed"] = t, False
                 print("[auto] rule fired:", key, flush=True)
-                said = self._run_routine(key, {"reply": ru.get("say", ""), "steps": ru.get("steps", [])})
+                said = self._run_routine(key, {"reply": ru.get("say", ""), "steps": ru.get("steps", [])}, scene=False)
                 if said: self._proactive(said)
         if json.dumps(self._auto_state, sort_keys=True) != before:
             try: json.dump(self._auto_state, open(self._AUTO_F, "w"))
