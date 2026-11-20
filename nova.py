@@ -812,6 +812,37 @@ def dev_last():
     except Exception: return {}
 
 
+def _ac_echo(msgs, wait=2.5):
+    """Publish AC commands; True once the ESP32 publishes a fresh (non-retained) AC state = it heard us."""
+    got = threading.Event(); c = mqtt_client()
+    c.on_message = lambda cl, u, m: m.retain or got.set()
+    c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
+    try:
+        c.subscribe("home/room/ac", qos=1); time.sleep(0.3)      # retained copy arrives first and is ignored
+        for t, p in msgs:
+            c.publish(t, p, qos=1).wait_for_publish(3)
+        return got.wait(wait)
+    finally:
+        c.disconnect(); c.loop_stop()
+
+
+_broker_kicked = [0.0]
+def _broker_restart():
+    """Restart the hub's MQTT broker (at most once per 10 min) and wait for the room ESP32 to come back. False = skipped."""
+    if time.time() - _broker_kicked[0] < 600: return False
+    _broker_kicked[0] = time.time()
+    kick = "launchctl kickstart -k gui/$(id -u)/com.nova.broker"
+    subprocess.run(["sh", "-c", kick] if IS_HUB else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "nova-hub", kick],
+                   capture_output=True, timeout=20)
+    print("[ac] room node deaf -> restarted the MQTT broker", flush=True)
+    for _ in range(30):                   # ESP32 reconnects + resubscribes within a few seconds
+        time.sleep(1)
+        try:
+            if _mqtt_peek(["home/room/status"]).get("home/room/status") == "online": time.sleep(1); return True
+        except Exception: swallowed()
+    return True
+
+
 def ac(command: str, routine: bool = False) -> str:
     """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10). IR is one-way: "AC on." means sent, not obeyed.
     command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
@@ -871,9 +902,12 @@ def ac(command: str, routine: bool = False) -> str:
     if send == "off":    # library "off" keeps the ESP32's state right; the learned raw frame is what the AC obeys
         _pub_set.append(("home/room/ac/set", "rawoff"))
     try:
-        import paho.mqtt.client as mqtt
-        c = mqtt_client()
-        _pub(c, _pub_set)
+        if not _ac_echo(_pub_set):        # 2026-11-20: the ESP32 was online + publishing but deaf to every /set
+            if not _broker_restart():      # (lost MQTT subscription); a broker restart makes it resubscribe
+                return "The room node isn't responding, and I restarted its connection recently, sir. Try unplugging it."
+            if not _ac_echo(_pub_set):
+                return "The room node isn't taking commands even after a reconnect, sir. Try unplugging it."
+            print("[ac] room node was deaf -> broker restarted, command went through", flush=True)
     except Exception as e:
         return "The AC didn't respond: %s" % str(e)[:60]
     return say
