@@ -9,6 +9,7 @@ HP = butter(2, HP_HZ, "highpass", fs=16000, output="sos")
 
 KEY = open(os.path.expanduser("~/anish-ai/.mic_key"), "rb").read()[:16]
 MAX_BUF = 16000 * 2 * 5                     # keep at most 5 s; older audio is dropped
+SWITCH_X, SWITCH_N = 1.5, 2                 # calibration knobs: louder by 1.5x for 2 frames (160 ms) -> change mic
 MUTE = os.path.expanduser("~/anish-ai/.mic_mute")   # sender IPs to ignore, one per line (a noisy mic); re-read every 2 s
 
 
@@ -21,6 +22,7 @@ class NetMic:
         self.bufs, self.seen, self.last, self.cv = {}, {}, 0.0, threading.Condition()   # per sender IP
         self.lvl = {}                       # per sender IP: [quietest, loudest] frame level since levels() was last called
         self.mute, self._mt = set(), 0.0
+        self.cur, self.flip = None, 0       # mic in use + frames another one has been clearly louder
         self.zi = {}                        # per sender IP: high-pass filter state (packets are one continuous stream)
         threading.Thread(target=self._rx, daemon=True).start()
 
@@ -70,7 +72,7 @@ class NetMic:
             while not any(len(b) >= n * 2 for b in self.bufs.values()):
                 if not self.cv.wait(1.0):
                     return bytes(n * 2)     # mics dropped -> silence, never block forever
-            best, best_e = None, -1
+            got = {}
             for ip, b in self.bufs.items():
                 if len(b) < n * 2:
                     continue                # this mic is a bit behind -> it joins next frame
@@ -78,8 +80,15 @@ class NetMic:
                 e = sum(abs(v) for v in array.array("h", chunk)[::8])
                 m = e / max(1, len(chunk) // 16)  # mean |sample| (every 8th of len/2 samples)
                 lv = self.lvl.setdefault(ip, [m, m]); lv[0] = min(lv[0], m); lv[1] = max(lv[1], m)
-                if e > best_e:
-                    best, best_e = chunk, e
+                got[ip] = (chunk, e)
+            top = max(got, key=lambda ip: got[ip][1])
+            # sticky: flipping mics every 80 ms stitched bed + table audio mid-word (level jumps, clicks) -> STT misheard.
+            # Switch only when another mic is clearly louder (SWITCH_X) for SWITCH_N frames in a row.
+            if self.cur in got and top != self.cur:
+                self.flip = self.flip + 1 if got[top][1] > SWITCH_X * got[self.cur][1] else 0
+                if self.flip < SWITCH_N: top = self.cur
+            if top != self.cur: self.cur, self.flip = top, 0
+            best = got[top][0]
             live = [self.bufs[ip] for ip in self.live(1.0) if ip in self.bufs]
             if len(live) > 1:               # mic clocks drift: keep mics in step, but never drop a lone mic's
                 low = min(len(b) for b in live) + n * 2 * 3      # backlog (Nova reads late while STT runs)
@@ -120,12 +129,23 @@ if __name__ == "__main__":                  # self-check: loopback a keyed packe
         m.bufs["10.0.0.2"] = bytearray(array.array("h", [900] * 1280).tobytes()); m.seen["10.0.0.2"] = time.time()
     s.sendto(KEY + array.array("h", [5] * 1280).tobytes(), ("127.0.0.1", 5099))
     time.sleep(0.2)
+    m.cur = None                            # no mic chosen yet -> the louder one wins straight away
     assert len(m.live()) == 2 and set(array.array("h", m.read(1280))) == {900}   # louder mic wins
     s.sendto(KEY + array.array("h", [6] * 1280).tobytes(), ("127.0.0.1", 5099))  # only mic 1 talks now
     time.sleep(0.1)
     assert set(array.array("h", m.read(1280))) == {6}                             # silent mic 2 doesn't block
     lv = m.levels(); assert lv["10.0.0.2"] == (900, 900) and lv["127.0.0.1"] == (5, 7), lv   # per-mic floor + peak
     assert m.levels() == {}                                                       # reset after reading
+    m.cur, m.flip = "A", 0                  # sticky: a mic only 1.2x louder doesn't steal the stream ...
+    with m.cv:
+        for ip, v in (("A", 1000), ("B", 1200)): m.bufs[ip] = bytearray(array.array("h", [v] * 1280).tobytes()); m.seen[ip] = time.time()
+    assert set(array.array("h", m.read(1280))) == {1000}
+    for k in (1, 2):                        # ... one 3x louder takes over on its 2nd frame
+        with m.cv:
+            for ip, v in (("A", 1000), ("B", 3000)): m.bufs[ip] = bytearray(array.array("h", [v] * 1280).tobytes()); m.seen[ip] = time.time()
+        got = set(array.array("h", m.read(1280)))
+    assert got == {3000} and m.cur == "B", (got, m.cur)
+    with m.cv: m.bufs.clear(); m.seen.clear()
     del m._hp                               # real filter: a 30 Hz thump through the socket comes out near silent
     thump = (np.sin(2 * np.pi * 30 * np.arange(4096) / 16000) * 8000).astype("<i2")
     for i in range(0, 4096, 512): s.sendto(KEY + thump[i:i + 512].tobytes(), ("127.0.0.1", 5099))
