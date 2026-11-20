@@ -18,7 +18,7 @@ def _recognizer():
         import sherpa_onnx
         _rec = sherpa_onnx.OfflineRecognizer.from_whisper(
             encoder=os.path.join(D, "base.en-encoder.int8.onnx"), decoder=os.path.join(D, "base.en-decoder.int8.onnx"),
-            tokens=os.path.join(D, "base.en-tokens.txt"), language="en", task="transcribe", num_threads=4)
+            tokens=os.path.join(D, "base.en-tokens.txt"), language="en", task="transcribe", num_threads=2)   # 2 real cores: 4 was ~20% slower (0.79 vs 0.65 s)
     return _rec
 
 

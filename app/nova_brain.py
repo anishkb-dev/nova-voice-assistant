@@ -148,7 +148,7 @@ class Brain:
             self._claude_mode = True
             return _instant("Claude mode, sir. Just talk to me.", "mode(claude)")
         # Only real WORK goes to the Claude Code agent (~10s); chat/questions use the fast brain (~1-2s).
-        if self._claude_mode and not self._private and re.search(
+        if self._claude_mode and not self._private and not re.search(_DEV, low) and re.search(   # devices: fast brain ("make the stars blue" took Claude ~20 s)
                 r"\b(build|make|create|write|code|program|script|fix|debug|refactor|install|deploy|"
                 r"set ?up|edit|update|change|add|delete|rename|file|folder|project|repo|commit|"
                 r"research|look up|find out|search|plan|design|automate|run)\b", low):

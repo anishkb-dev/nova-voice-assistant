@@ -125,10 +125,12 @@ class Api(Voice, Brain, Automations):
         last = None
         while True:
             try:
-                v, muted = subprocess.run(["osascript", "-e", 'set s to get volume settings',
-                                           "-e", 'return (output volume of s as string) & "," & (output muted of s as string)'],
-                                          capture_output=True, text=True, timeout=5).stdout.strip().split(",")
-                lvl = 0 if muted == "true" else int(v)
+                seen = getattr(self, "_vol_seen", None)   # the HUD volume bar already reads it every 1 s:
+                if seen and time.time() - seen[2] < 3:    # a 2nd osascript poll cost ~0.23 s every 2 s
+                    v, m = seen[0], seen[1]
+                else:
+                    v, m = self._read_volume()
+                lvl = 0 if m else int(v)
                 if lvl != last:
                     nova._hub_send("volume", lvl); last = lvl
             except Exception:
@@ -663,7 +665,7 @@ class Api(Voice, Brain, Automations):
             if not fresh and tick % 20 == 0:            # ~every 1 s when idle (300 ms loaded the Mac for a volume bar)
                 rv, rm = self._read_volume()
                 if rv is not None:
-                    v, muted = rv, rm
+                    v, muted = rv, rm; self._vol_seen = (rv, rm, time.time())   # _volume_mirror reuses it
             if v is not None and (v, muted) != last:
                 self._js("window.novaVolume && window.novaVolume(%d,%s);"
                          % (v, "true" if muted else "false"))
