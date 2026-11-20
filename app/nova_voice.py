@@ -514,7 +514,8 @@ class Voice:
                 return ""
             return self._vp_correct(txt)
 
-        def record_command(floor, seed=None, hang_ms=900, max_s=12.0, start_ms=2500):
+        BG_CHECK_FRAMES = 50                 # 4 s. Owner's "Nova" clips 2026-11-20: wake word heard within 4 s in 21/22
+        def record_command(floor, seed=None, hang_ms=900, max_s=12.0, start_ms=2500, bg_check=False):
             """After the wake word: wait up to start_ms for the command to start, then capture
             until ~hang_ms of trailing silence (or max_s). `seed` is the rolling pre-roll buffer
             (frames captured just before/during the wake) so a command spoken in the same breath
@@ -542,6 +543,12 @@ class Voice:
                         break
                 elif n >= start_frames:
                     break                            # nobody spoke after the beep -> bail
+                if bg_check and n == BG_CHECK_FRAMES:   # still going at 4 s: in a noisy room (TV, talk) the level never
+                    _so_far = transcribe(np.concatenate(frames))   # drops, so it ran to the 12 s cap (395x). No "Nova" /
+                    if not (WAKE_RE.search(_so_far) or DIRECT_CMD(_so_far)   # device command yet = background -> stop
+                            or (os.path.exists(nova.ALARM_F) and nova.AWAKE_RE.search(_so_far))):
+                        print("[hf] background at 4 s -> stopped", flush=True)
+                        return np.array([], dtype=np.int16)     # a later "Nova" starts a fresh recording (pre-roll)
             pcm = np.concatenate(frames) if frames else np.array([], dtype=np.int16)
             print("[hf] recorded %.1fs (thr=%.0f spoke=%s)" % (pcm.size / 16000.0, speech, spoke), flush=True)
             if True:    # level trace (also for rejected tries -> tune far-field) (one value per 80ms) -> tune the end-of-turn threshold from real data
@@ -672,7 +679,7 @@ class Voice:
                 hot = 0
                 # speech detected -> capture the whole utterance (with pre-roll) and transcribe it
                 self._placeholder("Listening…")
-                _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms)
+                _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms, bg_check=True)
                 _t = time.time()
                 text = transcribe(_pcm)
                 spk_ref, spk_s = None, 0.0           # filled below once this turns out to be a real "Nova ..."
