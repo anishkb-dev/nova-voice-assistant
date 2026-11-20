@@ -352,7 +352,7 @@ class Voice:
             if nova.IS_HUB:                      # model loads: 1st command after a restart paid ~2 s (voice match) + ~3 s (Whisper)
                 try:
                     sys.path.insert(0, os.path.expanduser("~/anish-ai")); import localstt, speaker as _sp
-                    if localstt.available(): localstt._recognizer()
+                    if localstt.available(): localstt._recognizer(); localstt.has_speech(np.zeros(1600, np.int16))
                     if os.path.exists(_sp.MODEL): _sp._extractor()
                 except Exception:
                     nova.swallowed()
