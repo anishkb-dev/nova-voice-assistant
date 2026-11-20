@@ -292,25 +292,6 @@ class Voice:
             self._hf = False
         return self._hf
 
-    def _vad_session(self):
-        if getattr(self, "_vad_sess", None) is None:
-            import onnxruntime as ort
-            o = ort.SessionOptions(); o.intra_op_num_threads = 1; o.inter_op_num_threads = 1
-            self._vad_sess = ort.InferenceSession(os.path.expanduser("~/anish-ai/silero_vad.onnx"),
-                                                  sess_options=o, providers=["CPUExecutionProvider"])
-        return self._vad_sess
-
-    def _vad_has_speech(self, audio, thr=55):
-        """True if the clip is loud enough to be real speech (RMS energy gate). Silero VAD proved
-        unreliable on this quiet mic (it rejected actual speech), so we use a low RMS gate to drop
-        true silence — Whisper's hallucination blocklist handles the rest."""
-        import numpy as np
-        try:
-            pcm = np.frombuffer(audio.get_raw_data(), dtype=np.int16).astype(np.float32)
-            return pcm.size > 0 and float(np.sqrt(np.mean(pcm ** 2))) >= thr
-        except Exception:
-            return True                                  # never hard-block on error
-
     def _loud_wav(self, audio, target=2000.0):
         """Amplify quiet mic audio to a target RMS before Whisper, capped so it never clips.
         The built-in mic captures the user at rms ~100 — too quiet for Whisper (returns '');
@@ -483,6 +464,12 @@ class Voice:
             pk = float(np.abs(p).max()) or 1.0
             p = np.clip(p * min(2000.0 / r0, 30000.0 / pk), -32768, 32767).astype(np.int16)
             import io, os, wave, shutil, tempfile, subprocess, requests
+            try:                                     # Silero VAD (~0.03 s) before Whisper (~1 s): most clips are noise
+                sys.path.insert(0, os.path.expanduser("~/anish-ai")); import localstt
+                if not localstt.has_speech(p, RATE):
+                    print("[hf] vad: no speech, skipped", flush=True); return ""
+            except Exception as e:
+                print("[hf] vad err:", str(e)[:60], flush=True)
             buf = io.BytesIO()
             with wave.open(buf, "wb") as w:
                 w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE); w.writeframes(p.tobytes())
