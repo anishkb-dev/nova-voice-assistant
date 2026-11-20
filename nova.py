@@ -782,7 +782,7 @@ def _mqtt_peek(topics, wait=1.2):
         end = time.time() + wait
         while time.time() < end and len(got) < len(topics): time.sleep(0.05)
     finally:
-        c.loop_stop(); c.disconnect()
+        c.disconnect(); c.loop_stop()   # this order: loop_stop() first sat out the loop's 1 s select -> every peek took 1 s
     return got
 
 
@@ -1079,7 +1079,7 @@ def iot_status() -> str:
     try:
         c.connect(_IOT_BROKER, 1883, 5)
         c.subscribe(f"home/{_IOT_ROOM}/#")           # telemetry + individual sensor/actuator topics
-        c.loop_start(); _time.sleep(2.5); c.loop_stop(); c.disconnect()
+        c.loop_start(); _time.sleep(1.0); c.disconnect(); c.loop_stop()   # retained values land in ~0.1 s
     except Exception as e:
         return f"Couldn't reach the IoT broker: {e}"
     if not data:
