@@ -394,11 +394,13 @@ class Voice:
             self._netmic = _nm if _use_net else None
 
             def _mic_watch():                # source changed -> exit; launchd relaunches and recalibrates the floor
-                seen = 0
+                seen, gone = 0, False
                 while True:
                     time.sleep(2)
-                    if _use_net and not _nm.alive(10):
-                        why = "bed mic went silent"
+                    if _use_net:             # ESP32 mics dropped (Wi-Fi blip): restarting onto the USB input only swapped
+                        if gone != (not _nm.alive(10)):   # to a mic-less jack (flat hiss) and restarted again when they came
+                            gone = not gone; print("[hf] network mics %s" % ("silent -> waiting for them" if gone else "back"), flush=True)
+                        continue             # back -> NetMic.read() returns silence meanwhile, then resumes on its own
                     elif not _use_net and _nm and _nm.alive(1):
                         seen += 1
                         if seen < 3: continue
