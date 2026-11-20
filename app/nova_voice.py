@@ -458,6 +458,18 @@ class Voice:
             try: return time.time() - os.path.getmtime(COLLECT_F) < 30 * 60
             except OSError: return False
 
+        def ww_log(pcm, whisper):
+            """SHADOW wake-word model (train_wake.py): logs what it would do; Whisper still decides. Off if no model."""
+            if not hasattr(self, "_ww"):
+                try:
+                    import pickle, train_wake as tw; self._ww = (tw, pickle.load(open(tw.OUT, "rb")))
+                except Exception as e: print("[ww] off:", e, flush=True); self._ww = None
+            if not self._ww or pcm.size < RATE * 0.3: return
+            try:
+                sc = self._ww[0].score(self._ww[1]["clf"], pcm)
+                print("[ww] %.2f wake=%s whisper=%s" % (sc, sc >= self._ww[1]["thr"], whisper), flush=True)
+            except Exception as e: print("[ww]", e, flush=True)
+
         def transcribe(pcm):
             if pcm.size < RATE * 0.2:                # <0.2s -> nothing said
                 return ""
@@ -695,6 +707,7 @@ class Voice:
                 _pcm = record_command(floor, seed=list(ring), hang_ms=hang_ms, bg_check=True)
                 _t = time.time()
                 text = transcribe(_pcm)
+                threading.Thread(target=ww_log, args=(_pcm, bool(text and (WAKE_RE.search(text) or DIRECT_CMD(text)))), daemon=True).start()
                 spk_ref, spk_s = None, 0.0           # filled below once this turns out to be a real "Nova ..."
                 print("[hf] stt=%.2fs" % (time.time() - _t), flush=True)
                 ring.clear()
