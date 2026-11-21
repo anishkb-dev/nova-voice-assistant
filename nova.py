@@ -816,6 +816,7 @@ def dev_last():
     except Exception: return {}
 
 
+AC_REPEAT = 2           # calibration knob: IR sends per AC command (3 if the AC still misses some)
 def _ac_echo(msgs, wait=2.5):
     """Publish AC commands; True once the ESP32 publishes a fresh (non-retained) AC state = it heard us."""
     got = threading.Event(); c = mqtt_client()
@@ -905,6 +906,8 @@ def ac(command: str, routine: bool = False) -> str:
     _pub_set = [("home/room/ac/set", send)]
     if send == "off":    # library "off" keeps the ESP32's state right; the learned raw frame is what the AC obeys
         _pub_set.append(("home/room/ac/set", "rawoff"))
+    _pub_set *= AC_REPEAT   # the same code works one time and not the next (2026-11-21): send it again. LG frames are
+                            # absolute state, so a repeat can't toggle anything; the AC may just beep twice
     try:
         if not _ac_echo(_pub_set):        # 2026-11-20: the ESP32 was online + publishing but deaf to every /set
             if not _broker_restart():      # (lost MQTT subscription); a broker restart makes it resubscribe
