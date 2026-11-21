@@ -942,7 +942,8 @@ def main():
                 app = AppKit.NSApplication.sharedApplication()
                 if off:
                     app.setPresentationOptions_(0); w.setLevel_(AppKit.NSNormalWindowLevel); w.orderOut_(None); return   # hide HUD -> desktop
-                w.setFrame_display_(w.screen().frame(), True)
+                big = max(AppKit.NSScreen.screens(), key=lambda sc: sc.frame().size.width * sc.frame().size.height)
+                w.setFrame_display_(big.frame(), True)   # biggest = the external monitor (the hub's own panel is broken)
                 w.setLevel_(AppKit.NSScreenSaverWindowLevel)
                 w.orderFrontRegardless()
                 w.setCollectionBehavior_(AppKit.NSWindowCollectionBehaviorCanJoinAllSpaces | AppKit.NSWindowCollectionBehaviorStationary)
@@ -955,8 +956,8 @@ def main():
                 print("[kiosk]", e, flush=True)
         AppHelper.callAfter(apply)
 
-    if DISPLAY:        # monitor shared via HDMI switch: when it comes back to the hub, relaunch so the HUD
-        def _screen_watch():   # reopens fullscreen on it (launchd KeepAlive restarts us in ~20 s)
+    if DISPLAY:        # monitor shared via HDMI switch: when it comes back to the hub, move the HUD back onto it
+        def _screen_watch():
             import ctypes
             cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
             def n():      # the set of active display ids: with the broken internal panel, switching the HDMI
@@ -971,7 +972,11 @@ def main():
                 now = n()
                 new = [d for d in now if d not in last and not cg.CGDisplayIsBuiltin(d)]   # an EXTERNAL display appeared
                 if new:            # (switching away brings back the broken internal panel -> ignore that)
-                    print("[display] monitor back %s -> relaunching HUD" % (now,), flush=True); time.sleep(3); os._exit(0)
+                    # was os._exit(0) (relaunch): that killed whatever was running, e.g. a ringing alarm (2026-11-21)
+                    print("[display] monitor back %s -> moving HUD onto it" % (now,), flush=True); time.sleep(3)
+                    _kiosk(); time.sleep(1)
+                    try: webview.windows[0].evaluate_js("location.reload()")   # the wall page lays out once, at load
+                    except Exception: nova.swallowed()
                 last = now
         threading.Thread(target=_screen_watch, daemon=True).start()
 
