@@ -816,7 +816,8 @@ def dev_last():
     except Exception: return {}
 
 
-AC_REPEAT = 2           # calibration knob: IR sends per AC command (3 if the AC still misses some)
+AC_REPEAT = 3           # calibration knob: IR sends per AC command. The weak LED reaches the AC only some of the time
+AC_GAP_S = 1.0          # calibration knob: seconds between repeats (back-to-back repeats shared the same bad moment)
 AC_ECHO_S = 8          # calibration knob: seconds to wait for the room node's AC echo (its Wi-Fi spikes to 2 s)
 def _ac_echo(msgs, wait=AC_ECHO_S):
     """Publish AC commands; True once the ESP32 publishes a fresh (non-retained) AC state = it heard us."""
@@ -825,7 +826,8 @@ def _ac_echo(msgs, wait=AC_ECHO_S):
     c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
     try:
         c.subscribe("home/room/ac", qos=1); time.sleep(0.3)      # retained copy arrives first and is ignored
-        for t, p in msgs:
+        for k, (t, p) in enumerate(msgs):
+            if k and k % (len(msgs) // AC_REPEAT or 1) == 0: time.sleep(AC_GAP_S)   # space the repeats out
             c.publish(t, p, qos=1).wait_for_publish(3)
         return got.wait(wait)
     finally:
