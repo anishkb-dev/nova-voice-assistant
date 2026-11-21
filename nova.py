@@ -832,6 +832,23 @@ def _ac_echo(msgs, wait=AC_ECHO_S):
         c.disconnect(); c.loop_stop()
 
 
+_broker_kicked = [0.0]
+def _broker_restart():
+    """Restart the hub's MQTT broker (at most once per 10 min) and wait for the room ESP32 to come back. False = skipped."""
+    if time.time() - _broker_kicked[0] < 600: return False
+    _broker_kicked[0] = time.time()
+    kick = "launchctl kickstart -k gui/$(id -u)/com.nova.broker"
+    subprocess.run(["sh", "-c", kick] if IS_HUB else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "nova-hub", kick],
+                   capture_output=True, timeout=20)
+    print("[ac] room node deaf -> restarted the MQTT broker", flush=True)
+    for _ in range(30):                   # ESP32 reconnects + resubscribes within a few seconds
+        time.sleep(1)
+        try:
+            if _mqtt_peek(["home/room/status"]).get("home/room/status") == "online": time.sleep(1); return True
+        except Exception: swallowed()
+    return True
+
+
 def ac(command: str, routine: bool = False) -> str:
     """Control the LG AC through the room ESP32's IR LED (LG protocol, 2026-11-10). IR is one-way: "AC on." means sent, not obeyed.
     command e.g. 'on', 'off', 'temp 24', 'mode cool', 'fan high', 'increase', 'decrease', 'status'."""
@@ -898,8 +915,10 @@ def ac(command: str, routine: bool = False) -> str:
         # (own-ping check, 73cdb71), so: wait longer, resend once.
         if not _ac_echo(_pub_set):
             print("[ac] no echo in %ds -> resending once" % AC_ECHO_S, flush=True)
-            if not _ac_echo(_pub_set):
-                return "The room node isn't answering, sir. Its Wi-Fi may be weak; try again in a minute."
+            if not _ac_echo(_pub_set):     # two 8 s misses = really deaf (lost subscription): a broker restart fixes it
+                if not _broker_restart() or not _ac_echo(_pub_set):
+                    return "The room node isn't answering, sir. Try unplugging it for a few seconds."
+                print("[ac] room node was deaf -> broker restarted, command went through", flush=True)
     except Exception as e:
         return "The AC didn't respond: %s" % str(e)[:60]
     return say
