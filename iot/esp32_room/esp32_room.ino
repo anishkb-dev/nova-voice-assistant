@@ -64,6 +64,7 @@ const int  MIC_PWR = 23, MIC_SCK = 18, MIC_WS = 19, MIC_SD = 21, MIC_N = 512;   
 int GAIN_SHIFT = 14;                       // calibration knob (as bedmic): lower = louder, raise if speech clips
 I2SClass i2s;
 WiFiUDP udp;
+const unsigned long DEAF_MS = 75000;   // calibration knob: no own-ping heard this long = reconnect (2 pings missed + slack)
 IPAddress hubIP;                           // = the broker (hub), set by pickBroker
 bool micOk = false;
 int32_t micRaw[MIC_N];
@@ -183,12 +184,14 @@ void onAc(String c) {
 }
 
 // home/room/<dev>/set  with payload on|off|toggle  (published by Nova + the dashboard)
+unsigned long lastPong = 0;   // deaf check: when we last heard our own ping on home/room/ping/set
 void onMqtt(char* topic, byte* payload, unsigned int len) {
   char cmd[96] = {0}; memcpy(cmd, payload, len < 95 ? len : 95);
   String tp = topic, c = cmd;
   int a = tp.indexOf("/room/") + 6, b = tp.indexOf("/set");
   if (a < 6 || b < 0) return;
   String dev = tp.substring(a, b);
+  if (dev == "ping") { lastPong = millis(); return; }
   if (dev == "ac") { c.trim(); c.toLowerCase(); onAc(c); return; }
   if (dev == "strip") {
     if (c.startsWith("scroll ")) { wipeStart(c.substring(7)); return; }
@@ -317,8 +320,17 @@ void loop() {
     irrecv.resume();
   }
   if (WiFi.status() != WL_CONNECTED) connectWifi();
-  if (!mqtt.connected()) connectMqtt();
+  if (!mqtt.connected()) { connectMqtt(); lastPong = millis(); }
   mqtt.loop();
+  // DEAF CHECK (2026-11-20/21: connected + publishing, but every /set ignored until the broker restarted).
+  // Ping our own command topic every 30 s; nothing back for DEAF_MS -> the subscription is dead -> reconnect.
+  static unsigned long lastPing = 0;
+  if (millis() - lastPing > 30000) { lastPing = millis(); mqtt.publish("home/room/ping/set", "p"); }
+  if (millis() - lastPong > DEAF_MS) {
+    Serial.println("deaf: own ping not heard -> reconnecting MQTT");
+    mqtt.publish("home/room/deaf", "reconnect");   // shows up on the hub; harmless if it doesn't arrive
+    mqtt.disconnect(); lastPong = millis();
+  }
   wipeTick();
 
   // Motion: read every loop (not just every 2s) and publish the instant it changes -> instant HUD/Nova update.
