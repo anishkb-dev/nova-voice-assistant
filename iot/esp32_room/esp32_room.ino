@@ -145,13 +145,21 @@ void applyAndReport(const char* dev, int pin, bool state) {
 #error "build with: --build-property compiler.cpp.extra_flags=-DALLOW_DELAY_CALLS=false"
 #endif
 portMUX_TYPE irMux = portMUX_INITIALIZER_UNLOCKED;
+#define IR_LOCK 0   // calibration knob: 1 = interrupts off during IR frames. 2026-11-21: with 1 the AC ignored "on" -> off
+#if IR_LOCK
+#define IR_IN()  portENTER_CRITICAL(&irMux)
+#define IR_OUT() portEXIT_CRITICAL(&irMux)
+#else
+#define IR_IN()
+#define IR_OUT()
+#endif
 void acSend() {
   // IRsend bit-bangs the 38 kHz carrier with busy-waits: an interrupt mid-frame (the mic's I2S DMA ISR lives on this
   // core) stretches a pulse and the AC ignores the frame (2026-11-21: same code worked one time, not the next).
   // Interrupts off for the frame (~60 ms LG, well under the 300 ms interrupt watchdog). Wi-Fi runs on the other core.
-  portENTER_CRITICAL(&irMux);
+  IR_IN();
   irac.sendAc(acs, nullptr);
-  portEXIT_CRITICAL(&irMux);
+  IR_OUT();
   const char* m = acs.mode == stdAc::opmode_t::kCool ? "cool" : acs.mode == stdAc::opmode_t::kHeat ? "heat" :
                   acs.mode == stdAc::opmode_t::kDry ? "dry" : acs.mode == stdAc::opmode_t::kFan ? "fan" : "auto";
   const char* f = acs.fanspeed == stdAc::fanspeed_t::kLow ? "low" : acs.fanspeed == stdAc::fanspeed_t::kMedium ? "mid" :
@@ -167,12 +175,12 @@ void acSend() {
 // home/room/ac/set: on | off | temp 24 | cool|heat|dry|fan|auto | speed low|mid|high|auto | lg | lg2
 void onAc(String c) {
   if (c.startsWith("rawoff")) { int k = c.length() > 7 ? c.substring(7).toInt() : 38;   // "rawoff 36": test carrier kHz
-    irrecv.disableIRIn(); portENTER_CRITICAL(&irMux); irsend.sendRaw(LG_OFF_RAW, sizeof(LG_OFF_RAW)/2, k); portEXIT_CRITICAL(&irMux); irrecv.enableIRIn(); return; }
-  if (c.startsWith("send ")) { uint32_t v = strtoul(c.substring(5).c_str(), nullptr, 16); portENTER_CRITICAL(&irMux); irsend.sendLG2(v, 28); portEXIT_CRITICAL(&irMux); return; }
+    irrecv.disableIRIn(); IR_IN(); irsend.sendRaw(LG_OFF_RAW, sizeof(LG_OFF_RAW)/2, k); IR_OUT(); irrecv.enableIRIn(); return; }
+  if (c.startsWith("send ")) { uint32_t v = strtoul(c.substring(5).c_str(), nullptr, 16); IR_IN(); irsend.sendLG2(v, 28); IR_OUT(); return; }
   if (c.startsWith("nec ")) {   // "nec 07FD 10": NEC address (hex) + command (dec), e.g. the star projector
     int sp = c.indexOf(' ', 4);
     uint16_t a = strtoul(c.substring(4, sp).c_str(), nullptr, 16); uint8_t n = c.substring(sp + 1).toInt();
-    irrecv.disableIRIn(); { uint32_t v = irsend.encodeNEC(a, n); portENTER_CRITICAL(&irMux); irsend.sendNEC(v); portEXIT_CRITICAL(&irMux); } irrecv.enableIRIn(); return; }
+    irrecv.disableIRIn(); { uint32_t v = irsend.encodeNEC(a, n); IR_IN(); irsend.sendNEC(v); IR_OUT(); } irrecv.enableIRIn(); return; }
   if      (c == "on")  acs.power = true;
   else if (c == "off") acs.power = false;
   else if (c.startsWith("temp ")) { int t = c.substring(5).toInt(); if (t < 16 || t > 30) return; acs.degrees = t; acs.power = true; }
