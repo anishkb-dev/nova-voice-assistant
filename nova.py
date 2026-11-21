@@ -412,7 +412,7 @@ ALARM_ACK_F = os.path.expanduser("~/anish-ai/.alarm_ack") # mtime = when you las
 ASLEEP_F = os.path.expanduser("~/anish-ai/.asleep")         # good night's night mode (nova_automations._ASLEEP_F)
 SNOOZE = 20            # calibration knob: seconds of quiet between rings (time to answer)
 ALARM_MAX = 30 * 60    # failsafe: stop ringing after 30 min (you're out, or the mic is off)
-AWAKE_FOR = 3 * 3600   # after "good morning", later morning announcements just speak, no ring
+AWAKE_FOR = 20 * 3600  # after "good morning", every alarm until 4 AM next day just speaks, no ring (owner 2026-11-21)
 SAY_WAIT = None        # app's speak-and-wait-till-done (set by nova_app on the hub)
 AWAKE_RE = re.compile(r"\b(good ?morning|i'?m (awake|up)|stop (the )?alarm)\b", re.I)
 
@@ -428,7 +428,9 @@ def wake(text, say=None):
     """Hub: ring the alarm, read `text`, ring again every SNOOZE s until you say good morning (mic or Telegram),
     then read `text` once more. Volume up to ALARM_VOL for the whole thing, back afterwards."""
     say = say or SAY_WAIT or SPEAK
-    try: awake = time.time() - os.path.getmtime(ALARM_ACK_F) < AWAKE_FOR
+    try:
+        ack = os.path.getmtime(ALARM_ACK_F); day = datetime.datetime.now() - datetime.timedelta(hours=4)   # a "day" starts at 4 AM
+        awake = time.time() - ack < AWAKE_FOR and datetime.datetime.fromtimestamp(ack) >= day.replace(hour=4, minute=0, second=0, microsecond=0)
     except OSError: awake = False
     if awake or os.path.exists(ALARM_F):          # already up, or an alarm is already ringing -> just say it
         return say(text)
