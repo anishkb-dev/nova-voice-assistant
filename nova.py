@@ -499,6 +499,8 @@ def _add_reminder(secs, msg, banner=True, stale=0):
 
 def resume_reminders():
     """Called once at startup: re-arm reminders saved before a restart."""
+    if os.path.exists(ALARM_F):                   # an alarm killed mid-ring (app relaunch) left its flag: with it, every
+        os.remove(ALARM_F); print("[alarm] cleared a stale ringing flag", flush=True)   # later alarm only spoke
     pending = _rem_edit(lambda r: r)
     for x in pending:
         _schedule(x["due"], x["msg"], x.get("banner", True), x.get("stale", 0))

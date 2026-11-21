@@ -418,6 +418,8 @@ class Api(Voice, Brain, Automations):
             if m.topic.startswith("home/hub/"):           # ---- hub jobs from the Mac ----
                 if key == "gestures":
                     print("[hub] gestures", val, "->", nova.gesture_control(val), flush=True)
+                elif key == "awake":                      # Mac ran Morning: you're up -> stop/skip alarms (nova.alarm_off)
+                    nova.alarm_off(val or "mac")
                 elif key == "say":
                     if val.startswith("[alarm] "):      # morning clip announcement: ring until "good morning"
                         threading.Thread(target=nova.wake, args=(val[8:],), daemon=True).start()

@@ -110,6 +110,10 @@ class Automations:
         if lr and lr[0] == name and time.time() - lr[1] < 30:    # used to run the whole scene again
             print("[routine] %s again within 30 s -> skipped" % name, flush=True); return "Already on it, sir."
         self._last_routine = (name, time.time())          # wall HUD: goodnight -> night mode
+        if name == "morning":     # running Morning (button, voice, Telegram) = you're up: stop a ringing alarm and
+            try:                  # mark awake, so no later alarm rings today (owner 2026-11-21)
+                nova.alarm_off("morning routine") if nova.IS_HUB else nova._hub_send("awake", "morning routine")
+            except Exception: nova.swallowed()
         if scene:   # a new mode replaces the last one: goodnight's leftover steps (and its 60-min AC/projector
             self._scene = gen = getattr(self, "_scene", 0) + 1     # timer) used to keep firing over movie/morning
             self._later_edit(lambda j: [])
