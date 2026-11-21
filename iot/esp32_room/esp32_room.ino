@@ -175,7 +175,7 @@ void onAc(String c) {
   else if (c == "speed mid")  acs.fanspeed = stdAc::fanspeed_t::kMedium;
   else if (c == "speed high") acs.fanspeed = stdAc::fanspeed_t::kHigh;
   else if (c == "speed auto") acs.fanspeed = stdAc::fanspeed_t::kAuto;
-  else if (c == "lg")  acs.protocol = decode_type_t::LG;    // test knob: which LG IR protocol your AC speaks
+  else if (c == "lg")  acs.protocol = decode_type_t::LG;    // test knob. 2026-11-21: LG frames stopped working, LG2 works (boot default)
   else if (c == "lg2") acs.protocol = decode_type_t::LG2;
   else if (c.startsWith("model ")) acs.model = c.substring(6).toInt();   // test knob: LG remote variant 1-4
   else return;
@@ -279,7 +279,7 @@ void setup() {
   dht.begin();
   pinMode(PIR_PIN, INPUT);                      // PIR output is a driven 3.3V digital signal
   irrecv.enableIRIn(); pinMode(IR_RX_PIN, INPUT_PULLUP);   // pull-up: no receiver wired = no noise "codes"
-  acs.protocol = decode_type_t::LG; acs.model = -1; acs.celsius = true; acs.degrees = 24; acs.power = false;
+  acs.protocol = decode_type_t::LG2; acs.model = -1; acs.celsius = true; acs.degrees = 24; acs.power = false;
   acs.mode = stdAc::opmode_t::kCool; acs.fanspeed = stdAc::fanspeed_t::kAuto;
   acs.swingv = stdAc::swingv_t::kOff; acs.swingh = stdAc::swingh_t::kOff;
   pinMode(LIGHT_PIN, OUTPUT); pinMode(FAN_PIN, OUTPUT); pinMode(PLUG_PIN, OUTPUT);
