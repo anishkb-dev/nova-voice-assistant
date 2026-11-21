@@ -817,7 +817,8 @@ def dev_last():
 
 
 AC_REPEAT = 2           # calibration knob: IR sends per AC command (3 if the AC still misses some)
-def _ac_echo(msgs, wait=2.5):
+AC_ECHO_S = 8          # calibration knob: seconds to wait for the room node's AC echo (its Wi-Fi spikes to 2 s)
+def _ac_echo(msgs, wait=AC_ECHO_S):
     """Publish AC commands; True once the ESP32 publishes a fresh (non-retained) AC state = it heard us."""
     got = threading.Event(); c = mqtt_client()
     c.on_message = lambda cl, u, m: m.retain or got.set()
@@ -829,23 +830,6 @@ def _ac_echo(msgs, wait=2.5):
         return got.wait(wait)
     finally:
         c.disconnect(); c.loop_stop()
-
-
-_broker_kicked = [0.0]
-def _broker_restart():
-    """Restart the hub's MQTT broker (at most once per 10 min) and wait for the room ESP32 to come back. False = skipped."""
-    if time.time() - _broker_kicked[0] < 600: return False
-    _broker_kicked[0] = time.time()
-    kick = "launchctl kickstart -k gui/$(id -u)/com.nova.broker"
-    subprocess.run(["sh", "-c", kick] if IS_HUB else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "nova-hub", kick],
-                   capture_output=True, timeout=20)
-    print("[ac] room node deaf -> restarted the MQTT broker", flush=True)
-    for _ in range(30):                   # ESP32 reconnects + resubscribes within a few seconds
-        time.sleep(1)
-        try:
-            if _mqtt_peek(["home/room/status"]).get("home/room/status") == "online": time.sleep(1); return True
-        except Exception: swallowed()
-    return True
 
 
 def ac(command: str, routine: bool = False) -> str:
@@ -909,12 +893,13 @@ def ac(command: str, routine: bool = False) -> str:
     _pub_set *= AC_REPEAT   # the same code works one time and not the next (2026-11-21): send it again. LG frames are
                             # absolute state, so a repeat can't toggle anything; the AC may just beep twice
     try:
-        if not _ac_echo(_pub_set):        # 2026-11-20: the ESP32 was online + publishing but deaf to every /set
-            if not _broker_restart():      # (lost MQTT subscription); a broker restart makes it resubscribe
-                return "The room node isn't responding, and I restarted its connection recently, sir. Try unplugging it."
+        # No echo used to mean "deaf" -> broker restart. 2026-11-21: mostly the room Wi-Fi (0.5-2 s pings) delaying
+        # the echo past 2.5 s, and each restart blinked every MQTT client. Real deafness is now the firmware's job
+        # (own-ping check, 73cdb71), so: wait longer, resend once.
+        if not _ac_echo(_pub_set):
+            print("[ac] no echo in %ds -> resending once" % AC_ECHO_S, flush=True)
             if not _ac_echo(_pub_set):
-                return "The room node isn't taking commands even after a reconnect, sir. Try unplugging it."
-            print("[ac] room node was deaf -> broker restarted, command went through", flush=True)
+                return "The room node isn't answering, sir. Its Wi-Fi may be weak; try again in a minute."
     except Exception as e:
         return "The AC didn't respond: %s" % str(e)[:60]
     return say
