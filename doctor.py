@@ -4,7 +4,7 @@
     python3 ~/anish-ai/doctor.py
 
 Prints PASS / WARN / FAIL for: python deps, API keys, the brain, the mic,
-the AC (Tuya IR blaster), the smart room (MQTT + ESP32), face recognition,
+the smart room (AC = its IR LED since 2026-11-20) (MQTT + ESP32), face recognition,
 and the running NOVA process (+ recent errors in its log). Run it from the
 Terminal (not an IDE) so the mic check has microphone permission.
 """
@@ -95,25 +95,6 @@ try:
     pa.terminate()
 except Exception as e:
     line("bad", "mic", str(e)[:60])
-
-# ---------- AC (Tuya) ----------
-head("Air conditioner (Tuya IR)")
-try:
-    import tinytuya
-    conf = json.load(open(os.path.join(HOME, "tinytuya.json")))
-    c = tinytuya.Cloud(apiRegion=conf["apiRegion"], apiKey=conf["apiKey"],
-                       apiSecret=conf["apiSecret"], apiDeviceID=conf["apiDeviceID"])
-    IR = conf.get("infrared_id", "")   # device ids kept in ~/tinytuya.json (git-ignored, outside repo)
-    r = c.cloudrequest("/v1.0/devices/%s" % IR)
-    online = r.get("result", {}).get("online")
-    line("ok" if online else "bad", "IR blaster", "online" if online else "OFFLINE (check its WiFi/power)")
-    st = c.cloudrequest("/v2.0/infrareds/%s/remotes/%s/ac/status" % (IR, conf.get("remote_id", "")))
-    if st.get("success"):
-        line("ok", "AC endpoint", "reachable, last state=%s" % st.get("result"))
-    else:
-        line("warn", "AC endpoint", st.get("msg", "?"))
-except Exception as e:
-    line("bad", "tuya/AC", str(e)[:60])
 
 # ---------- smart room (MQTT + ESP32) ----------
 head("Smart room (MQTT + ESP32)")
