@@ -359,6 +359,10 @@ class Api(Voice, Brain, Automations):
                 return
             if m.topic == "home/hub/status":
                 self._hub_app_on = m.payload == b"online"; return
+            if m.topic == "home/room/deaf":           # room node's own deaf check fired (firmware 73cdb71)
+                if nova.IS_HUB: print("[room] deaf: node missed its own pings -> reconnected MQTT", flush=True)
+                return
+            if m.topic == "home/room/ping/set": return   # the node's self-ping, not a command
             if m.topic == "home/nova/off":             # only on a change, and give back the mic state you had
                 off = m.payload == b"1"
                 if off != getattr(self, "_nova_off", False):
