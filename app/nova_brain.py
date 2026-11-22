@@ -492,5 +492,5 @@ class Brain:
         m = self.memory
         extra = ""
         if m.get("facts"):
-            extra = " What you remember about the user: " + "; ".join(m["facts"][-12:]) + "."
+            extra = " What you remember about the user: " + "; ".join(m["facts"]) + "."
         return PERSONA + extra

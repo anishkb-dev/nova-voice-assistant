@@ -212,3 +212,15 @@ _mr = lambda s: A._match_routine(_m, s)
 assert _mr("nova study mode off")[0] == "study_off" and _mr("study mode")[0] == "focus" and _mr("i'm done studying")[0] == "study_off"
 assert _mr("good night")[0] == "goodnight" and _mr("good evening")[0] == "evening"
 print("phrase match ok")
+
+# --- think like the user: real ways the owner talks to Nova -> routine (or "-" = not a routine, goes to the brain) ---
+USER_SAYS = {"nova good night": "goodnight", "good nite": "goodnight", "im going to sleep": "goodnight", "gud morning": "morning",
+    "im up": "morning", "i'm leaving": "leaving", "im back home": "home", "movie time": "movie", "lets study": "focus",
+    "i need to focus": "focus", "start studying": "focus", "work mode": "focus", "stop studying": "study_off",
+    "study mode off": "study_off", "clip submitted": "clip_submitted",
+    "remind me to study at 5": "-", "how do i focus better": "-", "what is study mode": "-", "play study music": "-",
+    "set a timer for study": "-", "good night story": "-", "why is the light purple": "-", "i can't sleep": "-",
+    "i'm going to the shop": "-", "ac off": "-"}
+_bad = {u: (want, (_mr(u) or ["-"])[0]) for u, want in USER_SAYS.items() if (_mr(u) or ["-"])[0] != want}
+assert not _bad, _bad
+print("user phrase sim ok (%d)" % len(USER_SAYS))

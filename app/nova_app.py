@@ -102,7 +102,7 @@ class Api(Voice, Brain, Automations):
     def remember(self, fact):
         """Store a durable fact about the user for future sessions."""
         fact = (fact or "").strip()
-        if fact and fact not in self.memory.get("facts", []):
+        if fact and fact.lower().rstrip(".") not in [f.lower().rstrip(".") for f in self.memory.get("facts", [])]:
             self.memory.setdefault("facts", []).append(fact)
             self.memory["facts"] = self.memory["facts"][-40:]
             self._save_memory()

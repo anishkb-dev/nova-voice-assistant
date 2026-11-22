@@ -1656,7 +1656,7 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {
             "command": {"type": "string", "description": "one of: forward, back, stop, left, right, center"}}, "required": ["command"]}}},
     {"type": "function", "function": {
-        "name": "remember", "description": "Store a durable fact about the user to recall in future sessions (name, preferences, ongoing projects, anything worth remembering). Use when the user shares something personal or says 'remember'.",
+        "name": "remember", "description": "Store a durable fact about the user to recall in future sessions (name, preferences, ongoing projects, anything worth remembering). Use it on your own, without being asked, whenever the user states a preference, a dislike, a plan or date, or a complaint about how you behaved (e.g. 'hates purple light in the evening'), and when they say 'remember'. One short fact per call.",
         "parameters": {"type": "object", "properties": {
             "fact": {"type": "string", "description": "The fact to remember, e.g. 'prefers concise answers' or 'is working on a Kaggle competition'"}}, "required": ["fact"]}}},
     {"type": "function", "function": {
