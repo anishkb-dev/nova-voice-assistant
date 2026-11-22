@@ -98,3 +98,7 @@ clip-announce-handoff.md
 internship-handoff.md
 desk/
 OUTREACH.md
+
+# Personal schedule: kept local, synced to the hub by deploy.sh
+routines.json
+automations.json

@@ -12,7 +12,7 @@ for t in test_automations.py app/netmic.py; do
 done
 
 # rsync prints one line per file it actually changed (">f..." = file content/size/time differs)
-CHANGED=$(git ls-files | rsync -aic -e "ssh -o LogLevel=ERROR" $DRY --files-from=- . "$HUB:anish-ai/" | awk '/^[<>]f/ {print $2}')
+CHANGED=$({ git ls-files; ls routines.json automations.json 2>/dev/null; } | rsync -aic -e "ssh -o LogLevel=ERROR" $DRY --files-from=- . "$HUB:anish-ai/" | awk '/^[<>]f/ {print $2}')
 echo "${CHANGED:-(nothing changed)}"
 [ -n "$DRY" ] && exit 0
 VER="$(git log -1 --format='%h %s' | tr -d "'\\" | cut -c1-60) ($(date '+%d %b %H:%M'))"
