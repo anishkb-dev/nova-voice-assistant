@@ -816,7 +816,7 @@ def dev_last():
     except Exception: return {}
 
 
-AC_REPEAT = 3           # calibration knob: IR sends per AC command. The weak LED reaches the AC only some of the time
+AC_REPEAT = 1           # calibration knob: IR sends per AC command. Was 3 (weak LED); owner 2026-11-22: all 3 reach -> 1
 AC_GAP_S = 1.0          # calibration knob: seconds between repeats (back-to-back repeats shared the same bad moment)
 AC_ECHO_S = 8          # calibration knob: seconds to wait for the room node's AC echo (its Wi-Fi spikes to 2 s)
 def _ac_echo(msgs, wait=AC_ECHO_S):
