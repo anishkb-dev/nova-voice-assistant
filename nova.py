@@ -1453,21 +1453,30 @@ def _overnight_telegram(max_items=6):
     return _tg_spoken(sorted(rows, key=lambda r: r["ts"]), max_items)
 
 
-def _tg_spoken(rows, max_items=6):
-    def clean(t):
-        t = re.sub(r"\d{4,}", "", t)                                    # OTPs, card/phone numbers: never aloud
-        t = re.sub(r"[^\w\s.,:;!?'%&()/-]", " ", t)                    # emojis / symbols
-        t = re.sub(r"\s+([.,:;!?])", r"\1", " ".join(t.split()))[:160].rstrip(" .,:;")
-        return t if t.endswith(("?", "!")) else t + "."
-    seen, items = set(), []
+_TG_GROUPS = [   # (spoken name, pattern on the message start). Order matters: first match wins. Unmatched -> "other"
+    ("clip update", r"^(just posted|new short|clip|your clip|.*content rewards)"),
+    ("freelance message", r"^(contra|fiverr|upwork|micro1|.*\b(order|buyer|gig)\b)"),
+    ("day recap", r"^(day recap|night|recap)"),
+    ("device alert", r"^(table mic|bed mic|hub|room esp32|voice listening|pardon me|mic|esp32|nova)"),
+]
+
+
+def _tg_spoken(rows, max_items=None):
+    """Morning overview only (owner 2026-11-22): how many of each kind; the full texts stay on Telegram."""
+    seen, counts = set(), {}
     for r in rows:
-        c = clean(r["text"])
-        if len(c) > 2 and c not in seen: seen.add(c); items.append(c)
-    if not items:
+        t = " ".join(re.sub(r"[^\w\s]", " ", r["text"]).lower().split())
+        if len(t) < 3 or t in seen: continue
+        seen.add(t)
+        kind = next((k for k, pat in _TG_GROUPS if re.match(pat, t)), "other message")
+        counts[kind] = counts.get(kind, 0) + 1
+    if not counts:
         return ""
-    head = "Overnight, your Telegram bot sent %d message%s." % (len(items), "s" * (len(items) != 1))
-    more = " And %d more on Telegram." % (len(items) - max_items) if len(items) > max_items else ""
-    return " ".join([head] + items[:max_items]) + more
+    n = sum(counts.values())
+    parts = ["%d %s%s" % (c, k, "s" * (c != 1)) for k, c in sorted(counts.items(), key=lambda kc: -kc[1])]
+    listed = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+    return "Overnight, your Telegram bot sent %d message%s: %s. The details are on Telegram." % (n, "s" * (n != 1), listed)
+
 
 
 def wake_brief() -> str:

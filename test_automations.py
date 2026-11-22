@@ -183,3 +183,12 @@ except PermissionError: pass
 finally:
     if not _had: os.remove(_cf)
 print("routine debounce + camera privacy checks passed")
+
+# --- morning Telegram overview: counts per kind, never the texts (owner 2026-11-22) ---
+import nova as _nvt
+_r = [{"text": t} for t in ("Table mic quiet", "Bed mic back", "Just posted: clip 3", "Contra: new job",
+                             "Day recap: 4 clips", "Table mic quiet", "Something odd")]
+_o = _nvt._tg_spoken(_r); print(_o)
+assert _o.startswith("Overnight, your Telegram bot sent 6 messages: 2 device alerts") and "1 clip update" in _o \
+    and "1 freelance message" in _o and "1 day recap" in _o and "1 other message" in _o and "Contra" not in _o, _o
+assert _nvt._tg_spoken([]) == ""; print("tg overview ok")
