@@ -72,7 +72,7 @@ class Voice:
             # afplay occasionally dies instantly with AudioQueueStart (-66681) when the output device
             # is transitioning; retry once, then fall back to the built-in voice so speech is never lost.
             for attempt in (0, 1):
-                p = subprocess.Popen(["afplay", "-v", "1.0", path], stderr=subprocess.DEVNULL)
+                p = subprocess.Popen(["afplay", "-v", nova.voice_vol(), path], stderr=subprocess.DEVNULL)
                 time.sleep(0.12)
                 if p.poll() is None or p.returncode == 0:
                     return p                      # playing (or already finished cleanly)
@@ -223,7 +223,7 @@ class Voice:
                 t0 = time.time()
                 while self._local_talking and time.time() - t0 < 30: time.sleep(0.1)   # hub's own speech first
                 self._clip_on = True
-                self._say = subprocess.Popen(["afplay", path], stderr=subprocess.DEVNULL)
+                self._say = subprocess.Popen(["afplay", "-v", nova.voice_vol(), path], stderr=subprocess.DEVNULL)
                 self._say.wait()
             except Exception as e:
                 print("[hub] audio play failed: %s" % e, flush=True)

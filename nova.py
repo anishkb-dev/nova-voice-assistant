@@ -106,7 +106,7 @@ def _start(title, vid, path):
     try: track = _fade_in(path)
     except Exception: swallowed(); track = path              # no fade beats no music
     # afplay on both machines (the hub has no Homebrew/mpv); below full so the mics still hear "Nova" over it
-    _player = p = subprocess.Popen(["afplay", "-v", str(MUSIC_VOL), track],
+    _player = p = subprocess.Popen(["afplay", "-v", str(STUDY_MUSIC_VOL if studying() else MUSIC_VOL), track],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if vid: _played.add(vid)
     try: open(NOW_F, "w").write(title)
@@ -294,6 +294,16 @@ def mute(action: str = "toggle") -> str:
 _gesture_proc = None
 CAM_OFF_F = os.path.expanduser("~/anish-ai/.camera_off")   # exists = owner switched the camera off (survives restarts)
 VOICE_MUTE_F = os.path.expanduser("~/anish-ai/.voice_mute")   # hub: exists = Nova says nothing (deck Mute, owner 2026-11-22)
+
+STUDY_F = os.path.expanduser("~/anish-ai/.study_mode")    # hub flag, set by the study routine step
+STUDY_MUSIC_VOL, STUDY_VOICE_VOL = 0.15, 0.4               # calibration knobs: study mode = quiet music, soft Nova (owner 2026-11-22)
+
+def studying() -> bool:
+    return os.path.exists(STUDY_F)
+
+def voice_vol() -> str:
+    """afplay -v for Nova's speech: soft while studying (alarms don't use this, so they stay loud)."""
+    return str(STUDY_VOICE_VOL if studying() else 1.0)
 
 def voice_muted() -> bool:
     return os.path.exists(VOICE_MUTE_F)

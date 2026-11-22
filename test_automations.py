@@ -243,3 +243,15 @@ assert _lp.ACT_OK["nova_mute"] == "on|off" and not hasattr(_lp, "DECK")   # one 
 _hp = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "hub_page.html")).read()
 assert "act('nova_mute'" in _hp and "btn-nova-mute" in _hp
 print("fast mute ok")
+
+# --- study mode: never white light, quiet music, soft voice ---
+import json as _js
+_fr = _js.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "routines.json")))
+assert not any(x["do"] == "bulb" and x["arg"] in ("white", "cool", "daylight") for x in _fr["focus"]["steps"])
+assert {"do": "music", "arg": "stop"} in _fr["study_off"]["steps"] and any(x["do"] == "music" and x["arg"] != "stop" for x in _fr["focus"]["steps"])
+_sv = _nvt.STUDY_F
+try:
+    _nvt.STUDY_F = os.path.join(_tf2.mkdtemp(), ".study_mode"); assert _nvt.voice_vol() == "1.0"
+    open(_nvt.STUDY_F, "w").close(); assert float(_nvt.voice_vol()) < 1
+finally: _nvt.STUDY_F = _sv
+print("study quiet ok")

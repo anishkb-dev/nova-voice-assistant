@@ -88,6 +88,8 @@ class Automations:
             if nova.IS_HUB: subprocess.Popen(["pmset", "displaysleepnow"] if arg == "off" else ["caffeinate", "-u", "-t", "2"])
             else: nova._hub_send("display", arg)
             return "display " + str(arg)
+        if do == "music":                             # study: quiet background music; "stop" ends it
+            return nova.stop_music() if arg == "stop" else nova.play_music(str(arg))
         if do == "say":                               # spoken line from a routine (study break reminders)
             self._proactive(str(arg)); return "said"
         if do == "study":                             # study mode flag (hub): quiets freelance nags while you study
@@ -192,7 +194,7 @@ class Automations:
     _ASLEEP_F = os.path.expanduser("~/anish-ai/.asleep")   # HUB ONLY: exists = good night is on; survives restarts
     _AWAY_F = os.path.expanduser("~/anish-ai/.away")       # HUB ONLY: exists = you left; AC rules can't switch it on
 
-    _STUDY_F = os.path.expanduser("~/anish-ai/.study_mode")   # HUB ONLY: exists = "study mode" is on (owner 2026-11-22)
+    _STUDY_F = nova.STUDY_F   # HUB ONLY: exists = "study mode" is on (owner 2026-11-22)
 
     def _set_study(self, on):
         try: open(self._STUDY_F, "w").close() if on else os.path.exists(self._STUDY_F) and os.remove(self._STUDY_F)
