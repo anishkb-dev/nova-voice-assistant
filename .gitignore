@@ -91,3 +91,10 @@ supervisor.log
 .wiz_ip
 iot/NovaMac.app/Contents/MacOS/NovaPython
 .nova_collect
+
+# personal notes (kept on disk, never committed)
+freelance-watch-handoff.md
+clip-announce-handoff.md
+internship-handoff.md
+desk/
+OUTREACH.md
