@@ -192,3 +192,6 @@ _o = _nvt._tg_spoken(_r); print(_o)
 assert _o.startswith("Overnight, your Telegram bot sent 6 messages: 2 device alerts") and "1 clip update" in _o \
     and "1 freelance message" in _o and "1 day recap" in _o and "1 other message" in _o and "Contra" not in _o, _o
 assert _nvt._tg_spoken([]) == ""; print("tg overview ok")
+
+# --- relay board unplugged: fan/plug commands say so instead of a fake "turned on" ---
+assert "unplugged" in _nvt.iot_control("fan", "on") and "unplugged" in _nvt.iot_control("plug", "off"); print("relay msg ok")

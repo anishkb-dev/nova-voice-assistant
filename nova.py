@@ -697,6 +697,10 @@ import socket
 IS_HUB = socket.gethostname().split(".")[0] == "nova-hub"   # the always-on old Mac drives the room
 _IOT_BROKER = os.environ.get("NOVA_BROKER") or ("localhost" if IS_HUB else "nova-hub.local")
 
+# 3rd connect() arg = keepalive, not a timeout. It was 5 s: a busy hub (STT, goodnight burst) missed a ping,
+# the broker dropped the client mid-command -> "not currently connected" (AC skipped on goodnight 21+22 Nov).
+MQTT_KEEPALIVE = 60
+
 def mqtt_client(**kw):
     """paho client signed in as "nova" (broker refuses hub/mac topics to anonymous clients)."""
     import paho.mqtt.client as mqtt
@@ -715,13 +719,14 @@ def _hub_send(what, payload):
 def _pub(c, msgs):
     """Connect, publish each (topic, payload) with qos1 and wait for the broker's ack, then hang up.
     Fire-and-hang-up without the network loop got silently dropped by amqtt on the hub."""
-    c.connect(_IOT_BROKER, 1883, 5)
+    c.connect(_IOT_BROKER, 1883, MQTT_KEEPALIVE)
     c.loop_start()
     try:
         for t, p in msgs:
             c.publish(t, p, qos=1).wait_for_publish(3)
     finally:
         c.disconnect(); c.loop_stop()
+RELAY_REMOVED = True             # set False if the relay board goes back on the room node
 _IOT_DEVICES = {"fan", "plug"}   # relays. "light" = the WiZ bulb (wiz.py); relay K1's old LED strip is dead (2026-11-10)
 
 def iot_control(device: str, action: str) -> str:
@@ -738,6 +743,9 @@ def iot_control(device: str, action: str) -> str:
         if act == "toggle": act = "off" if wiz.state() == "on" else "on"
         said = wiz.bulb(act)
         if dev == "light": return ("Light turned " + act + ", sir.") if said.startswith("Bulb") else said
+    if RELAY_REMOVED:                # owner unplugged the relay board 2026-11-22: don't claim a fan/plug switched
+        return "Bulb turned %s, sir. The relay board is unplugged, so there's no fan or plug to switch." % act if dev == "all" \
+            else "The relay board is unplugged, sir, so I can't switch the %s." % dev
     c = mqtt_client()
     try:
         _pub(c, [(f"home/{_IOT_ROOM}/{t}/set", act) for t in (sorted(_IOT_DEVICES) if dev == "all" else [dev])])
@@ -781,7 +789,7 @@ def _mqtt_peek(topics, wait=1.2):
     c = mqtt_client()
     c.on_message = lambda c, u, m: got.__setitem__(m.topic, m.payload.decode()) if m.topic in topics else None
     try:
-        c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
+        c.connect(_IOT_BROKER, 1883, MQTT_KEEPALIVE); c.loop_start()
         for t in topics: c.subscribe(t)
         end = time.time() + wait
         while time.time() < end and len(got) < len(topics): time.sleep(0.05)
@@ -823,13 +831,15 @@ def _ac_echo(msgs, wait=AC_ECHO_S):
     """Publish AC commands; True once the ESP32 publishes a fresh (non-retained) AC state = it heard us."""
     got = threading.Event(); c = mqtt_client()
     c.on_message = lambda cl, u, m: m.retain or got.set()
-    c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
     try:
+        c.connect(_IOT_BROKER, 1883, MQTT_KEEPALIVE); c.loop_start()
         c.subscribe("home/room/ac", qos=1); time.sleep(0.3)      # retained copy arrives first and is ignored
         for k, (t, p) in enumerate(msgs):
             if k and k % (len(msgs) // AC_REPEAT or 1) == 0: time.sleep(AC_GAP_S)   # space the repeats out
             c.publish(t, p, qos=1).wait_for_publish(3)
         return got.wait(wait)
+    except (OSError, RuntimeError, ValueError) as e:              # dropped/refused connection = a miss -> ac() resends
+        print("[ac] publish failed: %s" % str(e)[:80], flush=True); return False
     finally:
         c.disconnect(); c.loop_stop()
 
@@ -1035,7 +1045,7 @@ def _proj_report():
         try: col = _PROJ_COLOURS[int(open(_PROJ_COL).read())]
         except Exception: col = ""
         txt = "off" if not on else " · ".join(x for x in ("on", col, "laser " + ("off" if os.path.exists(_PROJ_LASER_OFF) else "on")) if x)
-        c = mqtt_client(); c.connect(_IOT_BROKER, 1883, 5); c.loop_start()
+        c = mqtt_client(); c.connect(_IOT_BROKER, 1883, MQTT_KEEPALIVE); c.loop_start()
         c.publish("home/room/projector", txt, qos=1, retain=True).wait_for_publish(3)
         c.disconnect(); c.loop_stop()
     except Exception as e:
@@ -1109,7 +1119,7 @@ def iot_status() -> str:
     c = mqtt_client()
     c.on_message = on_msg
     try:
-        c.connect(_IOT_BROKER, 1883, 5)
+        c.connect(_IOT_BROKER, 1883, MQTT_KEEPALIVE)
         c.subscribe(f"home/{_IOT_ROOM}/#")           # telemetry + individual sensor/actuator topics
         c.loop_start(); _time.sleep(1.0); c.disconnect(); c.loop_stop()   # retained values land in ~0.1 s
     except Exception as e:

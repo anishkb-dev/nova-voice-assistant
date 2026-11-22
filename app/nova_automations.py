@@ -244,7 +244,7 @@ class Automations:
     def _pub_retained(topic, payload):
         try:
             c = nova.mqtt_client()
-            c.connect(nova._IOT_BROKER, 1883, 5); c.loop_start()
+            c.connect(nova._IOT_BROKER, 1883, nova.MQTT_KEEPALIVE); c.loop_start()
             c.publish(topic, payload, qos=1, retain=True).wait_for_publish(3)
             c.disconnect(); c.loop_stop()
         except Exception as e:
