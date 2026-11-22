@@ -293,6 +293,26 @@ def mute(action: str = "toggle") -> str:
 
 _gesture_proc = None
 CAM_OFF_F = os.path.expanduser("~/anish-ai/.camera_off")   # exists = owner switched the camera off (survives restarts)
+VOICE_MUTE_F = os.path.expanduser("~/anish-ai/.voice_mute")   # hub: exists = Nova says nothing (deck Mute, owner 2026-11-22)
+
+def voice_muted() -> bool:
+    return os.path.exists(VOICE_MUTE_F)
+
+def nova_mute(action: str = "toggle") -> str:
+    """Fast mute of Nova's VOICE: cut the current speech now and stay silent (replies, announcements, reminders) until
+    unmuted. Commands still run, music keeps playing, alarms still ring. action: on | off | toggle."""
+    a = (action or "toggle").lower()
+    if not IS_HUB:                                    # the voice plays on the hub's speaker
+        _hub_send("voicemute", a); return "Nova muted." if a in ("on", "mute") else "Sent."
+    on = (not voice_muted()) if a == "toggle" else a in ("on", "mute")
+    if on:
+        open(VOICE_MUTE_F, "w").close()
+        subprocess.run(["pkill", "-f", r"afplay( -v [0-9.]+)? /tmp/nova_(k_|tts_)"], capture_output=True)   # speech only, not music/alarm
+        subprocess.run(["killall", "say"], capture_output=True)
+        return "Nova muted."
+    if os.path.exists(VOICE_MUTE_F): os.remove(VOICE_MUTE_F)
+    return "Nova unmuted, sir."
+
 MIC_MUTE_F = os.path.expanduser("~/anish-ai/.mic_mute")    # netmic ignores these sender IPs; "*" = every mic
 
 HANDSFREE = None    # app's set_handsfree(on): the hub's own mic (set by nova_app)
@@ -1497,7 +1517,7 @@ def wake_brief() -> str:
 
 FUNCS = {"get_datetime": get_datetime, "open_app": open_app, "search_web": search_web,
          "play_music": play_music, "stop_music": stop_music, "play_playlist": play_playlist, "next_song": next_song, "pause_music": pause_music, "pick_song": pick_song, "camera_mic": camera_mic, "next_exam": next_exam, "clip_submitted": clip_submitted, "run_command": run_command,
-         "set_volume": set_volume, "mute": mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
+         "set_volume": set_volume, "mute": mute, "nova_mute": nova_mute, "get_weather": get_weather, "take_screenshot": take_screenshot,
          "notify": notify, "set_reminder": set_reminder, "system_status": system_status,
          "read_webpage": read_webpage, "create_reminder": create_reminder,
          "create_calendar_event": create_calendar_event, "send_imessage": send_imessage,

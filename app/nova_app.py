@@ -455,6 +455,8 @@ class Api(Voice, Brain, Automations):
                     self._auto_on = (val == "on"); print("[hub] automations", val, flush=True)
                 elif key == "away":
                     self._set_away(val == "on")
+                elif key == "voicemute":
+                    print("[hub]", nova.nova_mute(val), flush=True)
                 elif key == "study":
                     self._set_study(val == "on")
                 elif key == "stop":                       # Mac's stop button / interrupt

@@ -224,3 +224,20 @@ USER_SAYS = {"nova good night": "goodnight", "good nite": "goodnight", "im going
 _bad = {u: (want, (_mr(u) or ["-"])[0]) for u, want in USER_SAYS.items() if (_mr(u) or ["-"])[0] != want}
 assert not _bad, _bad
 print("user phrase sim ok (%d)" % len(USER_SAYS))
+
+# --- fast mute: flag toggles; the kill pattern hits Nova's speech, never music or the alarm ---
+import re as _re, tempfile as _tf2
+_nm = _nvt; _saved = (_nm.IS_HUB, _nm.VOICE_MUTE_F, _nm.subprocess.run); _ran = []
+_nm.IS_HUB, _nm.VOICE_MUTE_F = True, os.path.join(_tf2.mkdtemp(), ".voice_mute")
+_nm.subprocess.run = lambda cmd, **k: _ran.append(cmd)
+try:
+    assert _nm.nova_mute("on") == "Nova muted." and _nm.voice_muted()
+    assert _nm.nova_mute("toggle") == "Nova unmuted, sir." and not _nm.voice_muted()
+    _pat = [c for c in _ran if c[0] == "pkill"][0][2]
+    assert _re.search(_pat, "afplay /tmp/nova_k_2.wav") and _re.search(_pat, "afplay -v 1.0 /tmp/nova_tts_0.mp3")
+    assert not _re.search(_pat, "afplay -v 0.6 /tmp/nova_track.wav") and not _re.search(_pat, "afplay /Users/x/anish-ai/alarm.wav")
+finally:
+    _nm.IS_HUB, _nm.VOICE_MUTE_F, _nm.subprocess.run = _saved
+import light_panel as _lp
+assert [d[1] for d in _lp.DECK if d[2] == "nova_mute"] == ["Mute", "Unmute"]
+print("fast mute ok")

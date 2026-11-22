@@ -525,6 +525,7 @@ setInterval(async()=>{try{const s=await (await fetch("/state")).json();
 
 # ---------- touch deck (/deck): one button = one fixed Nova action. Works while the Nova app is off. ----------
 DECK = [   # (group, label, nova function, args) - add a button = add a line
+    ("Nova", "Mute", "nova_mute", ("on",)), ("Nova", "Unmute", "nova_mute", ("off",)),
     ("Ceiling", "On", "bulb", ("on",)), ("Ceiling", "Off", "bulb", ("off",)), ("Ceiling", "Warm", "bulb", ("warm",)),
     ("Ceiling", "Dim", "bulb", ("brightness 20",)), ("Ceiling", "Bright", "bulb", ("brightness 100",)),
     ("Strips", "On", "lights", ("on",)), ("Strips", "Off", "lights", ("off",)), ("Strips", "Warm", "lights", ("warm",)),
@@ -596,6 +597,8 @@ def _osa(cmd):
 def _deck_do(i):
     if not 0 <= i < len(DECK): return "Unknown button."
     _, label, fn, args = DECK[i]
+    if fn == "nova_mute":                              # fast: never waits behind a slow AC/BLE button
+        import nova; return str(nova.nova_mute(*args))
     with _deck_lock:                                   # one at a time: a double-tap can't fire a toggle twice in parallel
         try:
             import nova                                # lazy: ~2 s the first time, then cached

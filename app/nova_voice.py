@@ -20,6 +20,8 @@ class Voice:
     def speak(self, text):
         if not self.voice or not text:
             return
+        if nova.IS_HUB and nova.voice_muted():           # deck Mute: Nova stays silent until unmuted
+            print("[mute] held: %s" % text[:60], flush=True); return
         # Build a clean SPOKEN version (screen still shows the full text/code).
         spoken = re.sub(r"\bN\.?O\.?V\.?A\.?\b", "Nova", text, flags=re.IGNORECASE)
         spoken = re.sub(r"```.*?```", " The code is on your screen, sir. ",
@@ -203,6 +205,8 @@ class Voice:
         n = 0
         while True:
             wav = self._audio_q.get()
+            if nova.voice_muted():                   # deck Mute: drop the Mac's reply audio too
+                self._hub_speaking = False; continue
             if time.time() < self._mute_until:      # interrupted -> the rest of that reply is stale
                 self._hub_speaking = not self._audio_q.empty(); continue
             if not self._hub_speaking: self._table_voice(1)   # reply starts -> table strip follows the voice
