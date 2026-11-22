@@ -335,6 +335,8 @@ class Automations:
                 fire = moving and empty_for >= w.get("after_empty_min", 0) * 60   # on moving about in the room
             elif "no_motion_min" in w:
                 if last_move > st["last"]: st["armed"] = True        # you came back -> can fire again
+                if os.path.exists(nova.CAM_OFF_F): continue          # camera off = PIR alone, misses you sitting still
+                # (2026-11-22 it switched lights + AC off on the owner at the desk) -> "room empty" can't be trusted
                 fire = st["armed"] and not moving and t - last_move > w["no_motion_min"] * 60
             elif "temp_above" in w:
                 tc = d.get("temp")
