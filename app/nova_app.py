@@ -455,6 +455,8 @@ class Api(Voice, Brain, Automations):
                     self._auto_on = (val == "on"); print("[hub] automations", val, flush=True)
                 elif key == "away":
                     self._set_away(val == "on")
+                elif key == "study":
+                    self._set_study(val == "on")
                 elif key == "stop":                       # Mac's stop button / interrupt
                     self._mute_until = time.time() + 2    # drop WAV chunks still in flight
                     while self._audio_q and not self._audio_q.empty(): self._audio_q.get_nowait()

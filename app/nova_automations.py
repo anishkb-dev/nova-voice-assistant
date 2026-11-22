@@ -23,11 +23,9 @@ class Automations:
         exact.update({p.lower(): (n, r) for n, r in rs.items() if not n.startswith("_") for p in r.get("exact", [])})   # "sleep"
         if text.strip() in exact: return exact[text.strip()]          # "Nova, evening" = the routine
         if self.NOT_ROUTINE.search(text): return None                   # "remind me to wake up", "bedtime story", "how do I go to sleep"
-        for name, r in rs.items():
-            if name.startswith("_"):
-                continue
-            if text.strip() == name.lower() or any(" %s " % p.lower() in text for p in r.get("phrases", [])):   # "Nova, evening" = the routine
-                return (name, r)
+        hits = [(len(p), name, r) for name, r in rs.items() if not name.startswith("_")
+                for p in r.get("phrases", []) if " %s " % p.lower() in text]
+        if hits: return max(hits, key=lambda h: h[0])[1:]       # longest phrase wins: "study mode off" beats "study mode"
         return self._fuzzy_routine(rs, text.split())
 
     # a question, a reminder/alarm or a request that merely contains a routine phrase is not that routine (2026-11-18)
@@ -90,6 +88,12 @@ class Automations:
             if nova.IS_HUB: subprocess.Popen(["pmset", "displaysleepnow"] if arg == "off" else ["caffeinate", "-u", "-t", "2"])
             else: nova._hub_send("display", arg)
             return "display " + str(arg)
+        if do == "say":                               # spoken line from a routine (study break reminders)
+            self._proactive(str(arg)); return "said"
+        if do == "study":                             # study mode flag (hub): quiets freelance nags while you study
+            if nova.IS_HUB: self._set_study(arg in (True, "on"))
+            else: nova._hub_send("study", "on" if arg in (True, "on") else "off")
+            return "study " + str(arg)
         if do == "away":                              # leaving: no rule may turn the AC on until you're back
             if nova.IS_HUB: self._set_away(arg in (True, "on"))
             else: nova._hub_send("away", "on" if arg in (True, "on") else "off")
@@ -187,6 +191,13 @@ class Automations:
     AUTOMATIONS = os.path.expanduser("~/anish-ai/automations.json")
     _ASLEEP_F = os.path.expanduser("~/anish-ai/.asleep")   # HUB ONLY: exists = good night is on; survives restarts
     _AWAY_F = os.path.expanduser("~/anish-ai/.away")       # HUB ONLY: exists = you left; AC rules can't switch it on
+
+    _STUDY_F = os.path.expanduser("~/anish-ai/.study_mode")   # HUB ONLY: exists = "study mode" is on (owner 2026-11-22)
+
+    def _set_study(self, on):
+        try: open(self._STUDY_F, "w").close() if on else os.path.exists(self._STUDY_F) and os.remove(self._STUDY_F)
+        except OSError as e: print("[study] flag failed:", e, flush=True)
+        print("[study]", "on" if on else "off", flush=True)
 
     def _set_away(self, on):
         try:
@@ -286,7 +297,7 @@ class Automations:
         for name, r in rs.items():                                   # 1) timed routines
             if name.startswith("_") or not r.get("at"): continue
             if r["at"] == hm and self._ran_today.get(name) != today and self._days_ok(r.get("days"), now):
-                if name == "freelance_online" and __import__("exams").study_mode(now):   # IA-2 week: no nags
+                if name == "freelance_online" and (__import__("exams").study_mode(now) or os.path.exists(self._STUDY_F)):   # IA-2 week: no nags
                     self._ran_today[name] = today; print("[auto] timed routine skipped (study mode):", name, flush=True); continue
                 if (r.get("skip_when_away") and os.path.exists(self._AWAY_F)) or (r.get("skip_asleep") and not self._auto_on):
                     self._ran_today[name] = today; print("[auto] timed routine skipped (away/asleep):", name, flush=True); continue

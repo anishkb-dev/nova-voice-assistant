@@ -7,6 +7,7 @@ class F:  # minimal stand-in for Api: real tick/helpers, recorded side effects
     ROUTINES, AUTOMATIONS = A.ROUTINES, A.AUTOMATIONS
     _AWAY_F = os.path.join(__import__("tempfile").mkdtemp(), ".away")   # own flag files: never the real hub ones
     _AUTO_F = os.path.join(os.path.dirname(_AWAY_F), "auto_state.json")
+    _STUDY_F = os.path.join(os.path.dirname(_AWAY_F), ".study_mode")
     _days_ok, _in_window, _automation_tick = staticmethod(A._days_ok), staticmethod(A._in_window), A._automation_tick
     def __init__(s):
         s._auto_on, s._auto_state, s._ran_today = True, {}, {}
@@ -195,3 +196,19 @@ assert _nvt._tg_spoken([]) == ""; print("tg overview ok")
 
 # --- relay board unplugged: fan/plug commands say so instead of a fake "turned on" ---
 assert "unplugged" in _nvt.iot_control("fan", "on") and "unplugged" in _nvt.iot_control("plug", "off"); print("relay msg ok")
+
+# --- study mode: flag quiets freelance nags; routine has breaks every 50 min, off routine clears them ---
+k5 = F(); CUR.append(k5); k5._auto_on = True; open(F._STUDY_F, "w").close()
+k5._automation_tick(D(2026, 11, 26, 10, 30)); os.remove(F._STUDY_F)
+import json as _j; _R = _j.load(open(A.ROUTINES))
+_st = _R["focus"]["steps"]
+assert [x["after_min"] for x in _st if x["do"] == "say"] == [50, 60, 110, 120, 180] and {"do": "study", "arg": "on"} in _st
+assert {"do": "study", "arg": "off"} in _R["study_off"]["steps"] and "stop studying" in _R["study_off"]["phrases"]
+print("study mode ok")
+
+# --- longest phrase wins: "study mode off" must stop, not start, study mode ---
+_m = F(); _m.ROUTINES = A.ROUTINES; _m.NOT_ROUTINE = A.NOT_ROUTINE; _m._fuzzy_routine = A._fuzzy_routine.__get__(_m)
+_mr = lambda s: A._match_routine(_m, s)
+assert _mr("nova study mode off")[0] == "study_off" and _mr("study mode")[0] == "focus" and _mr("i'm done studying")[0] == "study_off"
+assert _mr("good night")[0] == "goodnight" and _mr("good evening")[0] == "evening"
+print("phrase match ok")
