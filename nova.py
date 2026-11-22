@@ -996,7 +996,7 @@ def light_panel() -> str:
         subprocess.Popen(["python3", os.path.expanduser("~/anish-ai/light_panel.py")],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(3)
-    subprocess.run(["open", url + "/panel"])
+    subprocess.run(["open", url + "/"])   # the hub page is the one deck now
     return "Opening the light panel, sir."
 
 _PROJ_ON = os.path.expanduser("~/anish-ai/.projector_on")                                   # exists = we think it's on

@@ -327,8 +327,6 @@ class H(http.server.BaseHTTPRequestHandler):
         if path == "/api/pause":                              # play/pause toggle: freezes/wakes the player on this hub
             import nova
             return self._send(json.dumps({"say": nova.pause_music()}))
-        if path == "/deck":
-            return self._send(DECK_PAGE, "text/html; charset=utf-8")
         if path == "/api/state":
             return self._send(json.dumps(_hub_state()))
         if path == "/api/act":                                 # ?f=ac&a=temp 25 - only whitelisted function + argument shapes
@@ -349,13 +347,9 @@ class H(http.server.BaseHTTPRequestHandler):
             return self._send(json.dumps({"say": "ok"}))
         if path == "/api/playlist":
             return self._send(json.dumps(_playlist()))
-        if path == "/panel":                                   # colour wheel, effects, listen, timer
-            return self._send(PAGE, "text/html; charset=utf-8")
         if path == "/vol":                                     # volume slider: ?v=0-100 sets; always returns the current level
             if "v" in q: _osa("set volume output volume %d" % max(0, min(100, g("v", 50))))
             return self._send(json.dumps({"v": int(_osa("output volume of (get volume settings)") or 0)}))
-        if path == "/do":                                      # deck button: only the fixed DECK list, by index
-            return self._send(json.dumps({"say": _deck_do(g("i", -1))}))
         if path == "/on":
             send(lights.ON); STATE["on"] = True
         elif path == "/off":
@@ -396,146 +390,8 @@ class H(http.server.BaseHTTPRequestHandler):
         return self._send('{"ok":true}')
 
 
-PAGE = r"""<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Nova Lights</title>
-<style>
-  :root{--bg:#07090e;--panel:#111722;--line:#223047;--ink:#e8eefc;--dim:#7d8aa3;
-    --accent:#22d3ee;--accent2:#ff8a3c;--ok:#39e08f;}
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-  body{margin:0;background:radial-gradient(900px 500px at 50% -10%,#101a2e,var(--bg));
-    color:var(--ink);font-family:ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
-    min-height:100dvh;padding:18px;display:flex;flex-direction:column;align-items:center;gap:16px}
-  h1{font-size:18px;letter-spacing:3px;font-weight:700;margin:4px 0 0;color:#fff}
-  h1 small{display:block;font-size:11px;letter-spacing:4px;color:var(--accent);font-weight:600;margin-top:2px}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:middle}
-  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
-  .card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);
-    border-radius:18px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
-  /* colour wheel */
-  .wheelwrap{display:flex;justify-content:center;margin:4px 0 10px}
-  #wheel{position:relative;width:240px;height:240px;border-radius:50%;cursor:pointer;touch-action:none;
-    background:
-      radial-gradient(circle,#fff 0%,rgba(255,255,255,0) 70%),
-      conic-gradient(red,#ff0,lime,cyan,blue,magenta,red);
-    box-shadow:0 0 0 3px var(--line),inset 0 0 40px rgba(0,0,0,.25)}
-  #mk{position:absolute;width:22px;height:22px;border-radius:50%;border:3px solid #fff;
-    transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(0,0,0,.6);left:50%;top:50%;pointer-events:none}
-  .row{display:flex;gap:8px;margin-top:10px}
-  .row.wrap{flex-wrap:wrap}
-  button{flex:1;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:1px;color:var(--ink);
-    background:#192234;border:1px solid var(--line);border-radius:12px;padding:12px 8px;cursor:pointer;transition:.1s}
-  button:active{transform:translateY(1px)}
-  button.p{background:var(--accent);color:#06121a;border-color:transparent}
-  button.o{background:var(--accent2);color:#1a0d04;border-color:transparent}
-  button.live{outline:2px solid var(--ok)}
-  .lbl{font-size:11px;letter-spacing:2px;color:var(--dim);margin:14px 0 6px;text-transform:uppercase}
-  input[type=range]{width:100%;accent-color:var(--accent)}
-  .swatch{width:34px;height:34px;border-radius:9px;border:2px solid var(--line);flex:none}
-  .fx{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  .fx button{padding:11px 4px;font-size:12px}
-  .timer{display:flex;gap:8px;align-items:center}
-  .timer input{width:70px;background:#192234;border:1px solid var(--line);color:var(--ink);
-    border-radius:10px;padding:10px;font-family:inherit;font-size:15px;text-align:center}
-  .t{font-size:12px;color:var(--dim);min-height:16px}
-</style></head><body>
-  <h1><span class="dot" id="cdot"></span>NOVA LIGHTS<small>BLUETOOTH · LOCAL</small></h1>
-
-  <div class="card">
-    <div class="wheelwrap"><div id="wheel"><div id="mk"></div></div></div>
-    <div class="row">
-      <button class="p" onclick="go('/on')">⏻ ON</button>
-      <div class="swatch" id="sw"></div>
-      <button onclick="go('/off')">OFF</button>
-    </div>
-
-    <div class="lbl">Brightness</div>
-    <input type="range" id="bri" min="1" max="100" value="100" oninput="bri(this.value)">
-
-    <div class="lbl">Effects</div>
-    <div class="fx">
-      <button onclick="fx('party')">Party</button>
-      <button onclick="fx('fade')">Fade</button>
-      <button onclick="fx('cycle')">Cycle</button>
-      <button onclick="fx('strobe')">Strobe</button>
-    </div>
-    <div class="lbl">Effect speed</div>
-    <input type="range" id="spd" min="1" max="100" value="50" oninput="spd(this.value)">
-
-    <div class="lbl">Volume <span id="vv"></span></div>
-    <input type="range" id="vol" min="0" max="100" value="50" oninput="$('#vv').textContent=this.value+'%'" onchange="setVol(this.value)">
-
-    <div class="lbl">Listen (music → colour)</div>
-    <div class="row"><button id="lbtn" class="o" onclick="toggleListen()">🎵 START LISTENING</button></div>
-
-    <div class="lbl">Auto-off timer</div>
-    <div class="timer">
-      <input type="number" id="min" placeholder="min" min="1" value="30">
-      <button onclick="timer()">Set</button>
-      <button onclick="go('/timer?min=0');msg('')">Cancel</button>
-    </div>
-    <div class="t" id="tmsg"></div>
-  </div>
-
-<script>
-const $=s=>document.querySelector(s);
-let listening=false;
-function go(p){return fetch(p).catch(()=>{});}
-function showVol(j){$('#vol').value=j.v;$('#vv').textContent=j.v+'%';}
-function setVol(v){fetch(`/vol?v=${v}`).then(r=>r.json()).then(showVol).catch(()=>{});}   // on release, not every pixel
-fetch('/vol').then(r=>r.json()).then(showVol).catch(()=>{});
-function msg(t){$("#tmsg").textContent=t;}
-
-// colour wheel
-const wheel=$("#wheel"), mk=$("#mk"), sw=$("#sw");
-let dragging=false, lastSend=0;
-function hsv2rgb(h,s,v){let f=(n,k=(n+h*6)%6)=>v-v*s*Math.max(Math.min(k,4-k,1),0);
-  return [f(5),f(3),f(1)].map(x=>Math.round(x*255));}
-function pick(e){
-  const r=wheel.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, R=r.width/2;
-  let x=e.clientX-cx, y=e.clientY-cy; let d=Math.hypot(x,y);
-  if(d>R){x*=R/d; y*=R/d; d=R;}                              // clamp inside the wheel
-  const sat=Math.min(1,d/R);
-  let hue=((Math.atan2(x,-y)*180/Math.PI)+360)%360/360;      // clockwise from TOP = conic-gradient order (red@top)
-  mk.style.left=(50+x/R*50)+"%"; mk.style.top=(50+y/R*50)+"%";  // marker sits under the finger
-  const [rr,gg,bb]=hsv2rgb(hue,sat,1); sw.style.background=`rgb(${rr},${gg},${bb})`;
-  const now=Date.now(); if(now-lastSend>70){lastSend=now; go(`/color?r=${rr}&g=${gg}&b=${bb}`); setListen(false);}
-}
-wheel.addEventListener("pointerdown",e=>{dragging=true;wheel.setPointerCapture(e.pointerId);pick(e);});
-wheel.addEventListener("pointermove",e=>{if(dragging)pick(e);});
-wheel.addEventListener("pointerup",e=>{dragging=false;pick(e);});
-
-function bri(v){go(`/brightness?v=${v}`);}
-function spd(v){go(`/speed?v=${v}`);}
-function fx(n){go(`/effect?name=${n}`);setListen(false);}
-function timer(){const m=+$("#min").value||0; if(m>0){go(`/timer?min=${m}`);msg(`Off in ${m} min.`);}}
-function setListen(on){listening=on; $("#lbtn").classList.toggle("live",on);
-  $("#lbtn").textContent=on?"🎵 LISTENING… (tap to stop)":"🎵 START LISTENING";}
-function toggleListen(){setListen(!listening); go(`/listen?on=${listening?1:0}`);}
-
-// poll state (connection dot + timer countdown)
-setInterval(async()=>{try{const s=await (await fetch("/state")).json();
-  $("#cdot").classList.toggle("on",s.connected);
-  if(s.timer>0)msg(`Off in ${Math.ceil(s.timer/60)} min.`);
-  if(s.listen!==listening)setListen(s.listen);
-}catch(e){}},1500);
-</script>
-</body></html>"""
 
 
-# ---------- touch deck (/deck): one button = one fixed Nova action. Works while the Nova app is off. ----------
-DECK = [   # (group, label, nova function, args) - add a button = add a line
-    ("Nova", "Mute", "nova_mute", ("on",)), ("Nova", "Unmute", "nova_mute", ("off",)),
-    ("Ceiling", "On", "bulb", ("on",)), ("Ceiling", "Off", "bulb", ("off",)), ("Ceiling", "Warm", "bulb", ("warm",)),
-    ("Ceiling", "Dim", "bulb", ("brightness 20",)), ("Ceiling", "Bright", "bulb", ("brightness 100",)),
-    ("Strips", "On", "lights", ("on",)), ("Strips", "Off", "lights", ("off",)), ("Strips", "Warm", "lights", ("warm",)),
-    ("Strips", "Party", "lights", ("party",)), ("Strips", "Blue", "lights", ("blue",)),
-    ("AC", "On", "ac", ("on",)), ("AC", "Off", "ac", ("off",)), ("AC", "24°", "ac", ("temp 24",)), ("AC", "26°", "ac", ("temp 26",)),
-    ("Fan", "On", "iot_control", ("fan", "on")), ("Fan", "Off", "iot_control", ("fan", "off")),
-    ("Projector", "Power", "projector", ("toggle",)), ("Projector", "Colour", "projector", ("colour",)),
-    ("Projector", "Laser", "projector", ("laser",)),
-    ("Music", "Stop", "stop_music", ()), ("Music", "Vol −", "set_volume", ("down",)), ("Music", "Vol +", "set_volume", ("up",)),
-]
 _deck_lock = threading.Lock()
 
 
@@ -552,12 +408,15 @@ ACT_OK = {     # function -> allowed argument shape (the page can only send thes
     "projector": r"on|off|toggle|colour|laser|laser on|laser off|brighter|dimmer|faster|slower|timer|reset|is on|is off|"
                  r"green|nebula|red|blue|green two|pink|aqua|rainbow",
     "fan": r"on|off",
+    "nova_mute": r"on|off",
 }
 
 
 def _hub_act(f, a):
     import re
     if f not in ACT_OK or not re.fullmatch(ACT_OK[f], a or ""): return "Not allowed."
+    if f == "nova_mute":                               # fast: never waits behind a slow AC/BLE button
+        import nova; return str(nova.nova_mute(a))
     with _deck_lock:
         try:
             import nova
@@ -573,7 +432,7 @@ def _hub_state():
     except OSError: title = ""
     playing = subprocess.run(["pgrep", "-f", "nova_track[.]"], capture_output=True).returncode == 0
     import nova
-    return {"room": ROOM, "playing": playing, "paused": playing and nova.music_paused(), "title": title if playing else "",
+    return {"room": ROOM, "muted": nova.voice_muted(), "playing": playing, "paused": playing and nova.music_paused(), "title": title if playing else "",
             "projector": os.path.exists(os.path.expanduser("~/anish-ai/.projector_on")),
             "strips": _strips_state(), "on": STATE.get("on"),
             "routines": [k for k, v in json.load(open(os.path.expanduser("~/anish-ai/routines.json"))).items()
@@ -594,65 +453,6 @@ def _osa(cmd):
     return subprocess.run(["osascript", "-e", cmd], capture_output=True, text=True).stdout.strip()
 
 
-def _deck_do(i):
-    if not 0 <= i < len(DECK): return "Unknown button."
-    _, label, fn, args = DECK[i]
-    if fn == "nova_mute":                              # fast: never waits behind a slow AC/BLE button
-        import nova; return str(nova.nova_mute(*args))
-    with _deck_lock:                                   # one at a time: a double-tap can't fire a toggle twice in parallel
-        try:
-            import nova                                # lazy: ~2 s the first time, then cached
-            return str(nova.FUNCS[fn](*args))
-        except Exception as e:
-            print("[deck]", fn, args, e, flush=True); return "%s failed: %s" % (label, str(e)[:60])
-
-
-def _deck_page():
-    import html, itertools
-    out = []
-    for grp, items in itertools.groupby(enumerate(DECK), key=lambda x: x[1][0]):
-        btns = "".join('<button data-i="%d">%s</button>' % (i, html.escape(d[1])) for i, d in items)
-        out.append('<section><h2>%s</h2><div class="row">%s</div></section>' % (html.escape(grp), btns))
-    return DECK_HTML.replace("{{BODY}}", "".join(out))
-
-
-DECK_HTML = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Nova Deck</title>
-<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0b0908">
-<style>
-:root{--bg:#0b0908;--tile:#1a1512;--tile2:#241c17;--fg:#ffdbc9;--dim:#a08a7c;--acc:#ff9a42}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.3 -apple-system,system-ui,sans-serif;padding:16px 16px 90px;user-select:none}
-h1{font-size:20px;margin:4px 0 14px;color:var(--acc);letter-spacing:.5px}
-h2{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin:18px 0 8px}
-.row{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
-button{height:84px;border:1px solid #2e241d;border-radius:16px;background:var(--tile);color:var(--fg);font:600 17px system-ui,sans-serif;touch-action:manipulation}
-button:active{background:var(--tile2);transform:scale(.96)}
-button.busy{border-color:var(--acc);color:var(--acc)}
-#toast{position:fixed;left:16px;right:16px;bottom:16px;padding:14px 16px;border-radius:14px;background:#241c17;border:1px solid #3a2d24;opacity:0;transition:opacity .2s}
-#toast.on{opacity:1}
-.vol{display:flex;align-items:center;gap:12px;background:var(--tile);border:1px solid #2e241d;border-radius:16px;padding:14px 16px}
-.vol input{flex:1;height:36px;accent-color:var(--acc)}
-.vol b{min-width:48px;text-align:right;color:var(--acc)}
-a.more{display:block;margin-top:22px;text-align:center;color:var(--dim)}
-</style></head><body><h1>NOVA</h1>
-<section><h2>Volume</h2><div class="vol">🔉<input type="range" id="vol" min="0" max="100" value="50">🔊<b id="vv"></b></div></section>
-{{BODY}}<a class="more" href="/panel">🎨 Colour wheel, effects &amp; music-listen →</a><div id="toast"></div>
-<script>
-const t=document.getElementById("toast");let h;
-const vol=document.getElementById("vol"),vv=document.getElementById("vv");
-const showVol=j=>{vol.value=j.v;vv.textContent=j.v+"%"};
-fetch("/vol").then(r=>r.json()).then(showVol).catch(()=>{});
-vol.oninput=()=>vv.textContent=vol.value+"%";
-vol.onchange=()=>fetch("/vol?v="+vol.value).then(r=>r.json()).then(showVol).catch(()=>{});   // on release
-document.querySelectorAll("button[data-i]").forEach(b=>b.onclick=async()=>{
-  if(b.classList.contains("busy"))return; b.classList.add("busy");
-  try{const r=await (await fetch("/do?i="+b.dataset.i)).json();t.textContent=r.say}catch(e){t.textContent="Hub not reachable."}
-  b.classList.remove("busy");t.classList.add("on");clearTimeout(h);h=setTimeout(()=>t.classList.remove("on"),3000);
-});
-</script></body></html>"""
-DECK_PAGE = _deck_page()
-assert DECK_PAGE.count("data-i=") == len(DECK) and "{{BODY}}" not in DECK_PAGE and 'id="vol"' in DECK_PAGE   # self-check: every button rendered
 
 
 def main():

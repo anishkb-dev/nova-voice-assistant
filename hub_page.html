@@ -655,6 +655,8 @@
   .effects-grid .btn,.device-block-proj .btn{font-size:13px!important;padding-left:2px!important;padding-right:2px!important}
   html,body{overflow:hidden}
 .chip{font-size:0!important}.transport-grid{grid-template-rows:1fr 1fr .7fr!important}.effects-grid{grid-template-rows:1fr!important}.modes-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:repeat(2,1fr)!important}
+.mute-btn{flex:0 0 auto;font-size:10px!important;padding:2px 8px!important;height:auto!important;min-height:0!important;line-height:1.4}
+.mute-btn.active{background:#c0392b!important;color:#fff!important;border-color:#c0392b!important}
 </style></head>
 <body>
 <div class="deck-container">
@@ -797,6 +799,7 @@
 <svg class="ico" viewbox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path></svg>
     Music Deck
   </div>
+<button class="btn mute-btn" id="btn-nova-mute" onclick="act('nova_mute', st.muted ? 'off' : 'on')">🔇 Mute Nova</button>
 <div class="col-status" id="music-status-tag" style="color:var(--green-active)">Playing</div>
 </div>
 <!-- Compact Now Playing Card -->
@@ -954,6 +957,7 @@
       tag.style.color = st.playing && !st.paused ? 'var(--green-active)' : 'var(--text-muted)';
       $('play-pause-icon').innerText = st.playing && !st.paused ? '⏸' : '▶';
       on('btn-play-pause', st.playing && !st.paused);
+      on('btn-nova-mute', st.muted); $('btn-nova-mute').innerText = st.muted ? '🔇 Muted · tap to unmute' : '🔇 Mute Nova';
     } catch (e) {}
     try {
       const l = await (await fetch('/state')).json();

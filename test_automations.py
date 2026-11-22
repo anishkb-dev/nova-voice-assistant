@@ -239,5 +239,7 @@ try:
 finally:
     _nm.IS_HUB, _nm.VOICE_MUTE_F, _nm.subprocess.run = _saved
 import light_panel as _lp
-assert [d[1] for d in _lp.DECK if d[2] == "nova_mute"] == ["Mute", "Unmute"]
+assert _lp.ACT_OK["nova_mute"] == "on|off" and not hasattr(_lp, "DECK")   # one deck: the hub page
+_hp = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "hub_page.html")).read()
+assert "act('nova_mute'" in _hp and "btn-nova-mute" in _hp
 print("fast mute ok")
